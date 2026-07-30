@@ -1,5 +1,10 @@
 import { keeperSummary } from "./keeperModel.js";
 import { loadHistoricalAuctionRecords } from "./data/parseHistoricalBoards.js";
+import {
+  buildLeagueOpenAuctionSpendTargets,
+  buildOwnerProfiles,
+  defaultHistoricalWeights,
+} from "./modeling/ownerProfiles.js";
 import { loadEspnWeeksOneToFour } from "./projections.js";
 
 const command = process.argv[2];
@@ -13,6 +18,17 @@ const countBySeason = (records: { season: number }[]): Record<number, number> =>
 const main = async (): Promise<void> => {
   if (command === "keepers") {
     console.log(JSON.stringify(keeperSummary(), null, 2));
+    return;
+  }
+
+  if (command === "profiles") {
+    const historicalRecords = await loadHistoricalAuctionRecords();
+
+    console.log(JSON.stringify({
+      weights: defaultHistoricalWeights,
+      profiles: buildOwnerProfiles(historicalRecords),
+      openAuctionSpendTargets: buildLeagueOpenAuctionSpendTargets(historicalRecords),
+    }, null, 2));
     return;
   }
 
@@ -32,7 +48,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run validate | npm run mock");
+  console.log("Usage: npm run keepers | npm run profiles | npm run validate | npm run mock");
 };
 
 main().catch(error => {

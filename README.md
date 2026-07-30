@@ -28,6 +28,7 @@ This repository captures the reusable foundation behind the analysis previously 
 npm install
 npm test
 npm run validate
+npm run profiles
 npm run keepers
 ```
 
@@ -49,13 +50,30 @@ season,owner,rosterRow,originalPlayerName,normalizedPlayerName,position,price,is
 
 Keeper rows come from roster row `1` for each owner. `DEF` is normalized to `DST`. Seth's missing 2023 sixteenth slot is represented as a $1 Seattle Seahawks post-draft waiver DST placeholder.
 
+## Owner Profiles
+
+Owner profiles are generated from the normalized historical boards with recency weights:
+
+```text
+2023 = 20%
+2024 = 30%
+2025 = 50%
+```
+
+Run:
+
+```bash
+npm run profiles
+```
+
+The profile output includes each owner's weighted open-auction spend by QB/RB/WR/TE, normal K/DST spending, top-two concentration, $1 player tendency, average keeper cost, and derived profile label. Known execution-error bids, such as Tye's 2025 $29 kicker budget dump, are excluded from normal K/DST calibration while remaining part of the raw historical board.
+
 ## Next implementation work
 
-1. Port normalized historical owner-profile calculations from the workbook into TypeScript.
-2. Port audited base pricing and keeper-scenario repricing.
-3. Port the 50-mock generator from the current workbook process.
-4. Add deterministic random seeds and snapshot tests.
-5. Generate Excel/CSV outputs directly from the codebase.
+1. Port audited base pricing and keeper-scenario repricing.
+2. Port the 50-mock generator from the current workbook process.
+3. Add deterministic random seeds and snapshot tests.
+4. Generate Excel/CSV outputs directly from the codebase.
 
 ## Push to GitHub
 

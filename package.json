@@ -9,6 +9,7 @@
     "test:watch": "vitest",
     "validate": "tsx src/cli.ts validate",
     "keepers": "tsx src/cli.ts keepers",
+    "profiles": "tsx src/cli.ts profiles",
     "mock": "tsx src/cli.ts mock"
   },
   "devDependencies": {
