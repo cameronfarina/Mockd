@@ -10,6 +10,9 @@
     "validate": "tsx src/cli.ts validate",
     "keepers": "tsx src/cli.ts keepers",
     "profiles": "tsx src/cli.ts profiles",
+    "rankings": "tsx src/cli.ts rankings",
+    "prices": "tsx src/cli.ts prices",
+    "scenarios": "tsx src/cli.ts scenarios",
     "mock": "tsx src/cli.ts mock"
   },
   "devDependencies": {

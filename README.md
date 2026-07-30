@@ -11,6 +11,9 @@ This repository captures the reusable foundation behind the analysis previously 
 - 2026 ESPN Weeks 1–4 projections
 - keeper-cost logic (`ceil(previous price × 1.20)`)
 - current keeper declarations and assumptions
+- projection rank anchors, ESPN ranks, auction values, and rank gaps
+- audited pre-keeper prices reconciled to historical open-auction spend
+- confirmed-only, expected, and high-retention keeper inflation scenarios
 - legal lineup optimization performed **after** the full roster is built
 - validation guards for duplicate players, budget, roster size, and position limits
 - the current validated Excel model as an output artifact
@@ -29,6 +32,9 @@ npm install
 npm test
 npm run validate
 npm run profiles
+npm run rankings
+npm run prices
+npm run scenarios
 npm run keepers
 ```
 
@@ -68,12 +74,34 @@ npm run profiles
 
 The profile output includes each owner's weighted open-auction spend by QB/RB/WR/TE, normal K/DST spending, top-two concentration, $1 player tendency, average keeper cost, and derived profile label. Known execution-error bids, such as Tye's 2025 $29 kicker budget dump, are excluded from normal K/DST calibration while remaining part of the raw historical board.
 
+## Projection, Pricing, And Inflation
+
+Run:
+
+```bash
+npm run rankings
+npm run prices
+npm run scenarios
+```
+
+`rankings` labels the model rank as the positional order by ESPN Weeks 1-4 `appliedTotal`. Rank gap is `projectionRank - espnRank`, so negative gaps mean the Weeks 1-4 projection order is higher than ESPN's visible PPR draft rank.
+
+`prices` builds pre-keeper prices from uploaded/imported inputs: public auction value anchors, league-calibrated position multipliers, capped rank-gap adjustments, role-sustainability overrides, historical spend reconciliation, and hard position ceilings. The current defaults reproduce this league's audited drafted-pool counts and spend targets, but the engine accepts new historical records and config for future leagues.
+
+`scenarios` removes known keepers from the priced auction pool and applies confirmed-only, expected, and high-retention inflation factors. Scenario counts and average keeper costs are config-driven so unannounced keepers are not assigned to owners.
+
+When redirecting command output into JSON artifacts, use npm's silent mode:
+
+```bash
+npm run --silent prices > data/processed/player-prices.json
+npm run --silent scenarios > data/processed/keeper-scenarios.json
+```
+
 ## Next implementation work
 
-1. Port audited base pricing and keeper-scenario repricing.
-2. Port the 50-mock generator from the current workbook process.
-3. Add deterministic random seeds and snapshot tests.
-4. Generate Excel/CSV outputs directly from the codebase.
+1. Port the 50-mock generator from the current workbook process.
+2. Add deterministic random seeds and snapshot tests.
+3. Generate Excel/CSV outputs directly from the codebase.
 
 ## Push to GitHub
 

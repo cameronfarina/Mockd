@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
+import { buildBasePrices, defaultPricingConfig, summarizePricePool } from "../src/modeling/basePricing.js";
+import { loadEspnWeeksOneToFour } from "../src/projections.js";
+
+const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+
+const expectPriceBetween = (actual: number, low: number, high: number): void => {
+  expect(actual).toBeGreaterThanOrEqual(low);
+  expect(actual).toBeLessThanOrEqual(high);
+};
+
+describe("audited base pricing", () => {
+  it("reconciles public anchor prices to the configured league market", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const prices = buildBasePrices(projections, historicalRecords);
+    const summary = summarizePricePool(prices);
+
+    expect(summary.counts).toEqual(defaultPricingConfig.draftedPoolCounts);
+    expect(summary.spend).toEqual(defaultPricingConfig.auditedSpendTargets);
+
+    for (const price of prices) {
+      expect(price.price).toBeGreaterThanOrEqual(1);
+      expect(price.price).toBeLessThanOrEqual(defaultPricingConfig.hardPriceCeilings[price.position]);
+      expect(price.rankGapAdjustment).toBeGreaterThanOrEqual(0.88);
+      expect(price.rankGapAdjustment).toBeLessThanOrEqual(1.12);
+      expect(price.marketPressure).toBeGreaterThanOrEqual(0.97);
+      expect(price.marketPressure).toBeLessThanOrEqual(1.05);
+    }
+  });
+
+  it("keeps known audited examples in realistic league-specific ranges", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const byName = new Map(
+      buildBasePrices(projections, historicalRecords).map(price => [price.name, price]),
+    );
+
+    expectPriceBetween(byName.get("Jahmyr Gibbs")!.price, 68, 72);
+    expectPriceBetween(byName.get("Bijan Robinson")!.price, 67, 71);
+    expectPriceBetween(byName.get("Puka Nacua")!.price, 67, 71);
+    expectPriceBetween(byName.get("Ja'Marr Chase")!.price, 66, 70);
+    expectPriceBetween(byName.get("Jaxon Smith-Njigba")!.price, 66, 70);
+    expectPriceBetween(byName.get("Christian McCaffrey")!.price, 64, 69);
+    expectPriceBetween(byName.get("Amon-Ra St. Brown")!.price, 63, 68);
+    expectPriceBetween(byName.get("CeeDee Lamb")!.price, 61, 66);
+    expect(byName.get("Josh Allen")!.price).toBe(35);
+    expect(byName.get("Trey McBride")!.price).toBe(38);
+
+    const jadarian = byName.get("Jadarian Price")!;
+    expect(Math.round(jadarian.preSustainabilityPrice)).toBe(22);
+    expect(jadarian.sustainabilityFactor).toBe(0.68);
+    expect(jadarian.price).toBe(15);
+  });
+});

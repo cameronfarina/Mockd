@@ -85,6 +85,8 @@ The model transparently labels projection rank as positional order by Weeks 1-4 
 
 If current code on main contradicts this slice, follow the code.
 
+Status: implemented on `codex/pricing-core`.
+
 ## [4] Reproduce Audited Base Pricing
 
 - Type: Feature
@@ -113,6 +115,8 @@ Prices start from ESPN auction value, then apply position multipliers, capped ra
 
 If current code on main contradicts this slice, follow the code.
 
+Status: implemented on `codex/pricing-core`.
+
 ## [5] Apply Keeper Inflation Scenarios
 
 - Type: Feature
@@ -140,6 +144,8 @@ Confirmed and assumed keeper declarations drive open-auction dollars and positio
 ### Notes For Agents
 
 If current code on main contradicts this slice, follow the code.
+
+Status: implemented on `codex/pricing-core`.
 
 ## [6] Simulate Deterministic Auction Drafts
 

@@ -52,6 +52,8 @@ Acceptance criteria:
 - The source league caveat is explicit: projections came from league `278452`, while history is league `214674`; scoring rules are equivalent.
 - No historical ownership or price data is taken from ESPN exports.
 
+Status: implemented on `codex/pricing-core`.
+
 ### 4. Audited Base Pricing
 
 Anchor prices to ESPN auction value, apply position market multipliers, rank-gap adjustments, sustainability overrides, spend reconciliation, and hard price ceilings.
@@ -62,6 +64,8 @@ Acceptance criteria:
 - Known audited examples such as Gibbs, Bijan, Puka, Chase, Josh Allen, and Trey McBride match expected ranges.
 - Owner multipliers are not directly applied as large player-price multipliers.
 
+Status: implemented on `codex/pricing-core`.
+
 ### 5. Keeper State And Inflation Scenarios
 
 Keep declarations editable, remove kept players from the auction pool, and calculate global plus positional inflation for confirmed-only, expected, and high-retention scenarios.
@@ -71,6 +75,8 @@ Acceptance criteria:
 - Confirmed, assumed, pending, and open statuses are represented.
 - Scenario factors are transparent and derived from declared keeper counts and open auction dollars.
 - Open-auction assumptions do not assign unannounced players to owners.
+
+Status: implemented on `codex/pricing-core`.
 
 ### 6. Auction Simulation Engine
 

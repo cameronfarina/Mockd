@@ -52,3 +52,5 @@ export const leagueConfig = {
 } as const;
 
 export type Position = "QB" | "RB" | "WR" | "TE" | "K" | "DST";
+
+export const positions = ["QB", "RB", "WR", "TE", "K", "DST"] as const satisfies readonly Position[];

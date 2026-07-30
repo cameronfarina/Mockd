@@ -1,12 +1,15 @@
-export type KeeperStatus = "confirmed" | "assumed";
+import type { Owner, Position } from "./league.js";
+
+export type KeeperStatus = "confirmed" | "assumed" | "pending" | "open";
 
 export interface KeeperDeclaration {
-  owner: string;
+  owner: Owner;
   player: string;
-  position: "QB" | "RB" | "WR" | "TE" | "K" | "DST";
+  position: Position;
   priorCost: number;
   newCost: number;
   status: KeeperStatus;
+  notes?: string;
 }
 
 export const keeperCost = (priorCost: number): number => Math.ceil(priorCost * 1.2);

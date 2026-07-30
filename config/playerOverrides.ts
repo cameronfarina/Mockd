@@ -26,6 +26,51 @@ export const playerOverrides: PlayerOverride[] = [
     note: "Committee-sensitive workload.",
   },
   {
+    player: "Aaron Jones",
+    sustainabilityFactor: 0.95,
+    note: "Age and workload durability adjustment.",
+  },
+  {
+    player: "Chuba Hubbard",
+    sustainabilityFactor: 0.95,
+    note: "Backfield competition and role-fragility adjustment.",
+  },
+  {
+    player: "Christian Watson",
+    sustainabilityFactor: 0.95,
+    note: "Availability and target-volume volatility adjustment.",
+  },
+  {
+    player: "Harold Fannin Jr.",
+    sustainabilityFactor: 0.9,
+    note: "Early-career tight end role uncertainty.",
+  },
+  {
+    player: "Jordyn Tyson",
+    sustainabilityFactor: 0.9,
+    note: "Projection-driven role is not fully established.",
+  },
+  {
+    player: "Kyle Monangai",
+    sustainabilityFactor: 0.95,
+    note: "Backfield role is plausible but not yet stable.",
+  },
+  {
+    player: "Rhamondre Stevenson",
+    sustainabilityFactor: 0.95,
+    note: "Pre-keeper role-risk adjustment.",
+  },
+  {
+    player: "J.K. Dobbins",
+    sustainabilityFactor: 0.9,
+    note: "Durability and backfield-role risk.",
+  },
+  {
+    player: "Kenny Gainwell",
+    sustainabilityFactor: 0.85,
+    note: "Projection spike is role-sensitive behind Bucky Irving.",
+  },
+  {
     player: "Tucker Kraft",
     sustainabilityFactor: 0.9,
     note: "ACL recovery and early-season availability risk.",
