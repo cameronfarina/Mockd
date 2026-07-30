@@ -1,3 +1,22 @@
+export const ownerOrder = [
+  "Beaton",
+  "Hoody",
+  "PJ",
+  "Seth",
+  "Jakub",
+  "Tye",
+  "Chip",
+  "CJ",
+  "Kenny",
+  "Russ",
+  "Cam",
+  "Sam",
+  "Martins",
+  "Mello",
+] as const;
+
+export type Owner = (typeof ownerOrder)[number];
+
 export const leagueConfig = {
   leagueId: 214674,
   teams: 14,

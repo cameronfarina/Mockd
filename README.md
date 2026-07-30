@@ -31,9 +31,9 @@ npm run validate
 npm run keepers
 ```
 
-## Data still to normalize into the repo
+## Historical Data
 
-The three historical manual boards currently exist in the conversation and in derived workbooks, but not yet as clean CSV files in this bundle. Add them as:
+The manually exported draft boards are committed as source inputs:
 
 ```text
 data/raw/2023-board.csv
@@ -41,13 +41,13 @@ data/raw/2024-board.csv
 data/raw/2025-board.csv
 ```
 
-Recommended columns:
+The TypeScript parser converts each wide draft-board CSV into normalized records with this schema:
 
 ```text
-season,owner,rosterRow,player,position,price,keeper,acquisition
+season,owner,rosterRow,originalPlayerName,normalizedPlayerName,position,price,isKeeper,acquisitionType,source
 ```
 
-Seth's 2023 sixteenth slot should be represented as a $1 post-draft waiver placeholder, not as a drafted player.
+Keeper rows come from roster row `1` for each owner. `DEF` is normalized to `DST`. Seth's missing 2023 sixteenth slot is represented as a $1 Seattle Seahawks post-draft waiver DST placeholder.
 
 ## Next implementation work
 
