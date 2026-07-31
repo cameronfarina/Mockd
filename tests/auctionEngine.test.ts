@@ -218,6 +218,45 @@ describe("auction engine economics", () => {
     expect(target.price).toBe(40);
   });
 
+  it("raises bids for cash-heavy owners late in the auction", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 4,
+      rosterMaximums: positionAmounts(4),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      seed: "endgame-pressure",
+    });
+    const ownerStates = createAuctionOwnerStates({
+      config,
+      initialRostersByOwner: {
+        Beaton: [
+          player("Beaton bench RB", "RB", 1),
+          player("Beaton bench WR", "WR", 1),
+          player("Beaton bench TE", "TE", 1),
+        ],
+        Hoody: [
+          player("Hoody starter RB", "RB", 40),
+          player("Hoody starter WR", "WR", 35),
+          player("Hoody bench TE", "TE", 10),
+        ],
+      },
+    });
+    const target = player("Late useful WR", "WR", 20);
+    const sale = resolveAuctionSale(target, ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    expect(beatonBid).toBeDefined();
+    expect(beatonBid?.endgamePressureMultiplier).toBeGreaterThan(1);
+    expect(beatonBid?.uncappedAmount).toBeGreaterThan(target.price);
+  });
+
   it("builds valid full-roster mocks from expected keepers and owner-local budgets", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();

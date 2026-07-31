@@ -38,6 +38,13 @@ export interface NominationConfig {
   tieBreakWeight: number;
 }
 
+export interface EndgameSpendConfig {
+  startRosterSlotsRemaining: number;
+  targetBudgetPerSlot: number;
+  slope: number;
+  maxMultiplier: number;
+}
+
 export interface OwnerAuctionBehavior {
   priceAggression: number;
   scarcityChase: number;
@@ -58,16 +65,18 @@ export interface AuctionEngineConfig {
   scarcity: ScarcityConfig;
   rosterNeed: RosterNeedConfig;
   nomination: NominationConfig;
+  endgameSpend: EndgameSpendConfig;
   seed: string;
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "scarcity" | "rosterNeed" | "nomination">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
     scarcity?: Partial<ScarcityConfig>;
     rosterNeed?: Partial<RosterNeedConfig>;
     nomination?: Partial<NominationConfig>;
+    endgameSpend?: Partial<EndgameSpendConfig>;
   };
 
 export interface AuctionOwnerState {
@@ -91,6 +100,7 @@ export interface AuctionBid {
   behaviorAggressionMultiplier: number;
   behaviorScarcityMultiplier: number;
   replacementPatienceMultiplier: number;
+  endgamePressureMultiplier: number;
   tieBreak: number;
 }
 
@@ -218,6 +228,12 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     flushMoneyWeight: 0.5,
     tieBreakWeight: 0.001,
   },
+  endgameSpend: {
+    startRosterSlotsRemaining: 4,
+    targetBudgetPerSlot: 12,
+    slope: 0.18,
+    maxMultiplier: 1.25,
+  },
   seed: defaultSeed,
 };
 
@@ -251,6 +267,10 @@ export const buildAuctionConfig = (
   nomination: {
     ...defaultAuctionEngineConfig.nomination,
     ...overrides.nomination,
+  },
+  endgameSpend: {
+    ...defaultAuctionEngineConfig.endgameSpend,
+    ...overrides.endgameSpend,
   },
 });
 
@@ -489,6 +509,29 @@ const scarcityMultiplierFor = (
   );
 };
 
+const endgamePressureMultiplierFor = (
+  state: AuctionOwnerState,
+  config: AuctionEngineConfig,
+): number => {
+  if (state.rosterSlotsRemaining <= 0) return 1;
+  if (state.rosterSlotsRemaining > config.endgameSpend.startRosterSlotsRemaining) return 1;
+
+  const budgetPerSlot = state.budgetRemaining / state.rosterSlotsRemaining;
+  if (budgetPerSlot <= config.endgameSpend.targetBudgetPerSlot) return 1;
+
+  const excessBudgetRatio = (budgetPerSlot - config.endgameSpend.targetBudgetPerSlot) /
+    config.endgameSpend.targetBudgetPerSlot;
+  const urgency = (
+    config.endgameSpend.startRosterSlotsRemaining - state.rosterSlotsRemaining + 1
+  ) / config.endgameSpend.startRosterSlotsRemaining;
+
+  return clamp(
+    1 + excessBudgetRatio * urgency * config.endgameSpend.slope,
+    1,
+    config.endgameSpend.maxMultiplier,
+  );
+};
+
 const bidForOwner = (
   state: AuctionOwnerState,
   player: Player,
@@ -502,6 +545,7 @@ const bidForOwner = (
   const replacementPatienceMultiplier = player.price <= replacementPatiencePriceThreshold
     ? ownerBehavior.replacementPatience
     : 1;
+  const endgamePressureMultiplier = endgamePressureMultiplierFor(state, config);
   const uncappedAmount = Math.max(
     config.minimumBid,
     Math.round(
@@ -510,7 +554,8 @@ const bidForOwner = (
       rosterNeedMultiplier *
       behaviorScarcityMultiplier *
       ownerBehavior.priceAggression *
-      replacementPatienceMultiplier,
+      replacementPatienceMultiplier *
+      endgamePressureMultiplier,
     ),
   );
 
@@ -526,6 +571,7 @@ const bidForOwner = (
     behaviorAggressionMultiplier: ownerBehavior.priceAggression,
     behaviorScarcityMultiplier,
     replacementPatienceMultiplier,
+    endgamePressureMultiplier,
     tieBreak: deterministicTieBreak(config.seed, state.owner, player.name),
   };
 };
