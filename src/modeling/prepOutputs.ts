@@ -9,6 +9,10 @@ import {
   type EvidenceCoverageAudit,
 } from "./playerEvidenceCoverage.js";
 import {
+  keeperScenarioSensitivityCsv,
+  type KeeperScenarioSensitivityReport,
+} from "./keeperScenarioSensitivity.js";
+import {
   playerEvidenceQueueCsv,
   type PlayerEvidenceQueue,
 } from "./playerEvidenceQueue.js";
@@ -33,6 +37,7 @@ export interface BuildPrepOutputArtifactsOptions {
   evidenceQueue?: PlayerEvidenceQueue;
   evidenceCoverageAudit?: EvidenceCoverageAudit;
   outlierQueue?: PlayerOutlierReviewQueue;
+  keeperScenarioSensitivity?: KeeperScenarioSensitivityReport;
 }
 
 type CsvValue = string | number | boolean | undefined;
@@ -491,6 +496,7 @@ export const buildPrepOutputArtifacts = ({
   evidenceQueue,
   evidenceCoverageAudit,
   outlierQueue,
+  keeperScenarioSensitivity,
 }: BuildPrepOutputArtifactsOptions): PrepOutputArtifact[] => {
   const files = [
     {
@@ -552,6 +558,16 @@ export const buildPrepOutputArtifacts = ({
       filename: "player-outlier-review-queue.csv",
       content: `${playerOutlierReviewQueueCsv(outlierQueue)}\n`,
     }] : []),
+    ...(keeperScenarioSensitivity ? [
+      {
+        filename: "keeper-scenario-sensitivity.json",
+        content: jsonArtifact(keeperScenarioSensitivity),
+      },
+      {
+        filename: "keeper-scenario-sensitivity.csv",
+        content: `${keeperScenarioSensitivityCsv(keeperScenarioSensitivity)}\n`,
+      },
+    ] : []),
     ...(evidenceCoverageAudit ? [
       {
         filename: "player-evidence-coverage.json",

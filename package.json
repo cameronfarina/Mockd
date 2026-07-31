@@ -15,6 +15,7 @@
     "prices:custom": "tsx src/cli.ts prices --custom-weights",
     "scenarios": "tsx src/cli.ts scenarios",
     "scenarios:custom": "tsx src/cli.ts scenarios --custom-weights",
+    "scenarios:sensitivity": "tsx src/cli.ts scenarios-sensitivity",
     "audit": "tsx src/cli.ts audit",
     "sanity": "tsx src/cli.ts sanity",
     "outliers:queue": "tsx src/cli.ts outliers-queue",

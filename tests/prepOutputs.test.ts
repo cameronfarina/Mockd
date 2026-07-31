@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { keepers } from "../config/keepers.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
+import { buildBasePrices } from "../src/modeling/basePricing.js";
 import { buildHistoricalCalibrationAudit } from "../src/modeling/calibrationAudit.js";
 import { buildHistoricalBacktest } from "../src/modeling/historicalBacktest.js";
+import { buildKeeperScenarioSensitivityReport } from "../src/modeling/keeperScenarioSensitivity.js";
 import { runMockBatch } from "../src/modeling/mockBatch.js";
 import { buildMockSmokeReport } from "../src/modeling/mockSmoke.js";
 import type { EvidenceCoverageAudit } from "../src/modeling/playerEvidenceCoverage.js";
@@ -175,6 +177,12 @@ describe("prep output artifacts", () => {
   it("writes batch summary, calibration, and CSV draft-prep artifacts", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
+    const prices = buildBasePrices(projections, historicalRecords);
+    const keeperScenarioSensitivity = buildKeeperScenarioSensitivityReport({
+      prices,
+      keepers,
+      limit: 60,
+    });
     const batch = runMockBatch({
       projections,
       historicalRecords,
@@ -200,6 +208,7 @@ describe("prep output artifacts", () => {
         evidenceQueue,
         evidenceCoverageAudit,
         outlierQueue,
+        keeperScenarioSensitivity,
       });
       const filenames = artifacts.map(artifact => artifact.filename).sort();
 
@@ -207,6 +216,8 @@ describe("prep output artifacts", () => {
         "calibration-gates.csv",
         "calibration-summary.csv",
         "high-price-volume-calibration.csv",
+        "keeper-scenario-sensitivity.csv",
+        "keeper-scenario-sensitivity.json",
         "historical-calibration-audit.json",
         "historical-backtest-gates.csv",
         "historical-backtest.json",
@@ -239,6 +250,21 @@ describe("prep output artifacts", () => {
       const outlierQueueCsv = await readFile(join(outputDirectory, "player-outlier-review-queue.csv"), "utf8");
       expect(outlierQueueCsv.split("\n")[0]).toBe("priority,rank,player,position,public_anchor_value,base_price,scenario_price,average_mock_sale_price,sale_vs_scenario_price,min_mock_sale_price,max_mock_sale_price,mock_sale_range,drafted_rate,rank_gap,context_adjustment_percent,current_evidence_count,primary_reason,outlier_reasons,thresholds,audit_command,review_status,review_note");
       expect(outlierQueueCsv).toContain("high,11,Drake London,WR,45,49,56,62.67,6.67,57,66,9,1,-5,-0.1,5,highMockPremium");
+
+      const keeperSensitivityJson = JSON.parse(
+        await readFile(join(outputDirectory, "keeper-scenario-sensitivity.json"), "utf8"),
+      ) as { summary: { reportedPlayerCount: number; keeperRemovedCount: number; unpricedKeeperCount: number } };
+      expect(keeperSensitivityJson.summary.reportedPlayerCount).toBe(60);
+      expect(keeperSensitivityJson.summary.keeperRemovedCount).toBeGreaterThan(0);
+      expect(keeperSensitivityJson.summary.unpricedKeeperCount).toBeGreaterThan(0);
+
+      const keeperSensitivityCsv = await readFile(
+        join(outputDirectory, "keeper-scenario-sensitivity.csv"),
+        "utf8",
+      );
+      expect(keeperSensitivityCsv.split("\n")[0]).toBe("rank,player,position,base_price,confirmed_only_available,confirmed_only_price,confirmed_only_factor,expected_available,expected_price,expected_factor,high_retention_available,high_retention_price,high_retention_factor,price_spread,expected_vs_confirmed_delta,high_retention_vs_expected_delta,keeper_removed,keeper_removal_scenarios,keeper_removal_changed,availability_changed,unavailable_scenarios,unavailable_reasons");
+      expect(keeperSensitivityCsv).toContain("expected/highRetention: Seth assumed keeper at $42");
+      expect(keeperSensitivityCsv).toContain("Pat Freiermuth");
 
       const evidenceTemplateCsv = await readFile(join(outputDirectory, "player-evidence-template.csv"), "utf8");
       expect(evidenceTemplateCsv.split("\n")[0]).toBe("player,category,score,confidence,source,note,provider,source_date,source_quality,priority,rank,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,evidence_status,flags,research_prompt");
@@ -403,6 +429,8 @@ describe("prep output artifacts", () => {
 
     expect(filenames).toContain("mock-batch-summary.json");
     expect(filenames).toContain("historical-calibration-audit.json");
+    expect(filenames).not.toContain("keeper-scenario-sensitivity.json");
+    expect(filenames).not.toContain("keeper-scenario-sensitivity.csv");
     expect(filenames).not.toContain("mock-smoke.json");
     expect(filenames).not.toContain("mock-smoke-first-two-rounds.csv");
     expect(filenames).not.toContain("historical-backtest.json");

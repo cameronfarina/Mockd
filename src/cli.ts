@@ -26,6 +26,10 @@ import {
   type PricingConfig,
 } from "./modeling/basePricing.js";
 import { applyKeeperScenarioToPrices, buildKeeperScenarios } from "./modeling/keeperInflation.js";
+import {
+  buildKeeperScenarioSensitivityReport,
+  keeperScenarioSensitivityCsv,
+} from "./modeling/keeperScenarioSensitivity.js";
 import { buildHistoricalBacktest } from "./modeling/historicalBacktest.js";
 import {
   buildLeagueOpenAuctionSpendTargets,
@@ -268,6 +272,29 @@ const main = async (): Promise<void> => {
       },
       scenarios: scenarios.map(scenario => applyKeeperScenarioToPrices(prices, scenario, keepers)),
     }, null, 2));
+    return;
+  }
+
+  if (command === "scenarios-sensitivity") {
+    const pricingConfig = await pricingConfigFromOptions();
+    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const prices = buildBasePrices(players, historicalRecords, pricingConfig);
+    const report = buildKeeperScenarioSensitivityReport({
+      prices,
+      keepers,
+      limit: numericOptionValue("--limit", 60),
+    });
+    const format = optionValue("--format") ?? "json";
+
+    if (format === "csv") {
+      console.log(keeperScenarioSensitivityCsv(report));
+      return;
+    }
+
+    if (format !== "json") throw new Error(`Unknown scenario sensitivity format "${format}". Use json or csv.`);
+
+    console.log(JSON.stringify(report, null, 2));
     return;
   }
 
@@ -523,6 +550,7 @@ const main = async (): Promise<void> => {
     const historicalRecords = await loadHistoricalAuctionRecords();
     const selectedScenarioKeys = scenarioListOptionValue();
     const evidenceScenarioKey = selectedScenarioKeys[0] ?? "expected";
+    const prices = buildBasePrices(players, historicalRecords, pricingConfig);
     const batch = runMockBatch({
       projections: players,
       historicalRecords,
@@ -550,6 +578,11 @@ const main = async (): Promise<void> => {
     const evidenceQueue = buildPlayerEvidenceQueue(sanityReport);
     const outlierQueue = buildPlayerOutlierReviewQueue(sanityReport);
     const evidenceCoverageAudit = buildPlayerEvidenceCoverageAudit(evidenceQueue);
+    const keeperScenarioSensitivity = buildKeeperScenarioSensitivityReport({
+      prices,
+      keepers,
+      limit: numericOptionValue("--scenario-sensitivity-limit", 60),
+    });
     const outputDirectory = optionValue("--out");
     const artifacts = outputDirectory
       ? await writePrepOutputArtifacts({
@@ -560,6 +593,7 @@ const main = async (): Promise<void> => {
         evidenceQueue,
         evidenceCoverageAudit,
         outlierQueue,
+        keeperScenarioSensitivity,
         outputDirectory,
       })
       : [];
@@ -583,6 +617,7 @@ const main = async (): Promise<void> => {
     const historicalRecords = await loadHistoricalAuctionRecords();
     const selectedScenarioKeys = scenarioListOptionValue();
     const evidenceScenarioKey = selectedScenarioKeys[0] ?? "expected";
+    const prices = buildBasePrices(players, historicalRecords, pricingConfig);
     const batch = runMockBatch({
       projections: players,
       historicalRecords,
@@ -610,6 +645,11 @@ const main = async (): Promise<void> => {
     const evidenceQueue = buildPlayerEvidenceQueue(sanityReport);
     const outlierQueue = buildPlayerOutlierReviewQueue(sanityReport);
     const evidenceCoverageAudit = buildPlayerEvidenceCoverageAudit(evidenceQueue);
+    const keeperScenarioSensitivity = buildKeeperScenarioSensitivityReport({
+      prices,
+      keepers,
+      limit: numericOptionValue("--scenario-sensitivity-limit", 60),
+    });
     const artifacts = await writePrepOutputArtifacts({
       batch,
       audit,
@@ -618,6 +658,7 @@ const main = async (): Promise<void> => {
       evidenceQueue,
       evidenceCoverageAudit,
       outlierQueue,
+      keeperScenarioSensitivity,
       outputDirectory: optionValue("--out") ?? "data/processed/mock-prep",
     });
 
@@ -632,7 +673,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv] | npm run sanity [-- --scenario=expected --limit=40 --runs=10 --seed-prefix=top-sanity --player-context=path.csv --player-evidence=path.csv] | npm run outliers:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run evidence:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run evidence:template [-- --scenario=expected --limit=40 --runs=10 --player-context=path.csv --player-evidence=path.csv] | npm run evidence:adapt -- --input=path.csv [--adapter=scored-local --format=csv|json] | npm run evidence:coverage [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv] | npm run qa [-- --scenarios=expected --runs=2 --seed-prefix=qa --out=data/processed/mock-prep --evidence-limit=40 --player-context=path.csv --player-evidence=path.csv] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run backtest | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --evidence-limit=40 --player-context=path.csv --player-evidence=path.csv]");
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run scenarios:sensitivity [-- --limit=60 --format=json|csv --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv] | npm run sanity [-- --scenario=expected --limit=40 --runs=10 --seed-prefix=top-sanity --player-context=path.csv --player-evidence=path.csv] | npm run outliers:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run evidence:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run evidence:template [-- --scenario=expected --limit=40 --runs=10 --player-context=path.csv --player-evidence=path.csv] | npm run evidence:adapt -- --input=path.csv [--adapter=scored-local --format=csv|json] | npm run evidence:coverage [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv] | npm run qa [-- --scenarios=expected --runs=2 --seed-prefix=qa --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run backtest | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv]");
 };
 
 main().catch(error => {

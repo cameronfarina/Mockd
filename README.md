@@ -58,6 +58,7 @@ npm run evidence:adapt -- --input=data/raw/player-evidence-template.csv
 npm run evidence:coverage -- --scenario=expected --limit=40 --runs=10
 npm run scenarios
 npm run scenarios:custom
+npm run scenarios:sensitivity -- --limit=60
 npm run mock
 npm run mocks
 npm run smoke
@@ -114,6 +115,7 @@ Run:
 npm run rankings
 npm run prices
 npm run scenarios
+npm run scenarios:sensitivity -- --limit=60
 ```
 
 `rankings` labels the model rank as the positional order by ESPN Weeks 1-4 `appliedTotal`. Rank gap is `projectionRank - espnRank`, so negative gaps mean the Weeks 1-4 projection order is higher than ESPN's visible PPR draft rank.
@@ -146,11 +148,14 @@ The initial sourced 2026 evidence set lives at `data/raw/player-evidence-2026-in
 
 `scenarios:custom` applies the same keeper scenario logic after custom player-context weights are turned on.
 
+`scenarios:sensitivity` compares confirmed-only, expected, and high-retention assumptions player by player. It shows which players remain auction-available, which named keepers are removed, the scenario-adjusted prices and factors, the price spread between comparable scenarios, and the keeper reason for each removal. `keeperRemovalChanged` flags keeper-status changes by scenario, while `availabilityChanged` is reserved for actual auction-availability changes. Declared keepers outside the priced auction pool are still listed with blank base/scenario prices so their keeper status is visible. High-retention currently uses the same declared confirmed/assumed keeper names as expected, then changes generic keeper counts and inflation pressure; it does not invent extra named keepers without declarations.
+
 Use `audit` when a player number looks weird and you want the bridge in one place:
 
 ```bash
 npm run audit -- --player="Drake London" --scenario=expected --runs=10
 npm run audit -- --player="Drake London" --scenario=expected --player-evidence=data/raw/player-evidence.example.csv
+npm run scenarios:sensitivity -- --limit=60 --format=csv
 npm run sanity -- --scenario=expected --limit=40 --runs=10
 npm run outliers:queue -- --scenario=expected --limit=40 --runs=10
 npm run outliers:queue -- --scenario=expected --limit=40 --runs=10 --format=csv
@@ -239,6 +244,8 @@ player-evidence-queue.csv
 player-evidence-template.csv
 player-evidence-coverage.json
 player-evidence-coverage-gates.csv
+keeper-scenario-sensitivity.json
+keeper-scenario-sensitivity.csv
 owner-summaries.csv
 owner-player-exposure.csv
 mock-draft-board.csv
@@ -260,6 +267,8 @@ When redirecting command output into JSON artifacts, use npm's silent mode:
 npm run --silent prices > data/processed/player-prices.json
 npm run --silent prices:custom > data/processed/player-prices-custom.json
 npm run --silent scenarios > data/processed/keeper-scenarios.json
+npm run --silent scenarios:sensitivity -- --limit=60 > data/processed/keeper-scenario-sensitivity.json
+npm run --silent scenarios:sensitivity -- --limit=60 --format=csv > data/processed/keeper-scenario-sensitivity.csv
 npm run --silent mock > data/processed/mock-auction.json
 npm run --silent mocks -- --scenarios=expected --runs=50 > data/processed/mock-batch-summary.json
 npm run --silent smoke -- --scenario=expected --runs=2 > data/processed/mock-smoke.json
