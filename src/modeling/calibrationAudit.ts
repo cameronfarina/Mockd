@@ -48,6 +48,17 @@ export interface OverallCalibration {
   dollarPlayerDelta: number;
 }
 
+export interface HighPriceVolumeCalibration {
+  threshold: number;
+  label: string;
+  historicalAverageCount: number;
+  historicalMaxCount: number;
+  mockAverageCount: number;
+  mockMaxCount: number;
+  averageCountDelta: number;
+  maxCountDelta: number;
+}
+
 export interface CalibrationDeltaSummary {
   key: string;
   label: string;
@@ -69,6 +80,7 @@ export interface BudgetRemainingCalibrationSummary {
 export type CalibrationGateCategory =
   | "roster_validity"
   | "auction_spend"
+  | "high_price_volume"
   | "price_tier_count"
   | "position_spend"
   | "owner_spend"
@@ -97,6 +109,8 @@ export interface CalibrationGateSummary {
   failCount: number;
 }
 
+type CalibrationGateMode = "absolute" | "maximum";
+
 export interface CalibrationGates {
   summary: CalibrationGateSummary;
   items: CalibrationGate[];
@@ -117,6 +131,7 @@ export interface HistoricalCalibrationAudit {
   historicalSeasons: number[];
   summary: CalibrationSummary;
   priceTiers: PriceTierCalibration[];
+  highPriceVolumes: HighPriceVolumeCalibration[];
   positionSpend: PositionSpendCalibration[];
   ownerSpend: OwnerSpendCalibration[];
   overall: OverallCalibration;
@@ -135,6 +150,8 @@ const priceTiers: readonly CalibrationPriceTier[] = [
   { key: "depth", label: "$2-$19", minPrice: 2, maxPrice: 19 },
   { key: "dollar", label: "$1", minPrice: 1, maxPrice: 1 },
 ];
+
+const highPriceThresholds = [70, 75, 80] as const;
 
 const priceTierCountThresholds: Record<CalibrationPriceTier["key"], { warn: number; fail: number }> = {
   elite: { warn: 4, fail: 8 },
@@ -216,6 +233,49 @@ const summarizePriceTiers = (
       historicalAverageCount,
       mockAverageCount,
       countDelta: roundToTwo(mockAverageCount - historicalAverageCount),
+    };
+  });
+
+const highPriceCountByHistoricalSeason = (
+  records: readonly HistoricalAuctionRecord[],
+  seasons: readonly number[],
+  threshold: number,
+): number[] =>
+  seasons.map(season =>
+    records.filter(record => record.season === season && record.price >= threshold).length,
+  );
+
+const highPriceCountByMockRun = (
+  runs: readonly MockRun[],
+  threshold: number,
+): number[] =>
+  runs.map(run => run.picks.filter(pick => pick.price >= threshold).length);
+
+const max = (values: readonly number[]): number =>
+  values.length === 0 ? 0 : Math.max(...values);
+
+const summarizeHighPriceVolumes = (
+  records: readonly HistoricalAuctionRecord[],
+  runs: readonly MockRun[],
+  seasons: readonly number[],
+): HighPriceVolumeCalibration[] =>
+  highPriceThresholds.map(threshold => {
+    const historicalCounts = highPriceCountByHistoricalSeason(records, seasons, threshold);
+    const mockCounts = highPriceCountByMockRun(runs, threshold);
+    const historicalAverageCount = roundToTwo(average(historicalCounts));
+    const mockAverageCount = roundToTwo(average(mockCounts));
+    const historicalMaxCount = max(historicalCounts);
+    const mockMaxCount = max(mockCounts);
+
+    return {
+      threshold,
+      label: `$${threshold}+`,
+      historicalAverageCount,
+      historicalMaxCount,
+      mockAverageCount,
+      mockMaxCount,
+      averageCountDelta: roundToTwo(mockAverageCount - historicalAverageCount),
+      maxCountDelta: roundToTwo(mockMaxCount - historicalMaxCount),
     };
   });
 
@@ -443,8 +503,9 @@ const gateStatus = (
   delta: number,
   warnThreshold: number,
   failThreshold: number,
+  mode: CalibrationGateMode = "absolute",
 ): CalibrationGateStatus => {
-  const magnitude = Math.abs(delta);
+  const magnitude = mode === "maximum" ? Math.max(0, delta) : Math.abs(delta);
   if (magnitude >= failThreshold) return "fail";
   if (magnitude >= warnThreshold) return "warn";
   return "pass";
@@ -458,14 +519,15 @@ const calibrationGate = ({
   actual,
   warnThreshold,
   failThreshold,
-}: Omit<CalibrationGate, "delta" | "status">): CalibrationGate => {
+  mode = "absolute",
+}: Omit<CalibrationGate, "delta" | "status"> & { mode?: CalibrationGateMode }): CalibrationGate => {
   const delta = roundToTwo(actual - target);
 
   return {
     key,
     category,
     label,
-    status: gateStatus(delta, warnThreshold, failThreshold),
+    status: gateStatus(delta, warnThreshold, failThreshold, mode),
     target,
     actual,
     delta,
@@ -499,6 +561,9 @@ const summarizeGateStatuses = (items: readonly CalibrationGate[]): CalibrationGa
 const priceTierGateLabel = (tier: PriceTierCalibration): string =>
   tier.key === "dollar" ? "$1 player count" : `${tier.label} player count`;
 
+const highPriceVolumeGateLabel = (volume: HighPriceVolumeCalibration): string =>
+  `$${volume.threshold}+ player count`;
+
 const maxOwnerAverageBudgetRemaining = (
   summary: BudgetRemainingCalibrationSummary,
 ): number =>
@@ -508,6 +573,7 @@ const summarizeGates = (
   batch: MockBatch,
   summary: CalibrationSummary,
   priceTierCalibration: readonly PriceTierCalibration[],
+  highPriceVolumes: readonly HighPriceVolumeCalibration[],
   positionSpendCalibration: readonly PositionSpendCalibration[],
   ownerSpendCalibration: readonly OwnerSpendCalibration[],
   overall: OverallCalibration,
@@ -536,6 +602,18 @@ const summarizeGates = (
       warnThreshold: 50,
       failThreshold: 100,
     }),
+    ...highPriceVolumes.map(volume =>
+      calibrationGate({
+        key: `high-price-volume:${volume.threshold}-plus`,
+        category: "high_price_volume",
+        label: highPriceVolumeGateLabel(volume),
+        target: volume.historicalMaxCount,
+        actual: volume.mockMaxCount,
+        warnThreshold: 1,
+        failThreshold: 3,
+        mode: "maximum",
+      }),
+    ),
     ...priceTierCalibration.map(tier => {
       const thresholds = priceTierCountThresholds[tier.key];
 
@@ -607,6 +685,7 @@ export const buildHistoricalCalibrationAudit = ({
   const seasons = historicalSeasons(records);
   const runs = batch.runs;
   const priceTierCalibration = summarizePriceTiers(records, runs, seasons);
+  const highPriceVolumes = summarizeHighPriceVolumes(records, runs, seasons);
   const positionSpendCalibration = summarizePositionSpend(records, runs, seasons);
   const ownerSpendCalibration = summarizeOwnerSpend(records, runs, seasons);
   const summary = summarizeCalibration(batch, priceTierCalibration, positionSpendCalibration, ownerSpendCalibration);
@@ -617,6 +696,7 @@ export const buildHistoricalCalibrationAudit = ({
     historicalSeasons: seasons,
     summary,
     priceTiers: priceTierCalibration,
+    highPriceVolumes,
     positionSpend: positionSpendCalibration,
     ownerSpend: ownerSpendCalibration,
     overall,
@@ -624,6 +704,7 @@ export const buildHistoricalCalibrationAudit = ({
       batch,
       summary,
       priceTierCalibration,
+      highPriceVolumes,
       positionSpendCalibration,
       ownerSpendCalibration,
       overall,

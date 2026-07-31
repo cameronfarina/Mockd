@@ -184,6 +184,28 @@ const priceTierCalibrationCsv = (audit: HistoricalCalibrationAudit): string =>
     ]),
   );
 
+const highPriceVolumeCalibrationCsv = (audit: HistoricalCalibrationAudit): string =>
+  toCsv(
+    [
+      "threshold",
+      "historical_average_count",
+      "historical_max_count",
+      "mock_average_count",
+      "mock_max_count",
+      "average_count_delta",
+      "max_count_delta",
+    ],
+    audit.highPriceVolumes.map(volume => [
+      volume.threshold,
+      volume.historicalAverageCount,
+      volume.historicalMaxCount,
+      volume.mockAverageCount,
+      volume.mockMaxCount,
+      volume.averageCountDelta,
+      volume.maxCountDelta,
+    ]),
+  );
+
 const positionSpendCalibrationCsv = (audit: HistoricalCalibrationAudit): string =>
   toCsv(
     ["position", "historical_average_spend", "mock_average_spend", "delta"],
@@ -291,6 +313,10 @@ export const buildPrepOutputArtifacts = ({
     {
       filename: "price-tier-calibration.csv",
       content: `${priceTierCalibrationCsv(audit)}\n`,
+    },
+    {
+      filename: "high-price-volume-calibration.csv",
+      content: `${highPriceVolumeCalibrationCsv(audit)}\n`,
     },
     {
       filename: "position-spend-calibration.csv",

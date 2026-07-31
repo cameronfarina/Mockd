@@ -19,6 +19,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - repeatable smoke checks for roster validity, batch validity, and the first two nomination rounds
 - calibration gates that mark mock batches as pass, warn, or fail against explicit economic thresholds
 - replacement-depth pricing and budget pacing so owners do not strand themselves into unrealistic $1-only endgames
+- high-price volume gates for `$70+`, `$75+`, and `$80+` player counts against historical single-draft ceilings
 - legal lineup optimization performed **after** the full roster is built
 - validation guards for duplicate players, budget, roster size, and position limits
 - the current validated Excel model as an output artifact
@@ -129,6 +130,8 @@ The auction engine does not globally discount the pool after a few expensive buy
 
 Replacement players are no longer a flat $1 shelf. The engine applies a descending replacement-price ladder to QB/RB/WR/TE depth names from the projection file and keeps K/DST replacements at the fallback price, which reduces unrealistic $1-only endgames without making special teams too expensive.
 
+Historical live-auction ceilings from the 2023-2025 boards are now explicit calibration inputs: `$70+` players peaked at 5 in a draft, `$75+` players peaked at 3, and `$80+` players peaked at 1. The engine dampens only the over-anchor portion of elite bids and guards sub-$70 anchors from crossing the `$70` line, which keeps top prices from drifting into unrealistic four-or-five-player `$80+` rooms.
+
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.
 
 `smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, and warnings such as owners leaving too much budget unused.
@@ -147,6 +150,7 @@ owner-summaries.csv
 owner-player-exposure.csv
 mock-draft-board.csv
 price-tier-calibration.csv
+high-price-volume-calibration.csv
 position-spend-calibration.csv
 ```
 

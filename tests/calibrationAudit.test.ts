@@ -31,6 +31,7 @@ describe("historical calibration audit", () => {
     expect(audit.gates.summary.credible).toBe(false);
     expect(audit.historicalSeasons).toEqual([2023, 2024, 2025]);
     expect(audit.priceTiers.map(tier => tier.key)).toEqual(["elite", "strong", "starter", "depth", "dollar"]);
+    expect(audit.highPriceVolumes.map(volume => volume.threshold)).toEqual([70, 75, 80]);
     expect(audit.positionSpend.map(position => position.position)).toEqual([...positions]);
     expect(audit.ownerSpend).toHaveLength(ownerOrder.length);
     expect(audit.overall.mockAverageAuctionSpend).toBeGreaterThan(0);
@@ -62,6 +63,23 @@ describe("historical calibration audit", () => {
       delta: audit.overall.dollarPlayerDelta,
     });
     expect(dollarPlayerGate?.warnThreshold).toBeLessThan(dollarPlayerGate?.failThreshold ?? 0);
+
+    const eightyPlusVolume = audit.highPriceVolumes.find(volume => volume.threshold === 80);
+    expect(eightyPlusVolume).toMatchObject({
+      historicalAverageCount: 0.33,
+      historicalMaxCount: 1,
+    });
+    expect(eightyPlusVolume?.mockMaxCount).toBeLessThanOrEqual(eightyPlusVolume?.historicalMaxCount ?? 0);
+
+    const eightyPlusGate = audit.gates.items.find(gate => gate.key === "high-price-volume:80-plus");
+    expect(eightyPlusGate).toMatchObject({
+      category: "high_price_volume",
+      label: "$80+ player count",
+      status: "pass",
+      target: eightyPlusVolume?.historicalMaxCount,
+      actual: eightyPlusVolume?.mockMaxCount,
+      delta: eightyPlusVolume?.maxCountDelta,
+    });
 
     const invalidRosterGate = audit.gates.items.find(gate => gate.key === "roster-validity");
     expect(invalidRosterGate).toMatchObject({

@@ -52,6 +52,17 @@ export interface BudgetPacingConfig {
   minimumPlayerPrice: number;
 }
 
+export interface TopEndOverbidDampingConfig {
+  startPrice: number;
+  fullEffectPrice: number;
+  maxOverbidDiscount: number;
+}
+
+export interface TopEndSaleGuardConfig {
+  threshold: number;
+  capBelowThresholdAt: number;
+}
+
 export interface OwnerAuctionBehavior {
   priceAggression: number;
   scarcityChase: number;
@@ -74,11 +85,13 @@ export interface AuctionEngineConfig {
   nomination: NominationConfig;
   endgameSpend: EndgameSpendConfig;
   budgetPacing: BudgetPacingConfig;
+  topEndOverbidDamping: TopEndOverbidDampingConfig;
+  topEndSaleGuard: TopEndSaleGuardConfig;
   seed: string;
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "budgetPacing" | "topEndOverbidDamping" | "topEndSaleGuard">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
     scarcity?: Partial<ScarcityConfig>;
@@ -86,6 +99,8 @@ export type AuctionEngineConfigOverrides =
     nomination?: Partial<NominationConfig>;
     endgameSpend?: Partial<EndgameSpendConfig>;
     budgetPacing?: Partial<BudgetPacingConfig>;
+    topEndOverbidDamping?: Partial<TopEndOverbidDampingConfig>;
+    topEndSaleGuard?: Partial<TopEndSaleGuardConfig>;
   };
 
 export interface AuctionOwnerState {
@@ -111,6 +126,7 @@ export interface AuctionBid {
   replacementPatienceMultiplier: number;
   endgamePressureMultiplier: number;
   budgetPacingMultiplier: number;
+  topEndDampingMultiplier: number;
   tieBreak: number;
 }
 
@@ -264,6 +280,15 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     maxDiscount: 0.28,
     minimumPlayerPrice: 8,
   },
+  topEndOverbidDamping: {
+    startPrice: 50,
+    fullEffectPrice: 75,
+    maxOverbidDiscount: 0.75,
+  },
+  topEndSaleGuard: {
+    threshold: 70,
+    capBelowThresholdAt: 69,
+  },
   seed: defaultSeed,
 };
 
@@ -305,6 +330,14 @@ export const buildAuctionConfig = (
   budgetPacing: {
     ...defaultAuctionEngineConfig.budgetPacing,
     ...overrides.budgetPacing,
+  },
+  topEndOverbidDamping: {
+    ...defaultAuctionEngineConfig.topEndOverbidDamping,
+    ...overrides.topEndOverbidDamping,
+  },
+  topEndSaleGuard: {
+    ...defaultAuctionEngineConfig.topEndSaleGuard,
+    ...overrides.topEndSaleGuard,
   },
 });
 
@@ -587,6 +620,24 @@ const budgetPacingMultiplierFor = (
   return 1 - discount;
 };
 
+const topEndDampingMultiplierFor = (
+  player: Player,
+  rawBidMultiplier: number,
+  config: AuctionEngineConfig,
+): number => {
+  if (rawBidMultiplier <= 1) return 1;
+
+  const { startPrice, fullEffectPrice, maxOverbidDiscount } = config.topEndOverbidDamping;
+  if (player.price < startPrice || maxOverbidDiscount <= 0) return 1;
+
+  const priceRange = Math.max(1, fullEffectPrice - startPrice);
+  const priceScale = clamp((player.price - startPrice) / priceRange, 0, 1);
+  const overbidDiscount = clamp(priceScale * maxOverbidDiscount, 0, maxOverbidDiscount);
+  const adjustedBidMultiplier = 1 + (rawBidMultiplier - 1) * (1 - overbidDiscount);
+
+  return adjustedBidMultiplier / rawBidMultiplier;
+};
+
 const bidForOwner = (
   state: AuctionOwnerState,
   player: Player,
@@ -602,17 +653,19 @@ const bidForOwner = (
     : 1;
   const endgamePressureMultiplier = endgamePressureMultiplierFor(state, config);
   const budgetPacingMultiplier = budgetPacingMultiplierFor(state, player, config);
+  const rawBidMultiplier =
+    ownerDemandMultiplier *
+    rosterNeedMultiplier *
+    behaviorScarcityMultiplier *
+    ownerBehavior.priceAggression *
+    replacementPatienceMultiplier *
+    endgamePressureMultiplier *
+    budgetPacingMultiplier;
+  const topEndDampingMultiplier = topEndDampingMultiplierFor(player, rawBidMultiplier, config);
   const uncappedAmount = Math.max(
     config.minimumBid,
     Math.round(
-      player.price *
-      ownerDemandMultiplier *
-      rosterNeedMultiplier *
-      behaviorScarcityMultiplier *
-      ownerBehavior.priceAggression *
-      replacementPatienceMultiplier *
-      endgamePressureMultiplier *
-      budgetPacingMultiplier,
+      player.price * rawBidMultiplier * topEndDampingMultiplier,
     ),
   );
 
@@ -630,6 +683,7 @@ const bidForOwner = (
     replacementPatienceMultiplier,
     endgamePressureMultiplier,
     budgetPacingMultiplier,
+    topEndDampingMultiplier,
     tieBreak: deterministicTieBreak(config.seed, state.owner, player.name),
   };
 };
@@ -644,6 +698,18 @@ const compareBids = (config: AuctionEngineConfig) => (left: AuctionBid, right: A
   right.uncappedAmount - left.uncappedAmount ||
   left.tieBreak - right.tieBreak ||
   ownerIndex(config, left.owner) - ownerIndex(config, right.owner);
+
+const topEndSaleGuardPriceFor = (
+  player: Player,
+  uncappedSalePrice: number,
+  config: AuctionEngineConfig,
+): number => {
+  const guard = config.topEndSaleGuard;
+  if (player.price >= guard.threshold) return uncappedSalePrice;
+  if (uncappedSalePrice < guard.threshold) return uncappedSalePrice;
+
+  return Math.max(player.price, guard.capBelowThresholdAt);
+};
 
 export const resolveAuctionSale = (
   player: Player,
@@ -663,10 +729,11 @@ export const resolveAuctionSale = (
 
   const secondBidAmount = bids[1]?.amount ?? 0;
   const reservePrice = Math.max(config.minimumBid, Math.round(player.price * config.reservePriceRatio));
-  const price = Math.min(
+  const uncappedSalePrice = Math.min(
     winningBid.amount,
     Math.max(config.minimumBid, secondBidAmount + config.minimumBid, reservePrice),
   );
+  const price = topEndSaleGuardPriceFor(player, uncappedSalePrice, config);
 
   return {
     player,

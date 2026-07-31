@@ -361,6 +361,93 @@ describe("auction engine economics", () => {
     expect(beatonBid?.uncappedAmount).toBeLessThan(target.price);
   });
 
+  it("damps only the over-anchor portion of elite bids", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1.2,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+        Hoody: {
+          priceAggression: 1.2,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+      },
+      topEndOverbidDamping: {
+        startPrice: 55,
+        fullEffectPrice: 75,
+        maxOverbidDiscount: 0.65,
+      },
+      seed: "top-end-damping",
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+    const target = player("Elite WR", "WR", 75);
+    const sale = resolveAuctionSale(target, ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    const bid = sale.bids[0];
+    expect(bid).toBeDefined();
+    expect(bid?.topEndDampingMultiplier).toBeLessThan(1);
+    expect(bid?.uncappedAmount).toBeGreaterThanOrEqual(target.price);
+    expect(bid?.uncappedAmount).toBeLessThan(90);
+  });
+
+  it("keeps sub-threshold anchors from crossing the high-price sale boundary", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1.3,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+        Hoody: {
+          priceAggression: 1.3,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+      },
+      topEndOverbidDamping: {
+        startPrice: 50,
+        fullEffectPrice: 75,
+        maxOverbidDiscount: 0,
+      },
+      topEndSaleGuard: {
+        threshold: 70,
+        capBelowThresholdAt: 69,
+      },
+      seed: "top-end-sale-guard",
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+    const target = player("Nearly elite RB", "RB", 68);
+    const sale = resolveAuctionSale(target, ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    expect(sale.marketPrice).toBe(68);
+    expect(sale.price).toBe(69);
+  });
+
   it("builds valid full-roster mocks from expected keepers and owner-local budgets", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
