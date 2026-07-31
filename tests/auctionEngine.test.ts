@@ -183,6 +183,53 @@ describe("auction engine economics", () => {
     });
   });
 
+  it("lets nominators attack scarce roster holes that opponents still need", () => {
+    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const starterMinimums = {
+      ...positionAmounts(0),
+      RB: 1,
+    };
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(3),
+      starterMinimums,
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      nomination: {
+        earlyEliteBiasPicks: 0,
+        marketPriceWeight: 1,
+        projectionWeight: 0,
+        ownerNeedWeight: 0,
+        affordabilityWeight: 0,
+        scarcityWeight: 0,
+        flushMoneyWeight: 0,
+        tieBreakWeight: 0,
+      },
+      seed: "nomination-opponent-needs",
+    });
+
+    const result = simulateAuction({
+      players: [
+        player("Luxury QB", "QB", 24),
+        player("Opponent-needed RB", "RB", 20),
+        player("Useful WR", "WR", 8),
+        player("Useful TE", "TE", 6),
+        player("Fallback RB", "RB", 1),
+      ],
+      initialRostersByOwner: {
+        Beaton: [player("Beaton kept RB", "RB", 10)],
+      },
+      config,
+    });
+
+    expect(result.picks[0]).toMatchObject({
+      nominator: "Beaton",
+      player: "Opponent-needed RB",
+    });
+  });
+
   it("continues the nomination rotation after skipping owners with full rosters", () => {
     const owners: Owner[] = ["Beaton", "Hoody", "PJ", "Seth"];
     const config = buildAuctionConfig({

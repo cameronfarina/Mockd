@@ -38,6 +38,7 @@ export interface NominationConfig {
   marketPriceWeight: number;
   projectionWeight: number;
   ownerNeedWeight: number;
+  opponentNeedWeight: number;
   affordabilityWeight: number;
   scarcityWeight: number;
   flushMoneyWeight: number;
@@ -324,6 +325,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     marketPriceWeight: 1.05,
     projectionWeight: 0.15,
     ownerNeedWeight: 1.8,
+    opponentNeedWeight: 0.45,
     affordabilityWeight: 0.35,
     scarcityWeight: 0.45,
     flushMoneyWeight: 0.5,
@@ -1188,6 +1190,32 @@ const nominationFlushMoneyScoreFor = (
   return bidderPressure * marketPriceScore * lowPersonalInterest;
 };
 
+const nominationOpponentNeedScoreFor = (
+  nominator: Owner,
+  player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  config: AuctionEngineConfig,
+): number => {
+  const otherOwnerStates = ownerStates.filter(state => state.owner !== nominator);
+  if (otherOwnerStates.length === 0) return 0;
+
+  const totalNeed = otherOwnerStates.reduce((total, state) => {
+    const needScore = nominationNeedScoreFor(state, player.position, config);
+    if (needScore <= 0) return total;
+    if (positionCapacityFor(state, player.position, config) <= 0) return total;
+
+    const reservePrice = Math.max(config.minimumBid, Math.round(player.price * config.reservePriceRatio));
+    if (state.maxBid < reservePrice) return total;
+
+    const affordabilityScore = player.price <= config.minimumBid
+      ? 1
+      : clamp(state.maxBid / player.price, 0, 1);
+    return total + needScore * affordabilityScore;
+  }, 0);
+
+  return clamp(totalNeed / otherOwnerStates.length, 0, 1);
+};
+
 const nominationScoreFor = ({
   player,
   index,
@@ -1229,6 +1257,12 @@ const nominationScoreFor = ({
     config,
   );
   const scarcityScore = nominationScarcityScoreFor(player.position, ownerStates, remainingPlayers, config);
+  const opponentNeedScore = nominationOpponentNeedScoreFor(
+    nominator,
+    player,
+    ownerStates,
+    config,
+  );
   const nominatorInterestScore = (ownerNeedScore + affordabilityScore) / 2;
   const flushMoneyScore = nominationFlushMoneyScoreFor(
     nominator,
@@ -1248,6 +1282,7 @@ const nominationScoreFor = ({
     marketPriceScore * marketPriceWeight +
     projectionScore * config.nomination.projectionWeight +
     ownerNeedScore * config.nomination.ownerNeedWeight +
+    opponentNeedScore * config.nomination.opponentNeedWeight +
     affordabilityScore * config.nomination.affordabilityWeight +
     scarcityScore * config.nomination.scarcityWeight +
     flushMoneyScore * config.nomination.flushMoneyWeight +
