@@ -19,6 +19,7 @@
     "sanity": "tsx src/cli.ts sanity",
     "evidence:queue": "tsx src/cli.ts evidence-queue",
     "evidence:template": "tsx src/cli.ts evidence-template",
+    "evidence:adapt": "tsx src/cli.ts evidence-adapt",
     "evidence:coverage": "tsx src/cli.ts evidence-coverage",
     "mock": "tsx src/cli.ts mock",
     "mocks": "tsx src/cli.ts mocks",
