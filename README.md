@@ -133,7 +133,7 @@ Roster maximums are tuned to this league's historical draft shape: mocks cap own
 
 Replacement players are no longer a flat $1 shelf. The engine applies a descending replacement-price ladder to QB/RB/WR/TE depth names from the projection file and keeps K/DST replacements at the fallback price, which reduces unrealistic $1-only endgames without making special teams too expensive.
 
-Historical live-auction ceilings from the 2023-2025 boards are now explicit calibration inputs: `$70+` players peaked at 5 in a draft, `$75+` players peaked at 3, and `$80+` players peaked at 1. The engine dampens only the over-anchor portion of elite bids and guards sub-$70 anchors from crossing the `$70` line, which keeps top prices from drifting into unrealistic four-or-five-player `$80+` rooms.
+Historical live-auction ceilings from the 2023-2025 boards are now explicit calibration inputs: `$70+` players peaked at 5 in a draft, `$75+` players peaked at 3, and `$80+` players peaked at 1. The engine dampens only the over-anchor portion of elite bids, guards sub-$70 anchors from crossing the `$70` line, and keeps `$70-$71` anchors below `$75`, which keeps top prices from drifting into unrealistic four-or-five-player `$80+` rooms.
 
 QB spend has its own controls because this league historically drafts only about 20-24 QBs and does not chase backup quarterbacks at starter prices. The engine dampens QB overbids and discounts backup-QB bids once an owner already has a starter.
 

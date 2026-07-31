@@ -65,6 +65,8 @@ export interface TopEndOverbidDampingConfig {
 export interface TopEndSaleGuardConfig {
   threshold: number;
   capBelowThresholdAt: number;
+  premiumThreshold: number;
+  capBelowPremiumThresholdAt: number;
 }
 
 export interface OwnerAuctionBehavior {
@@ -313,6 +315,8 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   topEndSaleGuard: {
     threshold: 70,
     capBelowThresholdAt: 69,
+    premiumThreshold: 72,
+    capBelowPremiumThresholdAt: 74,
   },
   seed: defaultSeed,
 };
@@ -800,10 +804,18 @@ const topEndSaleGuardPriceFor = (
   config: AuctionEngineConfig,
 ): number => {
   const guard = config.topEndSaleGuard;
-  if (player.price >= guard.threshold) return uncappedSalePrice;
-  if (uncappedSalePrice < guard.threshold) return uncappedSalePrice;
+  if (player.price < guard.threshold && uncappedSalePrice >= guard.threshold) {
+    return Math.max(player.price, guard.capBelowThresholdAt);
+  }
 
-  return Math.max(player.price, guard.capBelowThresholdAt);
+  if (
+    player.price < guard.premiumThreshold &&
+    uncappedSalePrice > guard.capBelowPremiumThresholdAt
+  ) {
+    return Math.max(player.price, guard.capBelowPremiumThresholdAt);
+  }
+
+  return uncappedSalePrice;
 };
 
 export const resolveAuctionSale = (

@@ -724,6 +724,52 @@ describe("auction engine economics", () => {
     expect(sale.price).toBe(69);
   });
 
+  it("keeps near-elite anchors from adding extra $75-plus sales", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1.25,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+        Hoody: {
+          priceAggression: 1.25,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+      },
+      topEndOverbidDamping: {
+        startPrice: 50,
+        fullEffectPrice: 75,
+        maxOverbidDiscount: 0,
+      },
+      topEndSaleGuard: {
+        threshold: 70,
+        capBelowThresholdAt: 69,
+        premiumThreshold: 72,
+        capBelowPremiumThresholdAt: 74,
+      },
+      seed: "near-elite-sale-guard",
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+    const target = player("Near elite RB", "RB", 70);
+    const sale = resolveAuctionSale(target, ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    expect(sale.marketPrice).toBe(70);
+    expect(sale.price).toBe(74);
+  });
+
   it("builds valid full-roster mocks from expected keepers and owner-local budgets", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
