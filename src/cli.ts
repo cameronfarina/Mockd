@@ -47,6 +47,7 @@ import { playerEvidenceTemplateCsv } from "./modeling/playerEvidenceTemplate.js"
 import { buildPlayerPriceAudit } from "./modeling/playerPriceAudit.js";
 import { writePrepOutputArtifacts } from "./modeling/prepOutputs.js";
 import { buildProjectionRankings } from "./modeling/projectionRankings.js";
+import { buildQaReport } from "./modeling/qaReport.js";
 import { buildTopPlayerSanityReport } from "./modeling/topPlayerSanity.js";
 import { loadEspnWeeksOneToFour } from "./projections.js";
 
@@ -476,6 +477,63 @@ const main = async (): Promise<void> => {
     return;
   }
 
+  if (command === "qa") {
+    const pricingConfig = await pricingConfigFromOptions();
+    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const selectedScenarioKeys = scenarioListOptionValue();
+    const evidenceScenarioKey = selectedScenarioKeys[0] ?? "expected";
+    const batch = runMockBatch({
+      projections: players,
+      historicalRecords,
+      keepers,
+      scenarioKeys: selectedScenarioKeys,
+      runsPerScenario: numericOptionValue("--runs", 2),
+      seedPrefix: optionValue("--seed-prefix") ?? "qa",
+      pricingConfig,
+    });
+    const audit = buildHistoricalCalibrationAudit({ historicalRecords, batch });
+    const firstRun = batch.runs[0];
+    if (!firstRun) throw new Error("QA command did not produce a mock run.");
+    const smokeReport = buildMockSmokeReport({ run: firstRun, batch, rounds: 2 });
+    const historicalBacktest = buildHistoricalBacktest(historicalRecords);
+    const evidenceQueue = buildPlayerEvidenceQueue(buildTopPlayerSanityReport({
+      projections: players,
+      historicalRecords,
+      keepers,
+      scenarioKey: evidenceScenarioKey,
+      limit: numericOptionValue("--evidence-limit", 40),
+      seedPrefix: optionValue("--seed-prefix") ?? "qa",
+      pricingConfig,
+      mockBatch: batch,
+    }));
+    const evidenceCoverageAudit = buildPlayerEvidenceCoverageAudit(evidenceQueue);
+    const outputDirectory = optionValue("--out");
+    const artifacts = outputDirectory
+      ? await writePrepOutputArtifacts({
+        batch,
+        audit,
+        smokeReport,
+        historicalBacktest,
+        evidenceQueue,
+        evidenceCoverageAudit,
+        outputDirectory,
+      })
+      : [];
+    const report = buildQaReport({
+      options: batch.options,
+      smoke: smokeReport,
+      calibration: audit,
+      backtest: historicalBacktest,
+      evidenceCoverage: evidenceCoverageAudit,
+      artifactPaths: artifacts.map(artifact => artifact.path),
+    });
+
+    console.log(JSON.stringify(report, null, 2));
+    process.exitCode = report.recommendedExitCode;
+    return;
+  }
+
   if (command === "outputs") {
     const pricingConfig = await pricingConfigFromOptions();
     const players = await loadEspnWeeksOneToFour(projectionPath);
@@ -528,7 +586,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv] | npm run sanity [-- --scenario=expected --limit=40 --runs=10 --seed-prefix=top-sanity --player-context=path.csv --player-evidence=path.csv] | npm run evidence:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run evidence:template [-- --scenario=expected --limit=40 --runs=10 --player-context=path.csv --player-evidence=path.csv] | npm run evidence:adapt -- --input=path.csv [--adapter=scored-local --format=csv|json] | npm run evidence:coverage [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run backtest | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --evidence-limit=40 --player-context=path.csv --player-evidence=path.csv]");
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv] | npm run sanity [-- --scenario=expected --limit=40 --runs=10 --seed-prefix=top-sanity --player-context=path.csv --player-evidence=path.csv] | npm run evidence:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run evidence:template [-- --scenario=expected --limit=40 --runs=10 --player-context=path.csv --player-evidence=path.csv] | npm run evidence:adapt -- --input=path.csv [--adapter=scored-local --format=csv|json] | npm run evidence:coverage [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv] | npm run qa [-- --scenarios=expected --runs=2 --seed-prefix=qa --out=data/processed/mock-prep --evidence-limit=40 --player-context=path.csv --player-evidence=path.csv] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run backtest | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --evidence-limit=40 --player-context=path.csv --player-evidence=path.csv]");
 };
 
 main().catch(error => {

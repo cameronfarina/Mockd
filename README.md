@@ -58,6 +58,7 @@ npm run scenarios:custom
 npm run mock
 npm run mocks
 npm run smoke
+npm run qa
 npm run backtest
 npm run calibration
 npm run outputs
@@ -178,6 +179,7 @@ npm run mock -- --scenario=expected --player-context=data/raw/player-context.exa
 npm run mock -- --scenario=expected --player-evidence=data/raw/player-evidence.example.csv
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run smoke -- --scenario=expected --runs=2 --seed=smoke
+npm run qa -- --scenarios=expected --runs=2 --seed-prefix=qa
 npm run backtest
 npm run calibration -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run outputs -- --scenarios=expected --runs=50 --seed-prefix=prep --out=data/processed/mock-prep
@@ -185,9 +187,9 @@ npm run outputs -- --scenarios=expected --runs=50 --seed-prefix=prep --out=data/
 
 `mock` runs a deterministic auction from the selected keeper scenario. Declared keepers are locked into their owners' rosters at keeper cost, the auction pool uses scenario-adjusted market prices, and additional $1 replacement players are added from the projection file when the known priced pool is smaller than the remaining roster slots.
 
-Nominations are synthetic and deterministic because the historical boards do not include reliable nomination order. Owners rotate through nominations, the first phase strongly prefers elite market players, and later nominations adapt to the current nominator's roster needs, max bid, positional scarcity, and chance to make other owners spend. Each pick records both the nominator and the winning owner.
+Nominations are synthetic and deterministic because the historical boards do not include reliable nomination order. Owners rotate through nominations, the first phase strongly prefers elite market players, and later nominations adapt to the current nominator's roster needs, opponents' unfilled roster holes, max bid, positional scarcity, and chance to make other owners spend. Each pick records both the nominator and the winning owner.
 
-The auction engine does not globally discount the pool after a few expensive buys. Each owner carries their own remaining budget, remaining roster slots, and max bid, with $1 reserved for every unfilled slot. Budget pacing discounts bids that would strand too little money for future roster slots, mid-auction room pressure lets cash-heavy owners chase good players before the endgame, and endgame pressure pushes owners to spend leftover money late. Late nominators with extra money can also open affordable depth players above anchor, which models real auction budget dumps without globally inflating the room. If two owners spend $80 early, those owners are capped; other owners with full budgets can still bid good players above anchor when comparable talent is scarce.
+The auction engine does not globally discount the pool after a few expensive buys. Each owner carries their own remaining budget, remaining roster slots, and max bid, with $1 reserved for every unfilled slot. Budget pacing discounts bids that would strand too little money for future roster slots, mid-auction room pressure lets cash-heavy owners chase good players before the endgame, and endgame pressure pushes owners to spend leftover money late. Late nominators with extra money can also open affordable depth players above anchor, which models real auction budget dumps without globally inflating the room. If two owners spend $80 early, those owners are capped; other owners with full budgets can still bid good players above anchor when comparable talent is scarce. Scarcity pressure now counts bidder depth by same-tier roster capacity and downweights legal backup bidders with low roster interest, so backup QB/TE bidders do not create full starter-tier pressure.
 
 Roster maximums are tuned to this league's historical draft shape: mocks cap owners at two QBs, one kicker, and one defense so cheap late fillers do not crowd out RB/WR depth. Owner-specific history tightens that further for one-QB and one-TE owners, while owners who historically carried backups can still do it.
 
@@ -205,7 +207,9 @@ WR spend uses a very light position overbid damper so owner preferences can stil
 
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.
 
-`smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, and warnings such as owners leaving too much budget unused.
+`smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, compact winner/runner-up bid diagnostics, and warnings such as owners leaving too much budget unused.
+
+`qa` is the blessed engine-quality command. It runs one mock batch, smoke report, calibration audit, historical backtest, and advisory evidence coverage pass, then prints a compact JSON report with hard and advisory checks. Hard smoke, calibration, and backtest failures set a nonzero exit code; evidence coverage remains advisory so incomplete research rows are visible without blocking engine verification. Pass `--out=data/processed/mock-prep` when you also want the prep artifacts written.
 
 `backtest` performs a leave-one-season-out historical economics audit. For each 2023-2025 draft, it compares that season's actual open-auction spend, price tiers, high-price volume, roster shape, position spend, and owner spend against the average of the other historical seasons. This is intentionally a league-shape backtest, not a claim that the model can predict past players without historical projection files. Warnings mark naturally noisy areas to keep in mind while tuning; failures mean the historical signal should not be trusted as stable without more data.
 
@@ -230,6 +234,7 @@ player-evidence-coverage-gates.csv
 owner-summaries.csv
 owner-player-exposure.csv
 mock-draft-board.csv
+mock-bid-diagnostics.csv
 price-tier-calibration.csv
 high-price-volume-calibration.csv
 position-count-calibration.csv
@@ -238,6 +243,8 @@ scenario-calibration.csv
 ```
 
 `mock-draft-board.csv` is the full pick-by-pick board across every run, including seed, scenario, nominator, winning owner, player, position, anchor price, sale price, post-pick budget, and the top three bids.
+
+`mock-bid-diagnostics.csv` is the explainability companion for the draft board. It writes one row per retained top bid with bid rank, owner, amount, max-bid cap status, reserve/second-bid/nominator-opening sale resolution, sale-price basis, and the top multiplier drivers such as roster need, scarcity, room pressure, budget pacing, or damping.
 
 When redirecting command output into JSON artifacts, use npm's silent mode:
 
@@ -248,6 +255,7 @@ npm run --silent scenarios > data/processed/keeper-scenarios.json
 npm run --silent mock > data/processed/mock-auction.json
 npm run --silent mocks -- --scenarios=expected --runs=50 > data/processed/mock-batch-summary.json
 npm run --silent smoke -- --scenario=expected --runs=2 > data/processed/mock-smoke.json
+npm run --silent qa -- --scenarios=expected --runs=2 > data/processed/qa-report.json
 npm run --silent backtest > data/processed/historical-backtest.json
 npm run --silent calibration -- --scenarios=expected --runs=50 > data/processed/historical-calibration-audit.json
 npm run --silent outputs -- --scenarios=expected --runs=50 --out=data/processed/mock-prep
