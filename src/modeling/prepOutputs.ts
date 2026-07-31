@@ -175,6 +175,77 @@ const mockDraftBoardCsv = (batch: MockBatch): string =>
     ),
   );
 
+const mockBidDiagnosticsCsv = (batch: MockBatch): string =>
+  toCsv(
+    [
+      "seed",
+      "scenario",
+      "pick",
+      "nominator",
+      "winner",
+      "player",
+      "position",
+      "anchor_price",
+      "sale_price",
+      "bid_rank",
+      "bid_owner",
+      "bid_amount",
+      "bid_uncapped",
+      "bid_max",
+      "bid_capped_by_max",
+      "second_bid_amount",
+      "reserve_price",
+      "nominator_opening_bid",
+      "uncapped_sale_price",
+      "top_end_guarded_price",
+      "sale_price_basis",
+      "top_driver_1",
+      "top_driver_1_multiplier",
+      "top_driver_2",
+      "top_driver_2_multiplier",
+      "top_driver_3",
+      "top_driver_3_multiplier",
+    ],
+    batch.runs.flatMap(run =>
+      run.picks.flatMap(pick =>
+        pick.topBids.map((bid, bidIndex) => {
+          const diagnostics = pick.diagnostics.topBids[bidIndex];
+          const drivers = diagnostics?.drivers ?? [];
+
+          return [
+            run.seed,
+            run.keeperScenario.key,
+            pick.pick,
+            pick.nominator,
+            pick.owner,
+            pick.player,
+            pick.position,
+            pick.marketPrice,
+            pick.price,
+            bidIndex + 1,
+            bid.owner,
+            bid.amount,
+            bid.uncappedAmount,
+            bid.maxBid,
+            diagnostics?.cappedByMaxBid ?? bid.amount < bid.uncappedAmount,
+            pick.diagnostics.secondBidAmount,
+            pick.diagnostics.reservePrice,
+            pick.diagnostics.nominatorOpeningBid,
+            pick.diagnostics.uncappedSalePrice,
+            pick.diagnostics.topEndGuardedPrice,
+            pick.diagnostics.salePriceBasis,
+            drivers[0]?.key,
+            drivers[0]?.multiplier,
+            drivers[1]?.key,
+            drivers[1]?.multiplier,
+            drivers[2]?.key,
+            drivers[2]?.multiplier,
+          ] satisfies readonly CsvValue[];
+        }),
+      ),
+    ),
+  );
+
 const mockSmokeFirstTwoRoundsCsv = (smokeReport: MockSmokeReport): string =>
   toCsv(
     [
@@ -484,6 +555,10 @@ export const buildPrepOutputArtifacts = ({
     {
       filename: "mock-draft-board.csv",
       content: `${mockDraftBoardCsv(batch)}\n`,
+    },
+    {
+      filename: "mock-bid-diagnostics.csv",
+      content: `${mockBidDiagnosticsCsv(batch)}\n`,
     },
     {
       filename: "price-tier-calibration.csv",

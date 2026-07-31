@@ -1,6 +1,26 @@
 import { ownerOrder, type Owner, type Position } from "../../config/league.js";
+import type { AuctionBidDriver, AuctionSalePriceBasis } from "./auctionEngine.js";
 import type { KeeperScenarioKey } from "./keeperInflation.js";
 import type { MockBatch, MockRun } from "./mockBatch.js";
+
+export interface MockSmokeBidDiagnostic {
+  rank: number;
+  owner: Owner;
+  amount: number;
+  uncappedAmount: number;
+  maxBid: number;
+  cappedByMaxBid: boolean;
+  drivers: AuctionBidDriver[];
+}
+
+export interface MockSmokeSaleResolution {
+  secondBidAmount: number;
+  reservePrice: number;
+  nominatorOpeningBid: number;
+  uncappedSalePrice: number;
+  topEndGuardedPrice: number;
+  salePriceBasis: AuctionSalePriceBasis;
+}
 
 export interface MockSmokePick {
   pick: number;
@@ -14,6 +34,8 @@ export interface MockSmokePick {
   saleVsAnchor: number;
   budgetAfterPick: number;
   rosterSlotsAfterPick: number;
+  saleResolution: MockSmokeSaleResolution;
+  bidDiagnostics: MockSmokeBidDiagnostic[];
 }
 
 export interface MockSmokeRoundSummary {
@@ -86,6 +108,26 @@ const firstRoundsFor = (run: MockRun, rounds: number): MockSmokePick[] => {
     saleVsAnchor: pick.price - pick.marketPrice,
     budgetAfterPick: pick.budgetAfterPick,
     rosterSlotsAfterPick: pick.rosterSlotsAfterPick,
+    saleResolution: {
+      secondBidAmount: pick.diagnostics.secondBidAmount,
+      reservePrice: pick.diagnostics.reservePrice,
+      nominatorOpeningBid: pick.diagnostics.nominatorOpeningBid,
+      uncappedSalePrice: pick.diagnostics.uncappedSalePrice,
+      topEndGuardedPrice: pick.diagnostics.topEndGuardedPrice,
+      salePriceBasis: pick.diagnostics.salePriceBasis,
+    },
+    bidDiagnostics: pick.topBids.map((bid, index) => {
+      const diagnostics = pick.diagnostics.topBids[index];
+      return {
+        rank: index + 1,
+        owner: bid.owner,
+        amount: bid.amount,
+        uncappedAmount: bid.uncappedAmount,
+        maxBid: bid.maxBid,
+        cappedByMaxBid: diagnostics?.cappedByMaxBid ?? bid.amount < bid.uncappedAmount,
+        drivers: diagnostics?.drivers ?? [],
+      };
+    }),
   }));
 };
 

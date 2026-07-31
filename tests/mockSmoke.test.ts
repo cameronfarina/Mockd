@@ -40,6 +40,23 @@ describe("mock smoke report", () => {
       round: 1,
       nominator: "Beaton",
     });
+    expect(report.firstTwoRounds[0]?.bidDiagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rank: 1,
+          owner: report.firstTwoRounds[0]?.winner,
+          cappedByMaxBid: expect.any(Boolean),
+          drivers: expect.any(Array),
+        }),
+      ]),
+    );
+    expect(report.firstTwoRounds[0]?.saleResolution).toEqual(
+      expect.objectContaining({
+        secondBidAmount: expect.any(Number),
+        reservePrice: expect.any(Number),
+        salePriceBasis: expect.any(String),
+      }),
+    );
     expect(report.firstTwoRounds.every(pick => pick.anchorPrice > 0 && pick.salePrice > 0)).toBe(true);
     expect(report.warnings.some(warning => warning.includes("invalid roster"))).toBe(false);
     expect(report.warnings.some(warning => warning.includes("budget left"))).toBe(false);

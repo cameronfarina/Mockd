@@ -150,6 +150,7 @@ describe("prep output artifacts", () => {
         "historical-backtest.json",
         "mock-smoke-first-two-rounds.csv",
         "mock-smoke.json",
+        "mock-bid-diagnostics.csv",
         "mock-draft-board.csv",
         "owner-player-exposure.csv",
         "owner-summaries.csv",
@@ -193,6 +194,17 @@ describe("prep output artifacts", () => {
       expect(draftBoardLines[0]).toBe("seed,scenario,pick,nominator,winner,player,position,anchor_price,sale_price,budget_after_pick,roster_slots_after_pick,top_bid_1_owner,top_bid_1_amount,top_bid_1_uncapped,top_bid_2_owner,top_bid_2_amount,top_bid_2_uncapped,top_bid_3_owner,top_bid_3_amount,top_bid_3_uncapped");
       expect(draftBoardLines).toHaveLength(batch.runs.reduce((count, run) => count + run.pickCount, 0) + 1);
       expect(draftBoardLines[1]).toContain(",expected,1,");
+
+      const bidDiagnosticsCsv = await readFile(join(outputDirectory, "mock-bid-diagnostics.csv"), "utf8");
+      const bidDiagnosticsLines = bidDiagnosticsCsv.trim().split("\n");
+      expect(bidDiagnosticsLines[0]).toBe("seed,scenario,pick,nominator,winner,player,position,anchor_price,sale_price,bid_rank,bid_owner,bid_amount,bid_uncapped,bid_max,bid_capped_by_max,second_bid_amount,reserve_price,nominator_opening_bid,uncapped_sale_price,top_end_guarded_price,sale_price_basis,top_driver_1,top_driver_1_multiplier,top_driver_2,top_driver_2_multiplier,top_driver_3,top_driver_3_multiplier");
+      expect(bidDiagnosticsLines).toHaveLength(
+        batch.runs.reduce(
+          (count, run) => count + run.picks.reduce((pickCount, pick) => pickCount + pick.topBids.length, 0),
+          0,
+        ) + 1,
+      );
+      expect(bidDiagnosticsLines[1]).toContain(",expected,1,");
 
       const smokeJson = JSON.parse(
         await readFile(join(outputDirectory, "mock-smoke.json"), "utf8"),

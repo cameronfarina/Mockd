@@ -180,12 +180,44 @@ export interface AuctionBid {
   tieBreak: number;
 }
 
+export type AuctionBidDriverDirection = "up" | "down";
+
+export interface AuctionBidDriver {
+  key: string;
+  multiplier: number;
+  direction: AuctionBidDriverDirection;
+}
+
+export type AuctionSalePriceBasis =
+  | "minimum_bid"
+  | "second_bid_plus_minimum"
+  | "reserve_price"
+  | "nominator_opening_bid"
+  | "winning_bid_cap";
+
+export interface AuctionBidDiagnostics {
+  owner: Owner;
+  cappedByMaxBid: boolean;
+  drivers: AuctionBidDriver[];
+}
+
+export interface AuctionPickDiagnostics {
+  secondBidAmount: number;
+  reservePrice: number;
+  nominatorOpeningBid: number;
+  uncappedSalePrice: number;
+  topEndGuardedPrice: number;
+  salePriceBasis: AuctionSalePriceBasis;
+  topBids: AuctionBidDiagnostics[];
+}
+
 export interface AuctionSale {
   player: Player;
   winner: Owner;
   price: number;
   marketPrice: number;
   bids: AuctionBid[];
+  diagnostics: AuctionPickDiagnostics;
 }
 
 export interface ResolveAuctionSaleOptions {
@@ -203,6 +235,7 @@ export interface AuctionPick {
   budgetAfterPick: number;
   rosterSlotsAfterPick: number;
   topBids: AuctionBid[];
+  diagnostics: AuctionPickDiagnostics;
 }
 
 export type AuctionRosters = Partial<Record<Owner, MockRoster>>;
@@ -987,6 +1020,54 @@ const compareBids = (config: AuctionEngineConfig) => (left: AuctionBid, right: A
   left.tieBreak - right.tieBreak ||
   ownerIndex(config, left.owner) - ownerIndex(config, right.owner);
 
+const bidDriversFor = (bid: AuctionBid): AuctionBidDriver[] => {
+  const multipliers = [
+    { key: "owner_demand", multiplier: bid.ownerDemandMultiplier },
+    { key: "roster_need", multiplier: bid.rosterNeedMultiplier },
+    { key: "scarcity", multiplier: bid.behaviorScarcityMultiplier },
+    { key: "behavior_aggression", multiplier: bid.behaviorAggressionMultiplier },
+    { key: "build_style", multiplier: bid.buildStyleMultiplier },
+    { key: "replacement_patience", multiplier: bid.replacementPatienceMultiplier },
+    { key: "endgame_pressure", multiplier: bid.endgamePressureMultiplier },
+    { key: "room_pressure", multiplier: bid.roomPressureMultiplier },
+    { key: "budget_pacing", multiplier: bid.budgetPacingMultiplier },
+    { key: "top_end_damping", multiplier: bid.topEndDampingMultiplier },
+    { key: "position_overbid_damping", multiplier: bid.positionOverbidDampingMultiplier },
+  ] satisfies readonly { key: string; multiplier: number }[];
+
+  return multipliers
+    .flatMap(({ key, multiplier }) => {
+      if (multiplier === 1) return [];
+      return [{
+        key,
+        multiplier,
+        direction: multiplier > 1 ? "up" : "down",
+      } satisfies AuctionBidDriver];
+    })
+    .sort((left, right) =>
+      Math.abs(right.multiplier - 1) - Math.abs(left.multiplier - 1) ||
+      left.key.localeCompare(right.key),
+    );
+};
+
+const bidDiagnosticsFor = (bid: AuctionBid): AuctionBidDiagnostics => ({
+  owner: bid.owner,
+  cappedByMaxBid: bid.amount < bid.uncappedAmount,
+  drivers: bidDriversFor(bid).slice(0, 3),
+});
+
+const salePriceBasisFor = (
+  winningBidAmount: number,
+  floors: readonly { basis: AuctionSalePriceBasis; amount: number }[],
+): AuctionSalePriceBasis => {
+  const floor = floors.reduce(
+    (highest, candidate) => candidate.amount > highest.amount ? candidate : highest,
+    { basis: "minimum_bid", amount: 0 } satisfies { basis: AuctionSalePriceBasis; amount: number },
+  );
+
+  return winningBidAmount <= floor.amount ? "winning_bid_cap" : floor.basis;
+};
+
 const topEndSaleGuardPriceFor = (
   player: Player,
   uncappedSalePrice: number,
@@ -1058,10 +1139,17 @@ export const resolveAuctionSale = (
 
   const secondBidAmount = bids[1]?.amount ?? 0;
   const reservePrice = Math.max(config.minimumBid, Math.round(player.price * config.reservePriceRatio));
-  const uncappedSalePrice = Math.min(
-    winningBid.amount,
-    Math.max(config.minimumBid, secondBidAmount + config.minimumBid, reservePrice, nominatorOpeningBid),
+  const salePriceFloors = [
+    { basis: "minimum_bid", amount: config.minimumBid },
+    { basis: "second_bid_plus_minimum", amount: secondBidAmount + config.minimumBid },
+    { basis: "reserve_price", amount: reservePrice },
+    { basis: "nominator_opening_bid", amount: nominatorOpeningBid },
+  ] satisfies readonly { basis: AuctionSalePriceBasis; amount: number }[];
+  const salePriceFloor = salePriceFloors.reduce<{ basis: AuctionSalePriceBasis; amount: number }>(
+    (highest, candidate) => candidate.amount > highest.amount ? candidate : highest,
+    { basis: "minimum_bid", amount: config.minimumBid },
   );
+  const uncappedSalePrice = Math.min(winningBid.amount, salePriceFloor.amount);
   const topEndGuardedPrice = topEndSaleGuardPriceFor(player, uncappedSalePrice, config);
   const price = tierSaleGuardPriceFor(player, topEndGuardedPrice, config);
 
@@ -1071,6 +1159,15 @@ export const resolveAuctionSale = (
     price,
     marketPrice: player.price,
     bids,
+    diagnostics: {
+      secondBidAmount,
+      reservePrice,
+      nominatorOpeningBid,
+      uncappedSalePrice,
+      topEndGuardedPrice,
+      salePriceBasis: salePriceBasisFor(winningBid.amount, salePriceFloors),
+      topBids: bids.slice(0, 3).map(bidDiagnosticsFor),
+    },
   };
 };
 
@@ -1396,6 +1493,7 @@ export const simulateAuction = ({
       budgetAfterPick: updatedWinnerState.budgetRemaining,
       rosterSlotsAfterPick: updatedWinnerState.rosterSlotsRemaining,
       topBids: sale.bids.slice(0, 3),
+      diagnostics: sale.diagnostics,
     });
   }
 
