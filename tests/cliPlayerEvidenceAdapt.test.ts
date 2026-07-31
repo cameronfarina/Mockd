@@ -44,4 +44,62 @@ describe("CLI player evidence adapter", () => {
       }),
     ]);
   }, 15000);
+
+  it("skips untouched template rows when printing canonical CSV", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "mockd-cli-evidence-adapt-template-"));
+    const inputPath = join(directory, "template.csv");
+    await writeFile(inputPath, [
+      "player,category,score,confidence,source,note,priority,rank,research_prompt",
+      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite,high,11,Check targets",
+      "Drake London,defensiveAttention,,,,,high,11,Check coverage",
+      "Puka Nacua,risk,,,,,medium,8,Check injury history",
+    ].join("\n"));
+
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "evidence:adapt",
+        "--",
+        `--input=${inputPath}`,
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 20 * 1024 * 1024,
+      },
+    );
+
+    expect(stdout.trim()).toBe([
+      "player,category,score,confidence,source,note",
+      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite",
+    ].join("\n"));
+  }, 15000);
+
+  it("prints only the canonical header when no template rows are completed", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "mockd-cli-evidence-adapt-blank-template-"));
+    const inputPath = join(directory, "template.csv");
+    await writeFile(inputPath, [
+      "player,category,score,confidence,source,note,priority,rank,research_prompt",
+      "Drake London,opportunity,,,,,high,11,Check targets",
+      "Puka Nacua,risk,,,,,medium,8,Check injury history",
+    ].join("\n"));
+
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "evidence:adapt",
+        "--",
+        `--input=${inputPath}`,
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 20 * 1024 * 1024,
+      },
+    );
+
+    expect(stdout.trim()).toBe("player,category,score,confidence,source,note");
+  }, 15000);
 });

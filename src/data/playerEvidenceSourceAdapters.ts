@@ -21,6 +21,8 @@ type EvidenceJsonValue = {
 type CsvValue = string | number | boolean | undefined;
 
 const evidenceCategorySet = new Set<string>(factualPlayerContextCategories);
+const optionalEvidencePayloadFields = ["score", "confidence", "source", "note"] as const;
+const requiredEvidencePayloadFields = ["score", "source", "note"] as const;
 
 const isEvidenceCategory = (value: string): value is FactualPlayerContextCategory =>
   evidenceCategorySet.has(value);
@@ -45,8 +47,11 @@ const numberField = (
   field: string,
   player: string,
 ): number => {
-  if (value === undefined || value === "") {
+  if (value === undefined || (typeof value === "string" && value.trim() === "")) {
     throw new Error(`Player evidence rows for ${player} must include ${field}.`);
+  }
+  if (typeof value !== "number" && typeof value !== "string") {
+    throw new Error(`Invalid ${field} for ${player}: "${String(value)}".`);
   }
 
   const parsed = Number(value);
@@ -103,6 +108,23 @@ const evidenceForRecord = (
 const evidenceForCsvRow = (row: CsvRow): PlayerContextEvidence =>
   evidenceForRecord(row);
 
+const isBlankValue = (value: unknown): boolean =>
+  value === undefined || (typeof value === "string" && value.trim() === "");
+
+const shouldSkipUntouchedCsvRow = (row: CsvRow): boolean => {
+  const hasAnyEvidencePayload = optionalEvidencePayloadFields.some(field => !isBlankValue(row[field]));
+  if (!hasAnyEvidencePayload) return true;
+
+  const missingRequiredFields = requiredEvidencePayloadFields.filter(field => isBlankValue(row[field]));
+  if (missingRequiredFields.length === 0) return false;
+
+  const player = row.player?.trim() || "evidence row";
+  throw new Error(
+    `Incomplete player evidence row for ${player}: ${missingRequiredFields.join(", ")} missing. ` +
+    "Fill score, source, and note together, or leave score, confidence, source, and note blank to skip the row.",
+  );
+};
+
 const evidenceValuesFromJson = (parsed: unknown): unknown[] => {
   if (Array.isArray(parsed)) return parsed;
   if (isRecord(parsed) && Array.isArray((parsed as EvidenceJsonValue).evidence)) {
@@ -119,7 +141,9 @@ const parseScoredLocalJson = (content: string): PlayerContextEvidence[] =>
   });
 
 const parseScoredLocalCsv = (content: string): PlayerContextEvidence[] =>
-  parseCsvRecords(content).map(evidenceForCsvRow);
+  parseCsvRecords(content).flatMap(row =>
+    shouldSkipUntouchedCsvRow(row) ? [] : [evidenceForCsvRow(row)],
+  );
 
 export const loadPlayerEvidenceSourceRows = async ({
   path,
