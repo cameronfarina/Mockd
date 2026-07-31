@@ -16,6 +16,7 @@
     "scenarios": "tsx src/cli.ts scenarios",
     "scenarios:custom": "tsx src/cli.ts scenarios --custom-weights",
     "audit": "tsx src/cli.ts audit",
+    "sanity": "tsx src/cli.ts sanity",
     "mock": "tsx src/cli.ts mock",
     "mocks": "tsx src/cli.ts mocks",
     "smoke": "tsx src/cli.ts smoke",

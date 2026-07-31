@@ -45,6 +45,7 @@ npm run prices:custom
 npm run prices -- --player-context=data/raw/player-context.example.csv
 npm run prices -- --player-evidence=data/raw/player-evidence.example.csv
 npm run audit -- --player="Drake London"
+npm run sanity -- --scenario=expected --limit=40 --runs=10
 npm run scenarios
 npm run scenarios:custom
 npm run mock
@@ -134,9 +135,12 @@ Use `audit` when a player number looks weird and you want the bridge in one plac
 ```bash
 npm run audit -- --player="Drake London" --scenario=expected --runs=10
 npm run audit -- --player="Drake London" --scenario=expected --player-evidence=data/raw/player-evidence.example.csv
+npm run sanity -- --scenario=expected --limit=40 --runs=10
 ```
 
 The audit report includes the ESPN anchor, projection rank, ESPN rank, rank gap, league multipliers, context signals and evidence, pre-keeper base price, keeper-inflated scenario price, and the player's observed mock-sale range across the requested runs. If the scenario removes the player as a keeper, the report explains why instead of pretending they are still in the auction pool.
+
+The sanity report scans the top auction-available players for review prompts: high mock-sale premiums, large projection lifts versus ESPN rank, expensive players with no factual evidence rows, context penalties, hard-ceiling pressure, and high-price volume against the 2023-2025 historical max counts. Treat those flags as the next evidence queue, not automatic price changes.
 
 ## Auction Simulation
 
