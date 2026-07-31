@@ -24,6 +24,7 @@
     "mock": "tsx src/cli.ts mock",
     "mocks": "tsx src/cli.ts mocks",
     "smoke": "tsx src/cli.ts smoke",
+    "backtest": "tsx src/cli.ts backtest",
     "calibration": "tsx src/cli.ts calibration",
     "outputs": "tsx src/cli.ts outputs"
   },

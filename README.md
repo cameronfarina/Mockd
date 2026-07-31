@@ -20,6 +20,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - prioritized factual evidence queues for top-player pricing review
 - evidence coverage gates that fail loudly when high-priority players have no supporting facts
 - calibration gates that mark mock batches as pass, warn, or fail against explicit economic thresholds
+- leave-one-season-out historical backtests that separate stable league economics from noisy historical swings
 - replacement-depth pricing and budget pacing so owners do not strand themselves into unrealistic $1-only endgames
 - high-price volume gates for `$70+`, `$75+`, and `$80+` player counts against historical single-draft ceilings
 - roster-shape calibration for QB/RB/WR/TE/K/DST counts so mocks do not hoard backup QBs or special teams
@@ -57,6 +58,7 @@ npm run scenarios:custom
 npm run mock
 npm run mocks
 npm run smoke
+npm run backtest
 npm run calibration
 npm run outputs
 npm run keepers
@@ -176,6 +178,7 @@ npm run mock -- --scenario=expected --player-context=data/raw/player-context.exa
 npm run mock -- --scenario=expected --player-evidence=data/raw/player-evidence.example.csv
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run smoke -- --scenario=expected --runs=2 --seed=smoke
+npm run backtest
 npm run calibration -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run outputs -- --scenarios=expected --runs=50 --seed-prefix=prep --out=data/processed/mock-prep
 ```
@@ -203,6 +206,8 @@ WR spend uses a very light position overbid damper so owner preferences can stil
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.
 
 `smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, and warnings such as owners leaving too much budget unused.
+
+`backtest` performs a leave-one-season-out historical economics audit. For each 2023-2025 draft, it compares that season's actual open-auction spend, price tiers, high-price volume, roster shape, position spend, and owner spend against the average of the other historical seasons. This is intentionally a league-shape backtest, not a claim that the model can predict past players without historical projection files. Warnings mark naturally noisy areas to keep in mind while tuning; failures mean the historical signal should not be trusted as stable without more data.
 
 `calibration` runs the same batch and compares it against the 2023-2025 historical auction boards by price tier, high-price volume, roster position counts, position spend, owner spend, top-two auction spend, and $1 player volume. The audit includes pass/warn/fail gates for roster validity, auction spend, tier counts, roster counts, position spend, owner spend, and leftover budget so tuning work has an explicit credibility signal. Historical auction spend remains visible as context, but league, owner, and position spend gates target the selected keeper scenario's open auction dollars because keeper costs change the room's available spend year to year.
 
@@ -239,6 +244,7 @@ npm run --silent scenarios > data/processed/keeper-scenarios.json
 npm run --silent mock > data/processed/mock-auction.json
 npm run --silent mocks -- --scenarios=expected --runs=50 > data/processed/mock-batch-summary.json
 npm run --silent smoke -- --scenario=expected --runs=2 > data/processed/mock-smoke.json
+npm run --silent backtest > data/processed/historical-backtest.json
 npm run --silent calibration -- --scenarios=expected --runs=50 > data/processed/historical-calibration-audit.json
 npm run --silent outputs -- --scenarios=expected --runs=50 --out=data/processed/mock-prep
 npm run --silent evidence:queue -- --scenario=expected --limit=40 --format=csv > data/processed/player-evidence-queue.csv
