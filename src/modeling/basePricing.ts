@@ -1,9 +1,16 @@
 import { positions, type Position } from "../../config/league.js";
+import {
+  defaultPlayerContextConfig,
+  type PlayerContextConfig,
+  type PlayerContextNotes,
+  type PlayerContextSignals,
+} from "../../config/playerContext.js";
 import { playerOverrides, type PlayerOverride } from "../../config/playerOverrides.js";
 import { normalizePlayerName } from "../data/normalizePlayerName.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
 import type { ProjectionRecord } from "../projections.js";
 import { buildLeagueOpenAuctionSpendTargets } from "./ownerProfiles.js";
+import { calculatePlayerContextAdjustment } from "./playerContext.js";
 import { buildProjectionRankings, type ProjectionRanking } from "./projectionRankings.js";
 
 type PositionAmounts = Record<Position, number>;
@@ -37,6 +44,7 @@ export interface PricingConfig {
   topAnchorMinimum: TopAnchorMinimum;
   projectionFloorRules: Partial<Record<Position, ProjectionFloorRule>>;
   projectionRankPriceFloors: Partial<Record<Position, readonly ProjectionRankPriceFloor[]>>;
+  playerContext: PlayerContextConfig;
   spendTargetRoundingPriority: readonly Position[];
 }
 
@@ -50,6 +58,10 @@ export interface BasePrice extends ProjectionRanking {
   preSustainabilityPrice: number;
   sustainabilityFactor: number;
   sustainabilityNote?: string;
+  contextAdjustmentFactor: number;
+  contextAdjustmentPercent: number;
+  contextSignals: PlayerContextSignals;
+  contextNotes?: PlayerContextNotes;
   rawPrice: number;
   minimumPrice: number;
   hardCeiling: number;
@@ -127,6 +139,7 @@ export const defaultPricingConfig = {
     QB: [{ maxProjectionRank: 1, price: 35 }],
     TE: [{ maxProjectionRank: 2, price: 38 }],
   },
+  playerContext: defaultPlayerContextConfig,
   spendTargetRoundingPriority: ["RB", "TE", "K", "DST", "WR", "QB"],
 } as const satisfies PricingConfig;
 
@@ -224,15 +237,15 @@ const minimumPriceFor = (
   ranking: ProjectionRanking,
   anchoredPrice: number,
   projectionFloorPrice: number,
-  sustainabilityFactor: number,
+  adjustmentFactor: number,
   config: PricingConfig,
 ): number => {
   const publicAnchorValue = ranking.espnAuctionValue ?? 0;
   const topAnchorMinimum = publicAnchorValue >= config.topAnchorMinimum.espnAuctionValueAtLeast
-    ? Math.round(anchoredPrice * sustainabilityFactor * config.topAnchorMinimum.shareOfAnchoredPrice)
+    ? Math.round(anchoredPrice * adjustmentFactor * config.topAnchorMinimum.shareOfAnchoredPrice)
     : 1;
   const rankFloor = projectionRankPriceFloorFor(ranking, config);
-  const projectionFloorMinimum = Math.round(projectionFloorPrice * sustainabilityFactor);
+  const projectionFloorMinimum = Math.round(projectionFloorPrice * adjustmentFactor);
 
   return Math.min(
     config.hardPriceCeilings[ranking.position],
@@ -255,12 +268,14 @@ const candidateForRanking = (
   const preSustainabilityPrice = Math.max(anchoredPrice, projectionFloorPrice);
   const override = overrideByName.get(ranking.normalizedName);
   const sustainabilityFactor = override?.sustainabilityFactor ?? 1;
-  const rawPrice = preSustainabilityPrice * sustainabilityFactor;
+  const contextAdjustment = calculatePlayerContextAdjustment(ranking.normalizedName, config.playerContext);
+  const adjustmentFactor = sustainabilityFactor * contextAdjustment.factor;
+  const rawPrice = preSustainabilityPrice * adjustmentFactor;
   const minimumPrice = minimumPriceFor(
     ranking,
     anchoredPrice,
     projectionFloorPrice,
-    sustainabilityFactor,
+    adjustmentFactor,
     config,
   );
 
@@ -275,6 +290,10 @@ const candidateForRanking = (
     preSustainabilityPrice,
     sustainabilityFactor,
     ...(override ? { sustainabilityNote: override.note } : {}),
+    contextAdjustmentFactor: contextAdjustment.factor,
+    contextAdjustmentPercent: contextAdjustment.cappedAdjustment,
+    contextSignals: contextAdjustment.signals,
+    ...(contextAdjustment.notes ? { contextNotes: contextAdjustment.notes } : {}),
     rawPrice,
     allocationWeight: Math.max(0.01, rawPrice),
     minimumPrice,

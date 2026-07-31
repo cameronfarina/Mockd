@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { customWeightsPlayerContextConfig } from "../config/playerContext.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
 import { buildBasePrices, defaultPricingConfig, summarizePricePool } from "../src/modeling/basePricing.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
@@ -52,5 +53,37 @@ describe("audited base pricing", () => {
     expect(Math.round(jadarian.preSustainabilityPrice)).toBe(22);
     expect(jadarian.sustainabilityFactor).toBe(0.68);
     expect(jadarian.price).toBe(15);
+  });
+
+  it("can turn on custom player-context weights while preserving spend reconciliation", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const defaultPrices = buildBasePrices(projections, historicalRecords);
+    const customPrices = buildBasePrices(projections, historicalRecords, {
+      ...defaultPricingConfig,
+      playerContext: {
+        ...customWeightsPlayerContextConfig,
+        overrides: [
+          {
+            player: "Puka Nacua",
+            signals: {
+              role: -2,
+              injury: -1,
+            },
+            notes: {
+              role: "Synthetic test signal for custom-weight repricing.",
+            },
+          },
+        ],
+      },
+    });
+    const defaultPuka = defaultPrices.find(price => price.name === "Puka Nacua")!;
+    const customPuka = customPrices.find(price => price.name === "Puka Nacua")!;
+
+    expect(summarizePricePool(customPrices).spend).toEqual(defaultPricingConfig.auditedSpendTargets);
+    expect(defaultPuka.contextAdjustmentFactor).toBe(1);
+    expect(customPuka.contextAdjustmentFactor).toBeLessThan(1);
+    expect(customPuka.rawPrice).toBeLessThan(defaultPuka.rawPrice);
+    expect(customPuka.price).toBeLessThan(defaultPuka.price);
   });
 });

@@ -110,12 +110,14 @@ Prices start from ESPN auction value, then apply position multipliers, capped ra
 - Reconciled spend by position matches audited targets.
 - Known player examples match expected prices or documented tolerances.
 - Owner demand is compressed at market level, not directly multiplied into every player price.
+- Optional custom player-context weights can be turned on without breaking positional spend reconciliation.
 
 ### Notes For Agents
 
 If current code on main contradicts this slice, follow the code.
 
 Status: implemented on `codex/pricing-core`.
+Custom player-context weights implemented on `codex/custom-weights`.
 
 ## [5] Apply Keeper Inflation Scenarios
 

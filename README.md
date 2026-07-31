@@ -13,6 +13,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - current keeper declarations and assumptions
 - projection rank anchors, ESPN ranks, auction values, and rank gaps
 - audited pre-keeper prices reconciled to historical open-auction spend
+- optional custom player-context weights for role, injury, contract, coaching, schedule, and bye-week adjustments
 - confirmed-only, expected, and high-retention keeper inflation scenarios
 - legal lineup optimization performed **after** the full roster is built
 - validation guards for duplicate players, budget, roster size, and position limits
@@ -34,7 +35,9 @@ npm run validate
 npm run profiles
 npm run rankings
 npm run prices
+npm run prices:custom
 npm run scenarios
+npm run scenarios:custom
 npm run keepers
 ```
 
@@ -88,20 +91,28 @@ npm run scenarios
 
 `prices` builds pre-keeper prices from uploaded/imported inputs: public auction value anchors, league-calibrated position multipliers, capped rank-gap adjustments, role-sustainability overrides, historical spend reconciliation, and hard position ceilings. The current defaults reproduce this league's audited drafted-pool counts and spend targets, but the engine accepts new historical records and config for future leagues.
 
+`prices:custom` turns on editable player-context weights from `config/playerContext.ts`. Those weights can move prices for manually configured role, injury, contract, coaching, schedule, and bye-week signals while still reconciling the final pool back to historical positional spend. The default `prices` command leaves that layer off, preserving the audited baseline.
+
 `scenarios` removes known keepers from the priced auction pool and applies confirmed-only, expected, and high-retention inflation factors. Scenario counts and average keeper costs are config-driven so unannounced keepers are not assigned to owners.
+
+`scenarios:custom` applies the same keeper scenario logic after custom player-context weights are turned on.
 
 When redirecting command output into JSON artifacts, use npm's silent mode:
 
 ```bash
 npm run --silent prices > data/processed/player-prices.json
+npm run --silent prices:custom > data/processed/player-prices-custom.json
 npm run --silent scenarios > data/processed/keeper-scenarios.json
 ```
+
+The context layer is intentionally manual for now. Add only player facts you want the model to believe; unsupported contract, coaching, schedule, or bye assumptions should stay empty until you enter or import them from a trusted source.
 
 ## Next implementation work
 
 1. Port the 50-mock generator from the current workbook process.
 2. Add deterministic random seeds and snapshot tests.
-3. Generate Excel/CSV outputs directly from the codebase.
+3. Add import paths for richer player-context data sources.
+4. Generate Excel/CSV outputs directly from the codebase.
 
 ## Push to GitHub
 

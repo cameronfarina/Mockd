@@ -1,8 +1,14 @@
 import { keepers } from "../config/keepers.js";
 import { leagueConfig } from "../config/league.js";
+import { customWeightsPlayerContextConfig } from "../config/playerContext.js";
 import { keeperSummary } from "./keeperModel.js";
 import { loadHistoricalAuctionRecords } from "./data/parseHistoricalBoards.js";
-import { buildBasePrices, defaultPricingConfig, summarizePricePool } from "./modeling/basePricing.js";
+import {
+  buildBasePrices,
+  defaultPricingConfig,
+  summarizePricePool,
+  type PricingConfig,
+} from "./modeling/basePricing.js";
 import { applyKeeperScenarioToPrices, buildKeeperScenarios } from "./modeling/keeperInflation.js";
 import {
   buildLeagueOpenAuctionSpendTargets,
@@ -13,7 +19,19 @@ import { buildProjectionRankings } from "./modeling/projectionRankings.js";
 import { loadEspnWeeksOneToFour } from "./projections.js";
 
 const command = process.argv[2];
+const useCustomWeights = process.argv.includes("--custom-weights");
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+
+const pricingConfig = useCustomWeights
+  ? { ...defaultPricingConfig, playerContext: customWeightsPlayerContextConfig }
+  : defaultPricingConfig;
+
+const playerContextSummary = (config: PricingConfig) => ({
+  enabled: config.playerContext.enabled,
+  weights: config.playerContext.weights,
+  maxAdjustment: config.playerContext.maxAdjustment,
+  overrideCount: config.playerContext.overrides.length,
+});
 
 const countBySeason = (records: { season: number }[]): Record<number, number> =>
   records.reduce<Record<number, number>>((counts, record) => {
@@ -59,15 +77,16 @@ const main = async (): Promise<void> => {
   if (command === "prices") {
     const players = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
-    const prices = buildBasePrices(players, historicalRecords);
+    const prices = buildBasePrices(players, historicalRecords, pricingConfig);
 
     console.log(JSON.stringify({
       config: {
-        draftedPoolCounts: defaultPricingConfig.draftedPoolCounts,
-        positionMarketMultipliers: defaultPricingConfig.positionMarketMultipliers,
-        rankGapAdjustmentCap: defaultPricingConfig.rankGapAdjustmentCap,
-        marketPressureByPosition: defaultPricingConfig.marketPressureByPosition,
-        hardPriceCeilings: defaultPricingConfig.hardPriceCeilings,
+        draftedPoolCounts: pricingConfig.draftedPoolCounts,
+        positionMarketMultipliers: pricingConfig.positionMarketMultipliers,
+        rankGapAdjustmentCap: pricingConfig.rankGapAdjustmentCap,
+        marketPressureByPosition: pricingConfig.marketPressureByPosition,
+        hardPriceCeilings: pricingConfig.hardPriceCeilings,
+        playerContext: playerContextSummary(pricingConfig),
       },
       summary: summarizePricePool(prices),
       prices,
@@ -78,10 +97,13 @@ const main = async (): Promise<void> => {
   if (command === "scenarios") {
     const players = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
-    const prices = buildBasePrices(players, historicalRecords);
+    const prices = buildBasePrices(players, historicalRecords, pricingConfig);
     const scenarios = buildKeeperScenarios(keepers);
 
     console.log(JSON.stringify({
+      config: {
+        playerContext: playerContextSummary(pricingConfig),
+      },
       scenarios: scenarios.map(scenario => applyKeeperScenarioToPrices(prices, scenario, keepers)),
     }, null, 2));
     return;
@@ -103,7 +125,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices | npm run scenarios | npm run validate | npm run mock");
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights] | npm run scenarios [-- --custom-weights] | npm run validate | npm run mock");
 };
 
 main().catch(error => {

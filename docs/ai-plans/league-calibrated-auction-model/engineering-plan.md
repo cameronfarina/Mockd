@@ -63,8 +63,9 @@ Acceptance criteria:
 - Reconciled open-auction spend matches historical weighted targets by position.
 - Known audited examples such as Gibbs, Bijan, Puka, Chase, Josh Allen, and Trey McBride match expected ranges.
 - Owner multipliers are not directly applied as large player-price multipliers.
+- Optional custom player-context weights can adjust role, injury, contract, coaching, schedule, and bye-week assumptions without changing the default audited baseline.
 
-Status: implemented on `codex/pricing-core`.
+Status: implemented on `codex/pricing-core`; custom-weight layer added on `codex/custom-weights`.
 
 ### 5. Keeper State And Inflation Scenarios
 
@@ -110,6 +111,15 @@ Acceptance criteria:
 - Processed outputs live under `data/processed` or `output`.
 - Excel is treated as generated output, not model logic.
 - Output includes enough source fields to explain why a price or mock happened.
+
+### 8a. Rich Player Context Inputs
+
+Import or edit player-context signals for role, injury history, contract situation, coaching/scheme, strength of schedule, and bye-week timing. The current implementation supports manual custom weights; future work should attach trusted data sources instead of inventing assumptions.
+
+Acceptance criteria:
+- Context sources are auditable per player and category.
+- Users can turn context weights on or off.
+- Default league pricing remains reproducible when custom weights are off.
 
 ### 9. Productization Later
 

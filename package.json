@@ -12,7 +12,9 @@
     "profiles": "tsx src/cli.ts profiles",
     "rankings": "tsx src/cli.ts rankings",
     "prices": "tsx src/cli.ts prices",
+    "prices:custom": "tsx src/cli.ts prices --custom-weights",
     "scenarios": "tsx src/cli.ts scenarios",
+    "scenarios:custom": "tsx src/cli.ts scenarios --custom-weights",
     "mock": "tsx src/cli.ts mock"
   },
   "devDependencies": {
