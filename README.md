@@ -15,6 +15,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - audited pre-keeper prices reconciled to historical open-auction spend
 - optional custom player-context weights for role, injury, contract, coaching, schedule, and bye-week adjustments
 - confirmed-only, expected, and high-retention keeper inflation scenarios
+- deterministic owner-local auction simulation with scarcity pressure
 - legal lineup optimization performed **after** the full roster is built
 - validation guards for duplicate players, budget, roster size, and position limits
 - the current validated Excel model as an output artifact
@@ -38,6 +39,7 @@ npm run prices
 npm run prices:custom
 npm run scenarios
 npm run scenarios:custom
+npm run mock
 npm run keepers
 ```
 
@@ -97,22 +99,36 @@ npm run scenarios
 
 `scenarios:custom` applies the same keeper scenario logic after custom player-context weights are turned on.
 
+## Auction Simulation
+
+Run:
+
+```bash
+npm run mock
+npm run mock -- --scenario=expected --seed=economic-regression
+```
+
+`mock` runs a deterministic auction from the selected keeper scenario. Declared keepers are locked into their owners' rosters at keeper cost, the auction pool uses scenario-adjusted market prices, and additional $1 replacement players are added from the projection file when the known priced pool is smaller than the remaining roster slots.
+
+The auction engine does not globally discount the pool after a few expensive buys. Each owner carries their own remaining budget, remaining roster slots, and max bid, with $1 reserved for every unfilled slot. If two owners spend $80 early, those owners are capped; other owners with full budgets can still bid good players above anchor when comparable talent is scarce.
+
 When redirecting command output into JSON artifacts, use npm's silent mode:
 
 ```bash
 npm run --silent prices > data/processed/player-prices.json
 npm run --silent prices:custom > data/processed/player-prices-custom.json
 npm run --silent scenarios > data/processed/keeper-scenarios.json
+npm run --silent mock > data/processed/mock-auction.json
 ```
 
 The context layer is intentionally manual for now. Add only player facts you want the model to believe; unsupported contract, coaching, schedule, or bye assumptions should stay empty until you enter or import them from a trusted source.
 
 ## Next implementation work
 
-1. Port the 50-mock generator from the current workbook process.
-2. Add deterministic random seeds and snapshot tests.
-3. Add import paths for richer player-context data sources.
-4. Generate Excel/CSV outputs directly from the codebase.
+1. Run batches of deterministic mock seeds and summarize owner/player exposure.
+2. Add import paths for richer player-context data sources.
+3. Generate Excel/CSV outputs directly from the codebase.
+4. Add a web-app upload flow once the league-specific engine is trusted.
 
 ## Push to GitHub
 

@@ -1,0 +1,699 @@
+import { leagueConfig, ownerOrder, positions, type Owner, type Position } from "../../config/league.js";
+import type { KeeperDeclaration, KeeperStatus } from "../../config/keepers.js";
+import { normalizePlayerName } from "../data/normalizePlayerName.js";
+import type { ProjectionRecord } from "../projections.js";
+import type { MockRoster, Player } from "../types.js";
+import type { OwnerProfile } from "./ownerProfiles.js";
+import { buildProjectionRankings } from "./projectionRankings.js";
+
+export type PositionAmounts = Record<Position, number>;
+export type InitialRostersByOwner = Partial<Record<Owner, readonly Player[]>>;
+export type OwnerDemandMultipliers = Partial<Record<Owner, Partial<Record<Position, number>>>>;
+
+export interface ScarcityConfig {
+  comparablePriceRatio: number;
+  minimumComparablePrice: number;
+  slope: number;
+  maxMultiplier: number;
+}
+
+export interface RosterNeedConfig {
+  missingStarterMultiplier: number;
+  missingFlexMultiplier: number;
+  emptyPremiumPositionMultiplier: number;
+  specialTeamsBenchMultiplier: number;
+  lastPositionSlotMultiplier: number;
+}
+
+export interface AuctionEngineConfig {
+  owners: readonly Owner[];
+  auctionBudget: number;
+  rosterSize: number;
+  rosterMaximums: PositionAmounts;
+  starterMinimums: PositionAmounts;
+  flexMinimum: number;
+  minimumBid: number;
+  reservePriceRatio: number;
+  ownerDemandMultipliers: OwnerDemandMultipliers;
+  scarcity: ScarcityConfig;
+  rosterNeed: RosterNeedConfig;
+  seed: string;
+}
+
+export type AuctionEngineConfigOverrides =
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "scarcity" | "rosterNeed">> & {
+    ownerDemandMultipliers?: OwnerDemandMultipliers;
+    scarcity?: Partial<ScarcityConfig>;
+    rosterNeed?: Partial<RosterNeedConfig>;
+  };
+
+export interface AuctionOwnerState {
+  owner: Owner;
+  roster: Player[];
+  spent: number;
+  budgetRemaining: number;
+  rosterSlotsRemaining: number;
+  maxBid: number;
+}
+
+export interface AuctionBid {
+  owner: Owner;
+  amount: number;
+  uncappedAmount: number;
+  maxBid: number;
+  marketPrice: number;
+  ownerDemandMultiplier: number;
+  rosterNeedMultiplier: number;
+  scarcityMultiplier: number;
+  tieBreak: number;
+}
+
+export interface AuctionSale {
+  player: Player;
+  winner: Owner;
+  price: number;
+  marketPrice: number;
+  bids: AuctionBid[];
+}
+
+export interface AuctionPick {
+  pick: number;
+  owner: Owner;
+  player: string;
+  position: Position;
+  marketPrice: number;
+  price: number;
+  budgetAfterPick: number;
+  rosterSlotsAfterPick: number;
+  topBids: AuctionBid[];
+}
+
+export type AuctionRosters = Partial<Record<Owner, MockRoster>>;
+
+export interface AuctionResult {
+  seed: string;
+  rosters: AuctionRosters;
+  ownerStates: AuctionOwnerState[];
+  picks: AuctionPick[];
+  unsoldPlayers: Player[];
+}
+
+export interface SimulateAuctionOptions {
+  players: readonly Player[];
+  config?: AuctionEngineConfig;
+  initialRostersByOwner?: InitialRostersByOwner;
+}
+
+export interface AuctionPricedPlayer {
+  id?: string | number;
+  name: string;
+  position: Position;
+  price: number;
+  scenarioPrice?: number;
+  week1?: number;
+  weeks?: Record<number, number>;
+  weeks1To4: number;
+}
+
+export interface BuildAuctionPlayerPoolOptions {
+  pricedPlayers: readonly AuctionPricedPlayer[];
+  projections: readonly ProjectionRecord[];
+  excludedNames?: readonly string[];
+  targetCount?: number;
+  replacementPrice?: number;
+}
+
+const flexEligiblePositions = ["RB", "WR", "TE"] as const satisfies readonly Position[];
+const premiumPositions = ["QB", "RB", "WR", "TE"] as const satisfies readonly Position[];
+const defaultSeed = "mockd-default";
+const hashDivisor = 0x100000000;
+
+const emptyPositionAmounts = (): PositionAmounts => ({
+  QB: 0,
+  RB: 0,
+  WR: 0,
+  TE: 0,
+  K: 0,
+  DST: 0,
+});
+
+const defaultStarterMinimums = (): PositionAmounts => ({
+  QB: leagueConfig.lineup.QB,
+  RB: leagueConfig.lineup.RB,
+  WR: leagueConfig.lineup.WR,
+  TE: leagueConfig.lineup.TE,
+  K: leagueConfig.lineup.K,
+  DST: leagueConfig.lineup.DST,
+});
+
+const configuredRosterMaximums = (): PositionAmounts => ({
+  QB: leagueConfig.rosterMaximums.QB,
+  RB: leagueConfig.rosterMaximums.RB,
+  WR: leagueConfig.rosterMaximums.WR,
+  TE: leagueConfig.rosterMaximums.TE,
+  K: leagueConfig.rosterMaximums.K,
+  DST: leagueConfig.rosterMaximums.DST,
+});
+
+const defaultAuctionEngineConfig: AuctionEngineConfig = {
+  owners: ownerOrder,
+  auctionBudget: leagueConfig.auctionBudget,
+  rosterSize: leagueConfig.rosterSize,
+  rosterMaximums: configuredRosterMaximums(),
+  starterMinimums: defaultStarterMinimums(),
+  flexMinimum: leagueConfig.lineup.FLEX,
+  minimumBid: 1,
+  reservePriceRatio: 0.75,
+  ownerDemandMultipliers: {},
+  scarcity: {
+    comparablePriceRatio: 0.8,
+    minimumComparablePrice: 5,
+    slope: 0.03,
+    maxMultiplier: 1.08,
+  },
+  rosterNeed: {
+    missingStarterMultiplier: 1.03,
+    missingFlexMultiplier: 1.015,
+    emptyPremiumPositionMultiplier: 1,
+    specialTeamsBenchMultiplier: 0.85,
+    lastPositionSlotMultiplier: 0.97,
+  },
+  seed: defaultSeed,
+};
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(max, Math.max(min, value));
+
+const isFlexEligible = (position: Position): boolean =>
+  flexEligiblePositions.some(flexPosition => flexPosition === position);
+
+const isPremiumPosition = (position: Position): boolean =>
+  premiumPositions.some(premiumPosition => premiumPosition === position);
+
+export const buildAuctionConfig = (
+  overrides: AuctionEngineConfigOverrides = {},
+): AuctionEngineConfig => ({
+  ...defaultAuctionEngineConfig,
+  ...overrides,
+  ownerDemandMultipliers: overrides.ownerDemandMultipliers ?? defaultAuctionEngineConfig.ownerDemandMultipliers,
+  scarcity: {
+    ...defaultAuctionEngineConfig.scarcity,
+    ...overrides.scarcity,
+  },
+  rosterNeed: {
+    ...defaultAuctionEngineConfig.rosterNeed,
+    ...overrides.rosterNeed,
+  },
+});
+
+const countPositions = (players: readonly Player[]): PositionAmounts => {
+  const counts = emptyPositionAmounts();
+
+  for (const player of players) {
+    counts[player.position] += 1;
+  }
+
+  return counts;
+};
+
+const maxBidFor = (
+  budgetRemaining: number,
+  rosterSlotsRemaining: number,
+  minimumBid: number,
+): number => {
+  if (rosterSlotsRemaining <= 0) return 0;
+  return Math.max(0, budgetRemaining - Math.max(0, rosterSlotsRemaining - 1) * minimumBid);
+};
+
+const ownerStateFromRoster = (
+  owner: Owner,
+  roster: readonly Player[],
+  config: AuctionEngineConfig,
+): AuctionOwnerState => {
+  const spent = roster.reduce((total, player) => total + player.price, 0);
+  const rosterSlotsRemaining = config.rosterSize - roster.length;
+  const budgetRemaining = config.auctionBudget - spent;
+
+  return {
+    owner,
+    roster: [...roster],
+    spent,
+    budgetRemaining,
+    rosterSlotsRemaining,
+    maxBid: maxBidFor(budgetRemaining, rosterSlotsRemaining, config.minimumBid),
+  };
+};
+
+export const createAuctionOwnerStates = ({
+  config = defaultAuctionEngineConfig,
+  initialRostersByOwner = {},
+}: {
+  config?: AuctionEngineConfig;
+  initialRostersByOwner?: InitialRostersByOwner;
+}): AuctionOwnerState[] =>
+  config.owners.map(owner => {
+    const initialRoster = initialRostersByOwner[owner] ?? [];
+    if (initialRoster.length > config.rosterSize) {
+      throw new Error(`${owner} has more initial players than roster slots.`);
+    }
+
+    return ownerStateFromRoster(owner, initialRoster, config);
+  });
+
+const directMissingTotal = (
+  counts: PositionAmounts,
+  starterMinimums: PositionAmounts,
+): number =>
+  positions.reduce(
+    (total, position) => total + Math.max(0, starterMinimums[position] - counts[position]),
+    0,
+  );
+
+const directMissingFlexEligible = (
+  counts: PositionAmounts,
+  starterMinimums: PositionAmounts,
+): number =>
+  flexEligiblePositions.reduce(
+    (total, position) => total + Math.max(0, starterMinimums[position] - counts[position]),
+    0,
+  );
+
+const flexEligibleCount = (counts: PositionAmounts): number =>
+  flexEligiblePositions.reduce((total, position) => total + counts[position], 0);
+
+const minimumFlexEligibleCount = (config: AuctionEngineConfig): number =>
+  flexEligiblePositions.reduce(
+    (total, position) => total + config.starterMinimums[position],
+    config.flexMinimum,
+  );
+
+const futurePicksNeededForLegalRoster = (
+  counts: PositionAmounts,
+  config: AuctionEngineConfig,
+): number => {
+  const missingDirect = directMissingTotal(counts, config.starterMinimums);
+  const flexCountAfterDirectMinimums = flexEligibleCount(counts) +
+    directMissingFlexEligible(counts, config.starterMinimums);
+  const extraFlexShortage = Math.max(
+    0,
+    minimumFlexEligibleCount(config) - flexCountAfterDirectMinimums,
+  );
+
+  return missingDirect + extraFlexShortage;
+};
+
+const canOwnerCompleteRosterAfterAdding = (
+  state: AuctionOwnerState,
+  player: Player,
+  config: AuctionEngineConfig,
+): boolean => {
+  if (state.rosterSlotsRemaining <= 0) return false;
+
+  const counts = countPositions(state.roster);
+  if (counts[player.position] >= config.rosterMaximums[player.position]) return false;
+
+  counts[player.position] += 1;
+  const slotsAfterPick = state.rosterSlotsRemaining - 1;
+  return futurePicksNeededForLegalRoster(counts, config) <= slotsAfterPick;
+};
+
+const remainingPlayersAtPosition = (
+  remainingPlayers: readonly Player[],
+  position: Position,
+): number =>
+  remainingPlayers.filter(player => player.position === position).length;
+
+const canLeagueStillMeetPositionMinimums = (
+  candidateState: AuctionOwnerState,
+  player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): boolean => {
+  const positionMinimum = config.starterMinimums[player.position];
+  if (positionMinimum <= 0) return true;
+
+  const directShortageAfterPick = ownerStates.reduce((shortage, state) => {
+    const counts = countPositions(state.roster);
+    if (state.owner === candidateState.owner) counts[player.position] += 1;
+    return shortage + Math.max(0, positionMinimum - counts[player.position]);
+  }, 0);
+
+  return remainingPlayersAtPosition(remainingPlayers, player.position) >= directShortageAfterPick;
+};
+
+const ownerCanBidOnPlayer = (
+  state: AuctionOwnerState,
+  player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): boolean =>
+  state.maxBid >= config.minimumBid &&
+  canOwnerCompleteRosterAfterAdding(state, player, config) &&
+  canLeagueStillMeetPositionMinimums(state, player, ownerStates, remainingPlayers, config);
+
+const hashString = (value: string): number => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const deterministicTieBreak = (
+  seed: string,
+  owner: Owner,
+  playerName: string,
+): number =>
+  hashString(`${seed}|${owner}|${playerName}`) / hashDivisor;
+
+const ownerDemandMultiplierFor = (
+  owner: Owner,
+  position: Position,
+  config: AuctionEngineConfig,
+): number =>
+  config.ownerDemandMultipliers[owner]?.[position] ?? 1;
+
+const rosterNeedMultiplierFor = (
+  state: AuctionOwnerState,
+  position: Position,
+  config: AuctionEngineConfig,
+): number => {
+  const counts = countPositions(state.roster);
+  let multiplier = 1;
+
+  if (counts[position] < config.starterMinimums[position]) {
+    multiplier *= config.rosterNeed.missingStarterMultiplier;
+  } else if (isFlexEligible(position) && flexEligibleCount(counts) < minimumFlexEligibleCount(config)) {
+    multiplier *= config.rosterNeed.missingFlexMultiplier;
+  }
+
+  if (isPremiumPosition(position) && counts[position] === 0) {
+    multiplier *= config.rosterNeed.emptyPremiumPositionMultiplier;
+  }
+  if ((position === "K" || position === "DST") && counts[position] >= 1) {
+    multiplier *= config.rosterNeed.specialTeamsBenchMultiplier;
+  }
+  if (counts[position] >= config.rosterMaximums[position] - 1) {
+    multiplier *= config.rosterNeed.lastPositionSlotMultiplier;
+  }
+
+  return multiplier;
+};
+
+const scarcityMultiplierFor = (
+  player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): number => {
+  const comparablePrice = Math.max(
+    config.scarcity.minimumComparablePrice,
+    Math.ceil(player.price * config.scarcity.comparablePriceRatio),
+  );
+  const comparablePlayersRemaining = remainingPlayers
+    .filter(candidate => candidate.position === player.position && candidate.price >= comparablePrice)
+    .length + 1;
+  const activeBidders = ownerStates
+    .filter(state => ownerCanBidOnPlayer(state, player, ownerStates, remainingPlayers, config))
+    .filter(state => state.maxBid >= comparablePrice)
+    .length;
+  const pressure = activeBidders / Math.max(1, comparablePlayersRemaining);
+
+  return clamp(
+    1 + Math.max(0, pressure - 1) * config.scarcity.slope,
+    1,
+    config.scarcity.maxMultiplier,
+  );
+};
+
+const bidForOwner = (
+  state: AuctionOwnerState,
+  player: Player,
+  scarcityMultiplier: number,
+  config: AuctionEngineConfig,
+): AuctionBid => {
+  const ownerDemandMultiplier = ownerDemandMultiplierFor(state.owner, player.position, config);
+  const rosterNeedMultiplier = rosterNeedMultiplierFor(state, player.position, config);
+  const uncappedAmount = Math.max(
+    config.minimumBid,
+    Math.round(player.price * ownerDemandMultiplier * rosterNeedMultiplier * scarcityMultiplier),
+  );
+
+  return {
+    owner: state.owner,
+    amount: Math.min(state.maxBid, uncappedAmount),
+    uncappedAmount,
+    maxBid: state.maxBid,
+    marketPrice: player.price,
+    ownerDemandMultiplier,
+    rosterNeedMultiplier,
+    scarcityMultiplier,
+    tieBreak: deterministicTieBreak(config.seed, state.owner, player.name),
+  };
+};
+
+const ownerIndex = (config: AuctionEngineConfig, owner: Owner): number => {
+  const index = config.owners.indexOf(owner);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+};
+
+const compareBids = (config: AuctionEngineConfig) => (left: AuctionBid, right: AuctionBid): number =>
+  right.amount - left.amount ||
+  right.uncappedAmount - left.uncappedAmount ||
+  left.tieBreak - right.tieBreak ||
+  ownerIndex(config, left.owner) - ownerIndex(config, right.owner);
+
+export const resolveAuctionSale = (
+  player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig = defaultAuctionEngineConfig,
+): AuctionSale | undefined => {
+  const scarcityMultiplier = scarcityMultiplierFor(player, ownerStates, remainingPlayers, config);
+  const bids = ownerStates
+    .filter(state => ownerCanBidOnPlayer(state, player, ownerStates, remainingPlayers, config))
+    .map(state => bidForOwner(state, player, scarcityMultiplier, config))
+    .filter(bid => bid.amount >= config.minimumBid)
+    .sort(compareBids(config));
+
+  const winningBid = bids[0];
+  if (!winningBid) return undefined;
+
+  const secondBidAmount = bids[1]?.amount ?? 0;
+  const reservePrice = Math.max(config.minimumBid, Math.round(player.price * config.reservePriceRatio));
+  const price = Math.min(
+    winningBid.amount,
+    Math.max(config.minimumBid, secondBidAmount + config.minimumBid, reservePrice),
+  );
+
+  return {
+    player,
+    winner: winningBid.owner,
+    price,
+    marketPrice: player.price,
+    bids,
+  };
+};
+
+const compareAuctionPlayers = (left: Player, right: Player): number =>
+  right.price - left.price ||
+  right.weeks1To4 - left.weeks1To4 ||
+  left.name.localeCompare(right.name);
+
+const applySaleToState = (
+  state: AuctionOwnerState,
+  soldPlayer: Player,
+  config: AuctionEngineConfig,
+): AuctionOwnerState =>
+  ownerStateFromRoster(state.owner, [...state.roster, soldPlayer], config);
+
+const allRostersFull = (states: readonly AuctionOwnerState[]): boolean =>
+  states.every(state => state.rosterSlotsRemaining === 0);
+
+export const simulateAuction = ({
+  players,
+  config = defaultAuctionEngineConfig,
+  initialRostersByOwner = {},
+}: SimulateAuctionOptions): AuctionResult => {
+  let ownerStates = createAuctionOwnerStates({ config, initialRostersByOwner });
+  const sortedPlayers = [...players].sort(compareAuctionPlayers);
+  const picks: AuctionPick[] = [];
+
+  for (let index = 0; index < sortedPlayers.length && !allRostersFull(ownerStates); index += 1) {
+    const nominatedPlayer = sortedPlayers[index]!;
+    const remainingPlayers = sortedPlayers.slice(index + 1);
+    const sale = resolveAuctionSale(nominatedPlayer, ownerStates, remainingPlayers, config);
+    if (!sale) continue;
+
+    const soldPlayer = { ...nominatedPlayer, price: sale.price };
+    const winnerState = ownerStates.find(state => state.owner === sale.winner);
+    if (!winnerState) throw new Error(`Missing auction state for ${sale.winner}.`);
+
+    const updatedWinnerState = applySaleToState(winnerState, soldPlayer, config);
+    ownerStates = ownerStates.map(state => state.owner === sale.winner ? updatedWinnerState : state);
+    picks.push({
+      pick: picks.length + 1,
+      owner: sale.winner,
+      player: soldPlayer.name,
+      position: soldPlayer.position,
+      marketPrice: sale.marketPrice,
+      price: sale.price,
+      budgetAfterPick: updatedWinnerState.budgetRemaining,
+      rosterSlotsAfterPick: updatedWinnerState.rosterSlotsRemaining,
+      topBids: sale.bids.slice(0, 3),
+    });
+  }
+
+  const incompleteOwners = ownerStates
+    .filter(state => state.rosterSlotsRemaining > 0)
+    .map(state => `${state.owner} (${state.rosterSlotsRemaining})`);
+  if (incompleteOwners.length > 0) {
+    throw new Error(`Auction ended before all rosters were full: ${incompleteOwners.join(", ")}.`);
+  }
+
+  const soldNames = new Set(picks.map(pick => pick.player));
+  const rosters: AuctionRosters = {};
+  for (const state of ownerStates) {
+    rosters[state.owner] = {
+      strategy: `owner-local auction: ${config.seed}`,
+      players: state.roster,
+    };
+  }
+
+  return {
+    seed: config.seed,
+    rosters,
+    ownerStates,
+    picks,
+    unsoldPlayers: sortedPlayers.filter(player => !soldNames.has(player.name)),
+  };
+};
+
+const projectionWeekOne = (projection: Pick<ProjectionRecord, "weeks">): number =>
+  projection.weeks[1] ?? 0;
+
+export const buildInitialRostersFromKeepers = (
+  declarations: readonly KeeperDeclaration[],
+  projections: readonly ProjectionRecord[],
+  includedStatuses: readonly KeeperStatus[],
+): InitialRostersByOwner => {
+  const included = new Set<KeeperStatus>(includedStatuses);
+  const projectionByName = new Map(
+    buildProjectionRankings(projections).map(projection => [projection.normalizedName, projection]),
+  );
+  const rosters: Partial<Record<Owner, Player[]>> = {};
+
+  for (const declaration of declarations) {
+    if (!included.has(declaration.status)) continue;
+
+    const normalizedName = normalizePlayerName(declaration.player);
+    const projection = projectionByName.get(normalizedName);
+    const playerId = projection?.id ?? `keeper:${normalizedName}`;
+    const keeperPlayer: Player = {
+      id: playerId,
+      name: projection?.name ?? declaration.player,
+      position: declaration.position,
+      price: declaration.newCost,
+      week1: projection ? projectionWeekOne(projection) : 0,
+      weeks1To4: projection?.weeks1To4 ?? 0,
+    };
+
+    rosters[declaration.owner] = [...(rosters[declaration.owner] ?? []), keeperPlayer];
+  }
+
+  return rosters;
+};
+
+const playerFromPricedRecord = (record: AuctionPricedPlayer): Player => {
+  const id = record.id === undefined ? {} : { id: record.id };
+  return {
+    ...id,
+    name: record.name,
+    position: record.position,
+    price: record.scenarioPrice ?? record.price,
+    week1: record.week1 ?? record.weeks?.[1] ?? 0,
+    weeks1To4: record.weeks1To4,
+  };
+};
+
+export const buildAuctionPlayerPool = ({
+  pricedPlayers,
+  projections,
+  excludedNames = [],
+  targetCount,
+  replacementPrice = 1,
+}: BuildAuctionPlayerPoolOptions): Player[] => {
+  const players = pricedPlayers.map(playerFromPricedRecord);
+  const usedNames = new Set([
+    ...players.map(player => normalizePlayerName(player.name)),
+    ...excludedNames.map(normalizePlayerName),
+  ]);
+  const requestedCount = targetCount ?? players.length;
+
+  if (players.length < requestedCount) {
+    const replacements = buildProjectionRankings(projections)
+      .sort((left, right) => right.weeks1To4 - left.weeks1To4 || left.name.localeCompare(right.name));
+
+    for (const replacement of replacements) {
+      if (players.length >= requestedCount) break;
+      if (usedNames.has(replacement.normalizedName)) continue;
+
+      players.push({
+        id: replacement.id,
+        name: replacement.name,
+        position: replacement.position,
+        price: replacementPrice,
+        week1: projectionWeekOne(replacement),
+        weeks1To4: replacement.weeks1To4,
+      });
+      usedNames.add(replacement.normalizedName);
+    }
+  }
+
+  return players.sort(compareAuctionPlayers);
+};
+
+const ownerProfileSpendFor = (
+  profile: OwnerProfile,
+  position: Position,
+): number => {
+  if (position === "K" || position === "DST") return profile.normalSpecialTeamsSpend / 2;
+  return profile.openAuctionSpend[position];
+};
+
+export const buildOwnerDemandMultipliers = (
+  profiles: readonly OwnerProfile[],
+): OwnerDemandMultipliers => {
+  const leagueAverages = emptyPositionAmounts();
+  const multipliersByOwner: OwnerDemandMultipliers = {};
+
+  for (const position of positions) {
+    const totalSpend = profiles.reduce(
+      (total, profile) => total + ownerProfileSpendFor(profile, position),
+      0,
+    );
+    leagueAverages[position] = totalSpend / Math.max(1, profiles.length);
+  }
+
+  for (const profile of profiles) {
+    const multipliers: Partial<Record<Position, number>> = {};
+
+    for (const position of positions) {
+      const averageSpend = leagueAverages[position];
+      if (averageSpend <= 0) {
+        multipliers[position] = 1;
+        continue;
+      }
+
+      const demandRatio = ownerProfileSpendFor(profile, position) / averageSpend;
+      multipliers[position] = clamp(1 + (demandRatio - 1) * 0.12, 0.9, 1.12);
+    }
+
+    multipliersByOwner[profile.owner] = multipliers;
+  }
+
+  return multipliersByOwner;
+};
