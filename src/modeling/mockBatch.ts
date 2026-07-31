@@ -8,6 +8,7 @@ import {
   buildAuctionConfig,
   buildAuctionPlayerPool,
   buildInitialRostersFromKeepers,
+  buildOwnerAuctionBehaviors,
   buildOwnerDemandMultipliers,
   simulateAuction,
   type AuctionPick,
@@ -137,6 +138,7 @@ interface PreparedScenario {
 interface MockPreparation {
   scenarios: PreparedScenario[];
   ownerDemandMultipliers: ReturnType<typeof buildOwnerDemandMultipliers>;
+  ownerBehaviors: ReturnType<typeof buildOwnerAuctionBehaviors>;
 }
 
 const defaultScenarioKeys: readonly KeeperScenarioKey[] = ["expected"];
@@ -191,11 +193,14 @@ const prepareMockInputs = ({
 }: Omit<RunMockBatchOptions, "runsPerScenario" | "seedPrefix">): MockPreparation => {
   const prices = buildBasePrices(projections, historicalRecords, pricingConfig);
   const keeperScenarios = buildKeeperScenarios(keepers);
-  const ownerDemandMultipliers = buildOwnerDemandMultipliers(buildOwnerProfiles(historicalRecords));
+  const ownerProfiles = buildOwnerProfiles(historicalRecords);
+  const ownerDemandMultipliers = buildOwnerDemandMultipliers(ownerProfiles);
+  const ownerBehaviors = buildOwnerAuctionBehaviors(ownerProfiles);
   const totalRosterSlots = leagueConfig.teams * leagueConfig.rosterSize;
 
   return {
     ownerDemandMultipliers,
+    ownerBehaviors,
     scenarios: scenarioKeys.map(scenarioKey => {
       const scenario = scenarioByKey(scenarioKey, keeperScenarios);
       const adjustedPrices = applyKeeperScenarioToPrices(prices, scenario, keepers);
@@ -247,11 +252,12 @@ const summarizeRoster = (owner: Owner, roster: MockRoster): MockRosterSummary =>
 const runPreparedScenario = (
   preparedScenario: PreparedScenario,
   ownerDemandMultipliers: ReturnType<typeof buildOwnerDemandMultipliers>,
+  ownerBehaviors: ReturnType<typeof buildOwnerAuctionBehaviors>,
   seed: string,
 ): MockRun => {
   const result = simulateAuction({
     players: preparedScenario.auctionPlayers,
-    config: buildAuctionConfig({ seed, ownerDemandMultipliers }),
+    config: buildAuctionConfig({ seed, ownerDemandMultipliers, ownerBehaviors }),
     initialRostersByOwner: preparedScenario.initialRostersByOwner,
   });
   const rosters = ownerOrder.map(owner => {
@@ -290,7 +296,12 @@ export const runMock = ({
   const preparedScenario = preparation.scenarios[0];
   if (!preparedScenario) throw new Error(`Unable to prepare scenario "${scenarioKey}".`);
 
-  return runPreparedScenario(preparedScenario, preparation.ownerDemandMultipliers, seed);
+  return runPreparedScenario(
+    preparedScenario,
+    preparation.ownerDemandMultipliers,
+    preparation.ownerBehaviors,
+    seed,
+  );
 };
 
 const summarizeScenarios = (runs: readonly MockRun[]): ScenarioBatchSummary[] =>
@@ -435,6 +446,7 @@ export const runMockBatch = ({
       runPreparedScenario(
         preparedScenario,
         preparation.ownerDemandMultipliers,
+        preparation.ownerBehaviors,
         `${seedPrefix}:${preparedScenario.scenario.key}:${index + 1}`,
       ),
     ),

@@ -80,6 +80,8 @@ npm run profiles
 
 The profile output includes each owner's weighted open-auction spend by QB/RB/WR/TE, normal K/DST spending, top-two concentration, $1 player tendency, average keeper cost, and derived profile label. Known execution-error bids, such as Tye's 2025 $29 kicker budget dump, are excluded from normal K/DST calibration while remaining part of the raw historical board.
 
+The same profile data now derives auction behavior knobs used by mocks: position demand multipliers, price aggression, scarcity chasing, and replacement-level patience. High top-two concentration nudges an owner toward aggressive contested buys; high $1-player tendency nudges that owner toward more back-end patience.
+
 ## Projection, Pricing, And Inflation
 
 Run:

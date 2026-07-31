@@ -3,6 +3,7 @@ import { leagueConfig } from "../config/league.js";
 import { customWeightsPlayerContextConfig } from "../config/playerContext.js";
 import { keeperSummary } from "./keeperModel.js";
 import { loadHistoricalAuctionRecords } from "./data/parseHistoricalBoards.js";
+import { buildOwnerAuctionBehaviors, buildOwnerDemandMultipliers } from "./modeling/auctionEngine.js";
 import {
   buildBasePrices,
   defaultPricingConfig,
@@ -88,10 +89,13 @@ const main = async (): Promise<void> => {
 
   if (command === "profiles") {
     const historicalRecords = await loadHistoricalAuctionRecords();
+    const profiles = buildOwnerProfiles(historicalRecords);
 
     console.log(JSON.stringify({
       weights: defaultHistoricalWeights,
-      profiles: buildOwnerProfiles(historicalRecords),
+      profiles,
+      ownerDemandMultipliers: buildOwnerDemandMultipliers(profiles),
+      ownerAuctionBehaviors: buildOwnerAuctionBehaviors(profiles),
       openAuctionSpendTargets: buildLeagueOpenAuctionSpendTargets(historicalRecords),
     }, null, 2));
     return;

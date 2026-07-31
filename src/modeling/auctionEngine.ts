@@ -9,6 +9,7 @@ import { buildProjectionRankings } from "./projectionRankings.js";
 export type PositionAmounts = Record<Position, number>;
 export type InitialRostersByOwner = Partial<Record<Owner, readonly Player[]>>;
 export type OwnerDemandMultipliers = Partial<Record<Owner, Partial<Record<Position, number>>>>;
+export type OwnerAuctionBehaviors = Partial<Record<Owner, OwnerAuctionBehavior>>;
 
 export interface ScarcityConfig {
   comparablePriceRatio: number;
@@ -25,6 +26,12 @@ export interface RosterNeedConfig {
   lastPositionSlotMultiplier: number;
 }
 
+export interface OwnerAuctionBehavior {
+  priceAggression: number;
+  scarcityChase: number;
+  replacementPatience: number;
+}
+
 export interface AuctionEngineConfig {
   owners: readonly Owner[];
   auctionBudget: number;
@@ -35,14 +42,16 @@ export interface AuctionEngineConfig {
   minimumBid: number;
   reservePriceRatio: number;
   ownerDemandMultipliers: OwnerDemandMultipliers;
+  ownerBehaviors: OwnerAuctionBehaviors;
   scarcity: ScarcityConfig;
   rosterNeed: RosterNeedConfig;
   seed: string;
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "scarcity" | "rosterNeed">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "scarcity" | "rosterNeed">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
+    ownerBehaviors?: OwnerAuctionBehaviors;
     scarcity?: Partial<ScarcityConfig>;
     rosterNeed?: Partial<RosterNeedConfig>;
   };
@@ -65,6 +74,9 @@ export interface AuctionBid {
   ownerDemandMultiplier: number;
   rosterNeedMultiplier: number;
   scarcityMultiplier: number;
+  behaviorAggressionMultiplier: number;
+  behaviorScarcityMultiplier: number;
+  replacementPatienceMultiplier: number;
   tieBreak: number;
 }
 
@@ -127,6 +139,7 @@ const flexEligiblePositions = ["RB", "WR", "TE"] as const satisfies readonly Pos
 const premiumPositions = ["QB", "RB", "WR", "TE"] as const satisfies readonly Position[];
 const defaultSeed = "mockd-default";
 const hashDivisor = 0x100000000;
+const replacementPatiencePriceThreshold = 3;
 
 const emptyPositionAmounts = (): PositionAmounts => ({
   QB: 0,
@@ -165,6 +178,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   minimumBid: 1,
   reservePriceRatio: 0.75,
   ownerDemandMultipliers: {},
+  ownerBehaviors: {},
   scarcity: {
     comparablePriceRatio: 0.8,
     minimumComparablePrice: 5,
@@ -184,6 +198,9 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
+const average = (values: readonly number[]): number =>
+  values.length === 0 ? 0 : values.reduce((total, value) => total + value, 0) / values.length;
+
 const isFlexEligible = (position: Position): boolean =>
   flexEligiblePositions.some(flexPosition => flexPosition === position);
 
@@ -196,6 +213,7 @@ export const buildAuctionConfig = (
   ...defaultAuctionEngineConfig,
   ...overrides,
   ownerDemandMultipliers: overrides.ownerDemandMultipliers ?? defaultAuctionEngineConfig.ownerDemandMultipliers,
+  ownerBehaviors: overrides.ownerBehaviors ?? defaultAuctionEngineConfig.ownerBehaviors,
   scarcity: {
     ...defaultAuctionEngineConfig.scarcity,
     ...overrides.scarcity,
@@ -376,6 +394,18 @@ const ownerDemandMultiplierFor = (
 ): number =>
   config.ownerDemandMultipliers[owner]?.[position] ?? 1;
 
+const defaultOwnerAuctionBehavior: OwnerAuctionBehavior = {
+  priceAggression: 1,
+  scarcityChase: 1,
+  replacementPatience: 1,
+};
+
+const ownerBehaviorFor = (
+  owner: Owner,
+  config: AuctionEngineConfig,
+): OwnerAuctionBehavior =>
+  config.ownerBehaviors[owner] ?? defaultOwnerAuctionBehavior;
+
 const rosterNeedMultiplierFor = (
   state: AuctionOwnerState,
   position: Position,
@@ -437,9 +467,21 @@ const bidForOwner = (
 ): AuctionBid => {
   const ownerDemandMultiplier = ownerDemandMultiplierFor(state.owner, player.position, config);
   const rosterNeedMultiplier = rosterNeedMultiplierFor(state, player.position, config);
+  const ownerBehavior = ownerBehaviorFor(state.owner, config);
+  const behaviorScarcityMultiplier = 1 + (scarcityMultiplier - 1) * ownerBehavior.scarcityChase;
+  const replacementPatienceMultiplier = player.price <= replacementPatiencePriceThreshold
+    ? ownerBehavior.replacementPatience
+    : 1;
   const uncappedAmount = Math.max(
     config.minimumBid,
-    Math.round(player.price * ownerDemandMultiplier * rosterNeedMultiplier * scarcityMultiplier),
+    Math.round(
+      player.price *
+      ownerDemandMultiplier *
+      rosterNeedMultiplier *
+      behaviorScarcityMultiplier *
+      ownerBehavior.priceAggression *
+      replacementPatienceMultiplier,
+    ),
   );
 
   return {
@@ -451,6 +493,9 @@ const bidForOwner = (
     ownerDemandMultiplier,
     rosterNeedMultiplier,
     scarcityMultiplier,
+    behaviorAggressionMultiplier: ownerBehavior.priceAggression,
+    behaviorScarcityMultiplier,
+    replacementPatienceMultiplier,
     tieBreak: deterministicTieBreak(config.seed, state.owner, player.name),
   };
 };
@@ -696,4 +741,25 @@ export const buildOwnerDemandMultipliers = (
   }
 
   return multipliersByOwner;
+};
+
+export const buildOwnerAuctionBehaviors = (
+  profiles: readonly OwnerProfile[],
+): OwnerAuctionBehaviors => {
+  const averageTopTwoConcentration = average(profiles.map(profile => profile.topTwoConcentration));
+  const averageOneDollarCount = average(profiles.map(profile => profile.oneDollarPlayerCount));
+  const behaviors: OwnerAuctionBehaviors = {};
+
+  for (const profile of profiles) {
+    const concentrationDelta = profile.topTwoConcentration - averageTopTwoConcentration;
+    const oneDollarDelta = profile.oneDollarPlayerCount - averageOneDollarCount;
+
+    behaviors[profile.owner] = {
+      priceAggression: clamp(1 + concentrationDelta * 0.003, 0.94, 1.08),
+      scarcityChase: clamp(1 + concentrationDelta * 0.006, 0.9, 1.15),
+      replacementPatience: clamp(1 - oneDollarDelta * 0.02, 0.92, 1.05),
+    };
+  }
+
+  return behaviors;
 };
