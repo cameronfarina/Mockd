@@ -44,6 +44,15 @@ const confidenceValue = (rawValue: string | undefined, player: string): number =
   return value;
 };
 
+const optionalStringValue = (
+  row: CsvRow,
+  field: string,
+  fallbackField?: string,
+): string | undefined => {
+  const value = row[field]?.trim() || (fallbackField ? row[fallbackField]?.trim() : "");
+  return value || undefined;
+};
+
 const evidenceForRow = (row: CsvRow): PlayerContextEvidence => {
   const player = row.player?.trim();
   if (!player) throw new Error("Player evidence CSV rows must include a player value.");
@@ -57,6 +66,9 @@ const evidenceForRow = (row: CsvRow): PlayerContextEvidence => {
   const confidence = confidenceValue(row.confidence, player);
   const source = row.source?.trim();
   const note = row.note?.trim();
+  const provider = optionalStringValue(row, "provider");
+  const sourceDate = optionalStringValue(row, "source_date", "sourceDate");
+  const sourceQuality = optionalStringValue(row, "source_quality", "sourceQuality");
 
   return {
     player,
@@ -66,6 +78,9 @@ const evidenceForRow = (row: CsvRow): PlayerContextEvidence => {
     adjustedSignal: score * confidence,
     ...(source ? { source } : {}),
     ...(note ? { note } : {}),
+    ...(provider ? { provider } : {}),
+    ...(sourceDate ? { sourceDate } : {}),
+    ...(sourceQuality ? { sourceQuality } : {}),
   };
 };
 

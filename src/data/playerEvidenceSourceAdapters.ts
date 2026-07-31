@@ -21,7 +21,17 @@ type EvidenceJsonValue = {
 type CsvValue = string | number | boolean | undefined;
 
 const evidenceCategorySet = new Set<string>(factualPlayerContextCategories);
-const optionalEvidencePayloadFields = ["score", "confidence", "source", "note"] as const;
+const optionalEvidencePayloadFields = [
+  "score",
+  "confidence",
+  "source",
+  "note",
+  "provider",
+  "source_date",
+  "sourceDate",
+  "source_quality",
+  "sourceQuality",
+] as const;
 const requiredEvidencePayloadFields = ["score", "source", "note"] as const;
 
 const isEvidenceCategory = (value: string): value is FactualPlayerContextCategory =>
@@ -76,6 +86,19 @@ const confidenceField = (
   return confidence;
 };
 
+const optionalStringField = (
+  value: unknown,
+  field: string,
+  player: string,
+): string | undefined => {
+  if (value === undefined || (typeof value === "string" && value.trim() === "")) return undefined;
+  if (typeof value !== "string") {
+    throw new Error(`Invalid ${field} for ${player}: "${String(value)}".`);
+  }
+
+  return value.trim();
+};
+
 const evidenceForRecord = (
   value: Record<string, unknown>,
 ): PlayerContextEvidence => {
@@ -93,6 +116,9 @@ const evidenceForRecord = (
   const confidence = confidenceField(value.confidence, player);
   const source = stringField(value.source, "source", player);
   const note = stringField(value.note, "note", player);
+  const provider = optionalStringField(value.provider, "provider", player);
+  const sourceDate = optionalStringField(value.sourceDate ?? value.source_date, "source_date", player);
+  const sourceQuality = optionalStringField(value.sourceQuality ?? value.source_quality, "source_quality", player);
 
   return {
     player,
@@ -102,6 +128,9 @@ const evidenceForRecord = (
     adjustedSignal: score * confidence,
     source,
     note,
+    ...(provider ? { provider } : {}),
+    ...(sourceDate ? { sourceDate } : {}),
+    ...(sourceQuality ? { sourceQuality } : {}),
   };
 };
 
@@ -169,7 +198,7 @@ export const playerContextEvidenceCsv = (
   rows: readonly PlayerContextEvidence[],
 ): string =>
   [
-    "player,category,score,confidence,source,note",
+    "player,category,score,confidence,source,note,provider,source_date,source_quality",
     ...rows.map(row => [
       row.player,
       row.category,
@@ -177,5 +206,8 @@ export const playerContextEvidenceCsv = (
       row.confidence,
       row.source,
       row.note,
+      row.provider,
+      row.sourceDate,
+      row.sourceQuality,
     ].map(csvCell).join(",")),
   ].join("\n");

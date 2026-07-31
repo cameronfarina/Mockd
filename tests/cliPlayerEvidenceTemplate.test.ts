@@ -25,7 +25,7 @@ describe("CLI player evidence template", () => {
     );
     const lines = stdout.trim().split("\n");
 
-    expect(lines[0]).toBe("player,category,score,confidence,source,note,priority,rank,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,evidence_status,flags,research_prompt");
+    expect(lines[0]).toBe("player,category,score,confidence,source,note,provider,source_date,source_quality,priority,rank,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,evidence_status,flags,research_prompt");
     expect(lines.length).toBeGreaterThan(12);
     expect(lines.some(line => line.startsWith("Drake London,opportunity,,,"))).toBe(true);
     expect(lines.some(line => line.startsWith("Drake London,defensiveAttention,,,"))).toBe(true);

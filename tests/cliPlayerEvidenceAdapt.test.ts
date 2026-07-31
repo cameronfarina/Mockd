@@ -13,8 +13,8 @@ describe("CLI player evidence adapter", () => {
     const directory = await mkdtemp(join(tmpdir(), "mockd-cli-evidence-adapt-"));
     const inputPath = join(directory, "template.csv");
     await writeFile(inputPath, [
-      "player,category,score,confidence,source,note,priority,rank",
-      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite,high,11",
+      "player,category,score,confidence,source,note,provider,source_date,source_quality,priority,rank",
+      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite,FantasyPros,2026-07-15,primary,high,11",
     ].join("\n"));
 
     const { stdout } = await execFileAsync(
@@ -33,14 +33,59 @@ describe("CLI player evidence adapter", () => {
     );
 
     expect(stdout.trim()).toBe([
-      "player,category,score,confidence,source,note",
-      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite",
+      "player,category,score,confidence,source,note,provider,source_date,source_quality",
+      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite,FantasyPros,2026-07-15,primary",
     ].join("\n"));
     expect(parsePlayerContextEvidenceCsv(stdout)).toEqual([
       expect.objectContaining({
         player: "Drake London",
         category: "opportunity",
         adjustedSignal: 0.9,
+        provider: "FantasyPros",
+        sourceDate: "2026-07-15",
+        sourceQuality: "primary",
+      }),
+    ]);
+  }, 15000);
+
+  it("prints canonical JSON with provenance metadata", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "mockd-cli-evidence-adapt-json-"));
+    const inputPath = join(directory, "template.csv");
+    await writeFile(inputPath, [
+      "player,category,score,confidence,source,note,provider,source_date,source_quality,priority,rank",
+      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite,FantasyPros,2026-07-15,primary,high,11",
+    ].join("\n"));
+
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "evidence:adapt",
+        "--",
+        `--input=${inputPath}`,
+        "--format=json",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 20 * 1024 * 1024,
+      },
+    );
+    const result = JSON.parse(stdout) as {
+      evidence: {
+        player: string;
+        provider?: string;
+        sourceDate?: string;
+        sourceQuality?: string;
+      }[];
+    };
+
+    expect(result.evidence).toEqual([
+      expect.objectContaining({
+        player: "Drake London",
+        provider: "FantasyPros",
+        sourceDate: "2026-07-15",
+        sourceQuality: "primary",
       }),
     ]);
   }, 15000);
@@ -71,8 +116,8 @@ describe("CLI player evidence adapter", () => {
     );
 
     expect(stdout.trim()).toBe([
-      "player,category,score,confidence,source,note",
-      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite",
+      "player,category,score,confidence,source,note,provider,source_date,source_quality",
+      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite,,,",
     ].join("\n"));
   }, 15000);
 
@@ -100,6 +145,6 @@ describe("CLI player evidence adapter", () => {
       },
     );
 
-    expect(stdout.trim()).toBe("player,category,score,confidence,source,note");
+    expect(stdout.trim()).toBe("player,category,score,confidence,source,note,provider,source_date,source_quality");
   }, 15000);
 });

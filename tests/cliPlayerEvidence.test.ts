@@ -12,8 +12,8 @@ describe("CLI player evidence imports", () => {
     const directory = await mkdtemp(join(tmpdir(), "mockd-cli-evidence-"));
     const evidencePath = join(directory, "evidence.csv");
     await writeFile(evidencePath, [
-      "player,category,score,confidence,source,note",
-      "Drake London,opportunity,1,1,targets,Target volume remains strong",
+      "player,category,score,confidence,source,note,provider,source_date,source_quality",
+      "Drake London,opportunity,1,1,targets,Target volume remains strong,FantasyPros,2026-07-15,primary",
       "Drake London,defensiveAttention,-1,0.8,coverage,More WR1 defensive attention",
       "Drake London,skillFit,-0.5,1,separation,Separation profile trims upside",
     ].join("\n"));
@@ -53,5 +53,11 @@ describe("CLI player evidence imports", () => {
       defensiveAttention: "coverage: More WR1 defensive attention",
     });
     expect(london?.contextEvidence).toHaveLength(3);
+    expect(london?.contextEvidence).toContainEqual(expect.objectContaining({
+      category: "opportunity",
+      provider: "FantasyPros",
+      sourceDate: "2026-07-15",
+      sourceQuality: "primary",
+    }));
   });
 });

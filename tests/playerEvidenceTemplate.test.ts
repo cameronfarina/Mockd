@@ -39,7 +39,7 @@ describe("player evidence template", () => {
     const csv = playerEvidenceTemplateCsv(queue);
     const lines = csv.split("\n");
 
-    expect(lines[0]).toBe("player,category,score,confidence,source,note,priority,rank,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,evidence_status,flags,research_prompt");
+    expect(lines[0]).toBe("player,category,score,confidence,source,note,provider,source_date,source_quality,priority,rank,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,evidence_status,flags,research_prompt");
     expect(lines).toHaveLength(3);
     expect(lines[1]).toContain("Drake London,opportunity,,,");
     expect(lines[1]).toContain(",high,11,WR,56,62.67,6.67,missing,");

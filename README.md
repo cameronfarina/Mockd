@@ -133,10 +133,10 @@ Each category value is a signed signal multiplied by the configured category wei
 Factual player-context evidence can be layered on with `--player-evidence=path/to/file.csv`. Evidence imports are meant for sourced inputs such as target-share deltas, depth-chart changes, coverage difficulty, separation fit, team environment, injury risk, and contract risk. The CSV shape is:
 
 ```text
-player,category,score,confidence,source,note
+player,category,score,confidence,source,note,provider,source_date,source_quality
 ```
 
-`category` must be one of `opportunity`, `defensiveAttention`, `skillFit`, `environment`, or `risk`. `score` is the signed evidence signal, `confidence` is optional from `0` to `1`, and the model applies `score * confidence` before category and total caps. `source` and `note` are preserved in each player's pricing audit so factual inputs can be inspected instead of hidden as assumptions.
+`category` must be one of `opportunity`, `defensiveAttention`, `skillFit`, `environment`, or `risk`. `score` is the signed evidence signal, `confidence` is optional from `0` to `1`, and the model applies `score * confidence` before category and total caps. `source`, `note`, `provider`, `source_date`, and `source_quality` are preserved in each player's pricing audit so factual inputs can be inspected instead of hidden as assumptions. Existing six-column evidence CSVs still work; the provenance columns are optional. CSV uses `source_date` and `source_quality`; JSON audit and adapter output use `sourceDate` and `sourceQuality`.
 
 Positive evidence is intentionally capped tighter than negative evidence by default: one good news stack should not create a whole extra tier of $75-plus players, but real role, health, environment, or defensive-attention problems can still pull a player down. The base pricing allocator also enforces historical top-price volume limits before keeper inflation so the model can redistribute dollars into the mid-tier without inventing too many elite-price buys.
 
@@ -169,9 +169,9 @@ The sanity report scans the top auction-available players for review prompts: hi
 
 `evidence:queue` converts those sanity flags into prioritized factual research rows. Each row lists the player, price context, existing evidence count, flags, evidence status, and the exact categories to research: opportunity, defensive attention, skill fit, environment, and risk. Use `--format=csv` when you want a fillable research queue.
 
-`evidence:template` writes a fillable `player,category,score,confidence,source,note` evidence CSV with extra context columns from the queue. Leave rows blank until researched; once `score`, `source`, and `note` are filled, the same file can be passed back through `--player-evidence`.
+`evidence:template` writes a fillable `player,category,score,confidence,source,note,provider,source_date,source_quality` evidence CSV with extra context columns from the queue. Leave rows blank until researched; once `score`, `source`, and `note` are filled, the same file can be passed back through `--player-evidence`.
 
-`evidence:adapt` normalizes a completed local evidence CSV or JSON export back to canonical `player,category,score,confidence,source,note` rows. The first adapter, `scored-local`, is intentionally deterministic: it does not fetch or infer facts, it only validates and strips context columns from completed local research exports. Untouched template rows are skipped, while half-completed rows fail until `score`, `source`, and `note` are filled together.
+`evidence:adapt` normalizes a completed local evidence CSV or JSON export back to canonical `player,category,score,confidence,source,note,provider,source_date,source_quality` rows. The first adapter, `scored-local`, is intentionally deterministic: it does not fetch or infer facts, it only validates and strips context columns from completed local research exports. Untouched template rows are skipped, while half-completed rows fail until `score`, `source`, and `note` are filled together.
 
 `evidence:coverage` turns that queue into pass/warn/fail gates for high-priority missing evidence, overall evidence coverage, and complete evidence coverage. A failing coverage audit means the pricing model is still allowed to run, but the affected top-player values should be treated as unaudited until sourced evidence rows are added.
 

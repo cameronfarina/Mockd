@@ -226,7 +226,7 @@ describe("prep output artifacts", () => {
       expect(outlierQueueCsv).toContain("high,11,Drake London,WR,45,49,56,62.67,6.67,57,66,9,1,-5,-0.1,5,highMockPremium");
 
       const evidenceTemplateCsv = await readFile(join(outputDirectory, "player-evidence-template.csv"), "utf8");
-      expect(evidenceTemplateCsv.split("\n")[0]).toBe("player,category,score,confidence,source,note,priority,rank,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,evidence_status,flags,research_prompt");
+      expect(evidenceTemplateCsv.split("\n")[0]).toBe("player,category,score,confidence,source,note,provider,source_date,source_quality,priority,rank,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,evidence_status,flags,research_prompt");
       expect(evidenceTemplateCsv).toContain("Drake London,opportunity,,,");
 
       const evidenceCoverageJson = JSON.parse(

@@ -14,8 +14,8 @@ describe("CLI player audit report", () => {
     const directory = await mkdtemp(join(tmpdir(), "mockd-cli-audit-"));
     const evidencePath = join(directory, "evidence.csv");
     await writeFile(evidencePath, [
-      "player,category,score,confidence,source,note",
-      "Drake London,opportunity,1,1,targets,Target volume remains strong",
+      "player,category,score,confidence,source,note,provider,source_date,source_quality",
+      "Drake London,opportunity,1,1,targets,Target volume remains strong,FantasyPros,2026-07-15,primary",
       "Drake London,defensiveAttention,-1,0.8,coverage,More WR1 defensive attention",
       "Drake London,skillFit,-0.5,1,separation,Separation profile trims upside",
     ].join("\n"));
@@ -110,6 +110,12 @@ describe("CLI player audit report", () => {
       skillFit: -0.5,
     });
     expect(result.pricing.contextEvidence).toHaveLength(3);
+    expect(result.pricing.contextEvidence).toContainEqual(expect.objectContaining({
+      category: "opportunity",
+      provider: "FantasyPros",
+      sourceDate: "2026-07-15",
+      sourceQuality: "primary",
+    }));
     expect(result.scenario).toMatchObject({
       key: "expected",
       available: true,

@@ -8,8 +8,8 @@ import {
 describe("player context evidence imports", () => {
   it("aggregates sourced evidence rows into factual context signals", () => {
     const evidence = parsePlayerContextEvidenceCsv([
-      "player,category,score,confidence,source,note",
-      "Example WR,opportunity,1,0.8,targets,Projected target share increase",
+      "player,category,score,confidence,source,note,provider,source_date,source_quality",
+      "Example WR,opportunity,1,0.8,targets,Projected target share increase,FantasyPros,2026-07-15,primary",
       "Example WR,defensiveAttention,-1,0.75,coverage,Moves from WR2 to WR1 coverage",
       "Example WR,skillFit,-0.5,1,separation,Low separation margin against man",
       "Example WR,environment,0.5,0.8,scheme,Faster pass rate",
@@ -36,6 +36,11 @@ describe("player context evidence imports", () => {
         evidence,
       },
     ]);
+    expect(evidence[0]).toMatchObject({
+      provider: "FantasyPros",
+      sourceDate: "2026-07-15",
+      sourceQuality: "primary",
+    });
   });
 
   it("loads the checked-in evidence example", async () => {

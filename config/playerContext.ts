@@ -33,6 +33,9 @@ export interface PlayerContextEvidence {
   adjustedSignal: number;
   source?: string;
   note?: string;
+  provider?: string;
+  sourceDate?: string;
+  sourceQuality?: string;
 }
 
 export interface PlayerContextOverride {

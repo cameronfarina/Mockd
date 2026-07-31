@@ -6,15 +6,16 @@ import {
   loadPlayerEvidenceSourceRows,
   playerContextEvidenceCsv,
 } from "../src/data/playerEvidenceSourceAdapters.js";
+import { playerEvidenceTemplateCsv } from "../src/modeling/playerEvidenceTemplate.js";
 
 describe("player evidence source adapters", () => {
   it("normalizes completed local CSV templates into canonical evidence rows", async () => {
     const directory = await mkdtemp(join(tmpdir(), "mockd-source-adapter-"));
     const inputPath = join(directory, "template.csv");
     await writeFile(inputPath, [
-      "player,category,score,confidence,source,note,priority,rank",
-      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite,high,11",
-      "Drake London,defensiveAttention,-0.5,,https://example.com/coverage,More WR1 coverage expected,high,11",
+      "player,category,score,confidence,source,note,provider,source_date,source_quality,priority,rank",
+      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite,FantasyPros,2026-07-15,primary,high,11",
+      "Drake London,defensiveAttention,-0.5,,https://example.com/coverage,More WR1 coverage expected,,,,high,11",
     ].join("\n"));
 
     const rows = await loadPlayerEvidenceSourceRows({
@@ -31,6 +32,9 @@ describe("player evidence source adapters", () => {
         adjustedSignal: 0.9,
         source: "https://example.com/targets",
         note: "Target share remained elite",
+        provider: "FantasyPros",
+        sourceDate: "2026-07-15",
+        sourceQuality: "primary",
       },
       {
         player: "Drake London",
@@ -43,9 +47,9 @@ describe("player evidence source adapters", () => {
       },
     ]);
     expect(playerContextEvidenceCsv(rows)).toBe([
-      "player,category,score,confidence,source,note",
-      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite",
-      "Drake London,defensiveAttention,-0.5,1,https://example.com/coverage,More WR1 coverage expected",
+      "player,category,score,confidence,source,note,provider,source_date,source_quality",
+      "Drake London,opportunity,1,0.9,https://example.com/targets,Target share remained elite,FantasyPros,2026-07-15,primary",
+      "Drake London,defensiveAttention,-0.5,1,https://example.com/coverage,More WR1 coverage expected,,,",
     ].join("\n"));
   });
 
@@ -76,11 +80,31 @@ describe("player evidence source adapters", () => {
   it("returns no evidence rows when a local template has not been filled", async () => {
     const directory = await mkdtemp(join(tmpdir(), "mockd-source-adapter-blank-template-"));
     const inputPath = join(directory, "template.csv");
-    await writeFile(inputPath, [
-      "player,category,score,confidence,source,note,priority,rank,research_prompt",
-      "Drake London,opportunity,,,,,high,11,Check targets",
-      "Puka Nacua,risk,,,,,medium,8,Check injury history",
-    ].join("\n"));
+    await writeFile(inputPath, playerEvidenceTemplateCsv({
+      summary: {
+        playerCount: 1,
+        highPriorityCount: 1,
+        mediumPriorityCount: 0,
+        lowPriorityCount: 0,
+        categoryCounts: {
+          opportunity: 1,
+        },
+      },
+      rows: [{
+        priority: "high",
+        rank: 11,
+        player: "Drake London",
+        position: "WR",
+        scenarioPrice: 56,
+        averageMockSalePrice: 62.67,
+        saleVsScenarioPrice: 6.67,
+        currentEvidenceCount: 0,
+        evidenceStatus: "missing",
+        flags: ["highMockPremium"],
+        categories: ["opportunity"],
+        researchPrompts: ["Check targets"],
+      }],
+    }));
 
     await expect(loadPlayerEvidenceSourceRows({
       path: inputPath,
@@ -110,20 +134,23 @@ describe("player evidence source adapters", () => {
 
   it("rejects partially filled local template rows", async () => {
     const cases = [
-      ["score only", "Drake London,opportunity,1,,,,high,11"],
-      ["source only", "Drake London,opportunity,,,https://example.com/targets,,high,11"],
-      ["note only", "Drake London,opportunity,,,,Target share remained elite,high,11"],
-      ["confidence only", "Drake London,opportunity,,0.5,,,high,11"],
-      ["missing source", "Drake London,opportunity,1,, ,Target share remained elite,high,11"],
-      ["missing note", "Drake London,opportunity,1,,https://example.com/targets,,high,11"],
+      ["score only", ["Drake London", "opportunity", "1", "", "", "", "", "", "", "high", "11"]],
+      ["source only", ["Drake London", "opportunity", "", "", "https://example.com/targets", "", "", "", "", "high", "11"]],
+      ["note only", ["Drake London", "opportunity", "", "", "", "Target share remained elite", "", "", "", "high", "11"]],
+      ["confidence only", ["Drake London", "opportunity", "", "0.5", "", "", "", "", "", "high", "11"]],
+      ["provider only", ["Drake London", "opportunity", "", "", "", "", "FantasyPros", "", "", "high", "11"]],
+      ["source date only", ["Drake London", "opportunity", "", "", "", "", "", "2026-07-15", "", "high", "11"]],
+      ["source quality only", ["Drake London", "opportunity", "", "", "", "", "", "", "primary", "high", "11"]],
+      ["missing source", ["Drake London", "opportunity", "1", "", " ", "Target share remained elite", "", "", "", "high", "11"]],
+      ["missing note", ["Drake London", "opportunity", "1", "", "https://example.com/targets", "", "", "", "", "high", "11"]],
     ] as const;
 
-    for (const [name, row] of cases) {
+    for (const [name, cells] of cases) {
       const directory = await mkdtemp(join(tmpdir(), `mockd-source-adapter-partial-${name}-`));
       const inputPath = join(directory, "template.csv");
       await writeFile(inputPath, [
-        "player,category,score,confidence,source,note,priority,rank",
-        row,
+        "player,category,score,confidence,source,note,provider,source_date,source_quality,priority,rank",
+        cells.join(","),
       ].join("\n"));
 
       await expect(loadPlayerEvidenceSourceRows({
@@ -144,6 +171,9 @@ describe("player evidence source adapters", () => {
       confidence: 0.8,
       source: "https://example.com/routes",
       note: "Elite yards per route evidence",
+      provider: "Reception Perception",
+      source_date: "2026-07-20",
+      source_quality: "secondary",
     }];
     await writeFile(arrayPath, JSON.stringify(evidence));
     await writeFile(envelopePath, JSON.stringify({ evidence }));
@@ -155,6 +185,15 @@ describe("player evidence source adapters", () => {
       path: envelopePath,
       adapter: "scored-local",
     }));
+    await expect(loadPlayerEvidenceSourceRows({
+      path: arrayPath,
+      adapter: "scored-local",
+    })).resolves.toEqual([
+      expect.objectContaining({
+        sourceDate: "2026-07-20",
+        sourceQuality: "secondary",
+      }),
+    ]);
   });
 
   it("rejects invalid scored local evidence", async () => {
