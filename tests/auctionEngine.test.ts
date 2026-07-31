@@ -770,6 +770,45 @@ describe("auction engine economics", () => {
     expect(sale.price).toBe(74);
   });
 
+  it("keeps starter-tier anchors from adding extra $40-plus sales", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1.2,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+        Hoody: {
+          priceAggression: 1.2,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+      },
+      tierSaleGuard: {
+        threshold: 40,
+        capBelowThresholdAt: 39,
+      },
+      seed: "starter-tier-sale-guard",
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+    const target = player("Starter WR", "WR", 39);
+    const sale = resolveAuctionSale(target, ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    expect(sale.marketPrice).toBe(39);
+    expect(sale.price).toBe(39);
+  });
+
   it("builds valid full-roster mocks from expected keepers and owner-local budgets", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();

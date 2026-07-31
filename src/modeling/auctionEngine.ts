@@ -69,6 +69,11 @@ export interface TopEndSaleGuardConfig {
   capBelowPremiumThresholdAt: number;
 }
 
+export interface TierSaleGuardConfig {
+  threshold: number;
+  capBelowThresholdAt: number;
+}
+
 export interface OwnerAuctionBehavior {
   priceAggression: number;
   scarcityChase: number;
@@ -99,11 +104,12 @@ export interface AuctionEngineConfig {
   budgetPacing: BudgetPacingConfig;
   topEndOverbidDamping: TopEndOverbidDampingConfig;
   topEndSaleGuard: TopEndSaleGuardConfig;
+  tierSaleGuard: TierSaleGuardConfig;
   seed: string;
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "budgetPacing" | "topEndOverbidDamping" | "topEndSaleGuard">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "budgetPacing" | "topEndOverbidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
     ownerRosterMaximums?: OwnerRosterMaximums;
@@ -115,6 +121,7 @@ export type AuctionEngineConfigOverrides =
     budgetPacing?: Partial<BudgetPacingConfig>;
     topEndOverbidDamping?: Partial<TopEndOverbidDampingConfig>;
     topEndSaleGuard?: Partial<TopEndSaleGuardConfig>;
+    tierSaleGuard?: Partial<TierSaleGuardConfig>;
   };
 
 export interface AuctionOwnerState {
@@ -318,6 +325,10 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     premiumThreshold: 72,
     capBelowPremiumThresholdAt: 74,
   },
+  tierSaleGuard: {
+    threshold: 40,
+    capBelowThresholdAt: 39,
+  },
   seed: defaultSeed,
 };
 
@@ -380,6 +391,10 @@ export const buildAuctionConfig = (
   topEndSaleGuard: {
     ...defaultAuctionEngineConfig.topEndSaleGuard,
     ...overrides.topEndSaleGuard,
+  },
+  tierSaleGuard: {
+    ...defaultAuctionEngineConfig.tierSaleGuard,
+    ...overrides.tierSaleGuard,
   },
 });
 
@@ -818,6 +833,18 @@ const topEndSaleGuardPriceFor = (
   return uncappedSalePrice;
 };
 
+const tierSaleGuardPriceFor = (
+  player: Player,
+  salePrice: number,
+  config: AuctionEngineConfig,
+): number => {
+  const guard = config.tierSaleGuard;
+  if (player.price >= guard.threshold) return salePrice;
+  if (salePrice < guard.threshold) return salePrice;
+
+  return Math.max(player.price, guard.capBelowThresholdAt);
+};
+
 export const resolveAuctionSale = (
   player: Player,
   ownerStates: readonly AuctionOwnerState[],
@@ -840,7 +867,8 @@ export const resolveAuctionSale = (
     winningBid.amount,
     Math.max(config.minimumBid, secondBidAmount + config.minimumBid, reservePrice),
   );
-  const price = topEndSaleGuardPriceFor(player, uncappedSalePrice, config);
+  const topEndGuardedPrice = topEndSaleGuardPriceFor(player, uncappedSalePrice, config);
+  const price = tierSaleGuardPriceFor(player, topEndGuardedPrice, config);
 
   return {
     player,
