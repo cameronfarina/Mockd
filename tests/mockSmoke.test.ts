@@ -42,6 +42,6 @@ describe("mock smoke report", () => {
     });
     expect(report.firstTwoRounds.every(pick => pick.anchorPrice > 0 && pick.salePrice > 0)).toBe(true);
     expect(report.warnings.some(warning => warning.includes("invalid roster"))).toBe(false);
-    expect(report.warnings.some(warning => warning.includes("budget left"))).toBe(true);
+    expect(report.warnings.some(warning => warning.includes("budget left"))).toBe(false);
   });
 });

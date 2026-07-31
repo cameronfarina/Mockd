@@ -45,6 +45,13 @@ export interface EndgameSpendConfig {
   maxMultiplier: number;
 }
 
+export interface BudgetPacingConfig {
+  targetBudgetPerSlotAfterPurchase: number;
+  slope: number;
+  maxDiscount: number;
+  minimumPlayerPrice: number;
+}
+
 export interface OwnerAuctionBehavior {
   priceAggression: number;
   scarcityChase: number;
@@ -66,6 +73,7 @@ export interface AuctionEngineConfig {
   rosterNeed: RosterNeedConfig;
   nomination: NominationConfig;
   endgameSpend: EndgameSpendConfig;
+  budgetPacing: BudgetPacingConfig;
   seed: string;
 }
 
@@ -77,6 +85,7 @@ export type AuctionEngineConfigOverrides =
     rosterNeed?: Partial<RosterNeedConfig>;
     nomination?: Partial<NominationConfig>;
     endgameSpend?: Partial<EndgameSpendConfig>;
+    budgetPacing?: Partial<BudgetPacingConfig>;
   };
 
 export interface AuctionOwnerState {
@@ -101,6 +110,7 @@ export interface AuctionBid {
   behaviorScarcityMultiplier: number;
   replacementPatienceMultiplier: number;
   endgamePressureMultiplier: number;
+  budgetPacingMultiplier: number;
   tieBreak: number;
 }
 
@@ -152,12 +162,18 @@ export interface AuctionPricedPlayer {
   weeks1To4: number;
 }
 
+export interface ReplacementPriceTier {
+  count: number;
+  price: number;
+}
+
 export interface BuildAuctionPlayerPoolOptions {
   pricedPlayers: readonly AuctionPricedPlayer[];
   projections: readonly ProjectionRecord[];
   excludedNames?: readonly string[];
   targetCount?: number;
   replacementPrice?: number;
+  replacementPriceLadder?: readonly ReplacementPriceTier[];
 }
 
 const flexEligiblePositions = ["RB", "WR", "TE"] as const satisfies readonly Position[];
@@ -165,6 +181,14 @@ const premiumPositions = ["QB", "RB", "WR", "TE"] as const satisfies readonly Po
 const defaultSeed = "mockd-default";
 const hashDivisor = 0x100000000;
 const replacementPatiencePriceThreshold = 3;
+const defaultReplacementPrice = 1;
+const defaultReplacementPriceLadder: readonly ReplacementPriceTier[] = [
+  { count: 8, price: 8 },
+  { count: 14, price: 6 },
+  { count: 20, price: 4 },
+  { count: 28, price: 3 },
+  { count: 32, price: 2 },
+];
 
 const emptyPositionAmounts = (): PositionAmounts => ({
   QB: 0,
@@ -234,6 +258,12 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     slope: 0.18,
     maxMultiplier: 1.25,
   },
+  budgetPacing: {
+    targetBudgetPerSlotAfterPurchase: 4,
+    slope: 0.85,
+    maxDiscount: 0.28,
+    minimumPlayerPrice: 8,
+  },
   seed: defaultSeed,
 };
 
@@ -271,6 +301,10 @@ export const buildAuctionConfig = (
   endgameSpend: {
     ...defaultAuctionEngineConfig.endgameSpend,
     ...overrides.endgameSpend,
+  },
+  budgetPacing: {
+    ...defaultAuctionEngineConfig.budgetPacing,
+    ...overrides.budgetPacing,
   },
 });
 
@@ -532,6 +566,27 @@ const endgamePressureMultiplierFor = (
   );
 };
 
+const budgetPacingMultiplierFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  config: AuctionEngineConfig,
+): number => {
+  if (player.price < config.budgetPacing.minimumPlayerPrice) return 1;
+  if (state.rosterSlotsRemaining <= 1) return 1;
+  if (config.budgetPacing.targetBudgetPerSlotAfterPurchase <= 0) return 1;
+
+  const expectedSpend = Math.min(state.maxBid, player.price);
+  const slotsAfterPurchase = state.rosterSlotsRemaining - 1;
+  const budgetAfterPurchase = state.budgetRemaining - expectedSpend;
+  const budgetPerSlotAfterPurchase = budgetAfterPurchase / slotsAfterPurchase;
+  const targetBudgetPerSlot = config.budgetPacing.targetBudgetPerSlotAfterPurchase;
+  if (budgetPerSlotAfterPurchase >= targetBudgetPerSlot) return 1;
+
+  const shortageRatio = (targetBudgetPerSlot - budgetPerSlotAfterPurchase) / targetBudgetPerSlot;
+  const discount = clamp(shortageRatio * config.budgetPacing.slope, 0, config.budgetPacing.maxDiscount);
+  return 1 - discount;
+};
+
 const bidForOwner = (
   state: AuctionOwnerState,
   player: Player,
@@ -546,6 +601,7 @@ const bidForOwner = (
     ? ownerBehavior.replacementPatience
     : 1;
   const endgamePressureMultiplier = endgamePressureMultiplierFor(state, config);
+  const budgetPacingMultiplier = budgetPacingMultiplierFor(state, player, config);
   const uncappedAmount = Math.max(
     config.minimumBid,
     Math.round(
@@ -555,7 +611,8 @@ const bidForOwner = (
       behaviorScarcityMultiplier *
       ownerBehavior.priceAggression *
       replacementPatienceMultiplier *
-      endgamePressureMultiplier,
+      endgamePressureMultiplier *
+      budgetPacingMultiplier,
     ),
   );
 
@@ -572,6 +629,7 @@ const bidForOwner = (
     behaviorScarcityMultiplier,
     replacementPatienceMultiplier,
     endgamePressureMultiplier,
+    budgetPacingMultiplier,
     tieBreak: deterministicTieBreak(config.seed, state.owner, player.name),
   };
 };
@@ -985,12 +1043,32 @@ const playerFromPricedRecord = (record: AuctionPricedPlayer): Player => {
   };
 };
 
+const replacementPriceFor = (
+  replacementIndex: number,
+  position: Position,
+  ladder: readonly ReplacementPriceTier[],
+  fallbackPrice: number,
+): number => {
+  if (!isPremiumPosition(position)) return fallbackPrice;
+
+  let pricedCount = 0;
+
+  for (const tier of ladder) {
+    if (tier.count <= 0) continue;
+    if (replacementIndex < pricedCount + tier.count) return tier.price;
+    pricedCount += tier.count;
+  }
+
+  return fallbackPrice;
+};
+
 export const buildAuctionPlayerPool = ({
   pricedPlayers,
   projections,
   excludedNames = [],
   targetCount,
-  replacementPrice = 1,
+  replacementPrice = defaultReplacementPrice,
+  replacementPriceLadder = defaultReplacementPriceLadder,
 }: BuildAuctionPlayerPoolOptions): Player[] => {
   const players = pricedPlayers.map(playerFromPricedRecord);
   const usedNames = new Set([
@@ -1002,20 +1080,28 @@ export const buildAuctionPlayerPool = ({
   if (players.length < requestedCount) {
     const replacements = buildProjectionRankings(projections)
       .sort((left, right) => right.weeks1To4 - left.weeks1To4 || left.name.localeCompare(right.name));
+    let premiumReplacementIndex = 0;
 
     for (const replacement of replacements) {
       if (players.length >= requestedCount) break;
       if (usedNames.has(replacement.normalizedName)) continue;
 
+      const price = replacementPriceFor(
+        premiumReplacementIndex,
+        replacement.position,
+        replacementPriceLadder,
+        replacementPrice,
+      );
       players.push({
         id: replacement.id,
         name: replacement.name,
         position: replacement.position,
-        price: replacementPrice,
+        price,
         week1: projectionWeekOne(replacement),
         weeks1To4: replacement.weeks1To4,
       });
       usedNames.add(replacement.normalizedName);
+      if (isPremiumPosition(replacement.position)) premiumReplacementIndex += 1;
     }
   }
 

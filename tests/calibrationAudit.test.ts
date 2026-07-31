@@ -56,7 +56,7 @@ describe("historical calibration audit", () => {
     expect(dollarPlayerGate).toMatchObject({
       category: "price_tier_count",
       label: "$1 player count",
-      status: "fail",
+      status: "warn",
       target: audit.overall.historicalAverageDollarPlayers,
       actual: audit.overall.mockAverageDollarPlayers,
       delta: audit.overall.dollarPlayerDelta,

@@ -58,7 +58,7 @@ describe("prep output artifacts", () => {
 
       const calibrationGatesCsv = await readFile(join(outputDirectory, "calibration-gates.csv"), "utf8");
       expect(calibrationGatesCsv.split("\n")[0]).toBe("key,category,label,status,target,actual,delta,warn_threshold,fail_threshold");
-      expect(calibrationGatesCsv).toContain("price-tier-count:dollar,price_tier_count,$1 player count,fail");
+      expect(calibrationGatesCsv).toContain("price-tier-count:dollar,price_tier_count,$1 player count,warn");
 
       const calibrationJson = JSON.parse(
         await readFile(join(outputDirectory, "historical-calibration-audit.json"), "utf8"),

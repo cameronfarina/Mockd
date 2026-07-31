@@ -15,7 +15,7 @@ import {
 import { buildBasePrices } from "../src/modeling/basePricing.js";
 import { applyKeeperScenarioToPrices, buildKeeperScenarios } from "../src/modeling/keeperInflation.js";
 import { buildOwnerProfiles } from "../src/modeling/ownerProfiles.js";
-import { loadEspnWeeksOneToFour } from "../src/projections.js";
+import { loadEspnWeeksOneToFour, type ProjectionRecord } from "../src/projections.js";
 import type { Player } from "../src/types.js";
 import { validateRoster } from "../src/validateMocks.js";
 
@@ -35,7 +35,74 @@ const player = (name: string, position: Position, price: number, weeks1To4 = pri
   weeks1To4,
 });
 
+const projection = (
+  id: number,
+  name: string,
+  position: Position,
+  weeks1To4: number,
+): ProjectionRecord => ({
+  id,
+  name,
+  position,
+  weeks: { 1: weeks1To4 },
+  weeks1To4,
+});
+
 describe("auction engine economics", () => {
+  it("uses a descending price ladder for replacement-pool players before falling back to $1", () => {
+    const pool = buildAuctionPlayerPool({
+      pricedPlayers: [
+        {
+          id: 1,
+          name: "Priced RB",
+          position: "RB",
+          price: 12,
+          weeks1To4: 50,
+        },
+      ],
+      projections: [
+        projection(1, "Priced RB", "RB", 50),
+        projection(2, "Replacement 1", "RB", 49),
+        projection(3, "Replacement 2", "WR", 48),
+        projection(4, "Replacement 3", "RB", 47),
+        projection(5, "Replacement 4", "WR", 46),
+        projection(6, "Replacement 5", "TE", 45),
+        projection(7, "Replacement 6", "RB", 44),
+      ],
+      targetCount: 7,
+      replacementPriceLadder: [
+        { count: 2, price: 6 },
+        { count: 2, price: 3 },
+      ],
+      replacementPrice: 1,
+    });
+
+    const replacementPrices = pool
+      .filter(poolPlayer => poolPlayer.name.startsWith("Replacement"))
+      .sort((left, right) => right.price - left.price || right.weeks1To4 - left.weeks1To4)
+      .map(poolPlayer => poolPlayer.price);
+
+    expect(replacementPrices).toEqual([6, 6, 3, 3, 1, 1]);
+  });
+
+  it("keeps replacement kickers and defenses at the fallback price", () => {
+    const pool = buildAuctionPlayerPool({
+      pricedPlayers: [],
+      projections: [
+        projection(1, "Replacement K", "K", 80),
+        projection(2, "Replacement RB", "RB", 70),
+        projection(3, "Replacement DST", "DST", 60),
+      ],
+      targetCount: 3,
+      replacementPriceLadder: [{ count: 3, price: 6 }],
+      replacementPrice: 1,
+    });
+
+    expect(pool.find(poolPlayer => poolPlayer.name === "Replacement RB")?.price).toBe(6);
+    expect(pool.find(poolPlayer => poolPlayer.name === "Replacement K")?.price).toBe(1);
+    expect(pool.find(poolPlayer => poolPlayer.name === "Replacement DST")?.price).toBe(1);
+  });
+
   it("records the rotating nominator while elite market names come off early", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({
@@ -255,6 +322,43 @@ describe("auction engine economics", () => {
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.endgamePressureMultiplier).toBeGreaterThan(1);
     expect(beatonBid?.uncappedAmount).toBeGreaterThan(target.price);
+  });
+
+  it("discounts bids that would strand too little budget for remaining roster slots", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 5,
+      rosterMaximums: positionAmounts(5),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      budgetPacing: {
+        targetBudgetPerSlotAfterPurchase: 10,
+        slope: 1,
+        maxDiscount: 0.5,
+        minimumPlayerPrice: 10,
+      },
+      seed: "budget-pacing",
+    });
+    const ownerStates = createAuctionOwnerStates({
+      config,
+      initialRostersByOwner: {
+        Beaton: [player("Beaton early star", "RB", 60)],
+        Hoody: [player("Hoody value start", "WR", 10)],
+      },
+    });
+    const target = player("Budget-stranding WR", "WR", 30);
+    const sale = resolveAuctionSale(target, ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    expect(beatonBid).toBeDefined();
+    expect(beatonBid?.budgetPacingMultiplier).toBeLessThan(1);
+    expect(beatonBid?.uncappedAmount).toBeLessThan(target.price);
   });
 
   it("builds valid full-roster mocks from expected keepers and owner-local budgets", async () => {

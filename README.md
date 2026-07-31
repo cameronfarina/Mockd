@@ -18,6 +18,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - deterministic owner-local auction simulation with scarcity pressure
 - repeatable smoke checks for roster validity, batch validity, and the first two nomination rounds
 - calibration gates that mark mock batches as pass, warn, or fail against explicit economic thresholds
+- replacement-depth pricing and budget pacing so owners do not strand themselves into unrealistic $1-only endgames
 - legal lineup optimization performed **after** the full roster is built
 - validation guards for duplicate players, budget, roster size, and position limits
 - the current validated Excel model as an output artifact
@@ -124,7 +125,9 @@ npm run outputs -- --scenarios=expected --runs=50 --seed-prefix=prep --out=data/
 
 Nominations are synthetic and deterministic because the historical boards do not include reliable nomination order. Owners rotate through nominations, the first phase strongly prefers elite market players, and later nominations adapt to the current nominator's roster needs, max bid, positional scarcity, and chance to make other owners spend. Each pick records both the nominator and the winning owner.
 
-The auction engine does not globally discount the pool after a few expensive buys. Each owner carries their own remaining budget, remaining roster slots, and max bid, with $1 reserved for every unfilled slot. If two owners spend $80 early, those owners are capped; other owners with full budgets can still bid good players above anchor when comparable talent is scarce.
+The auction engine does not globally discount the pool after a few expensive buys. Each owner carries their own remaining budget, remaining roster slots, and max bid, with $1 reserved for every unfilled slot. Budget pacing discounts bids that would strand too little money for future roster slots, while cash-heavy endgame pressure pushes owners to spend leftover money late. If two owners spend $80 early, those owners are capped; other owners with full budgets can still bid good players above anchor when comparable talent is scarce.
+
+Replacement players are no longer a flat $1 shelf. The engine applies a descending replacement-price ladder to QB/RB/WR/TE depth names from the projection file and keeps K/DST replacements at the fallback price, which reduces unrealistic $1-only endgames without making special teams too expensive.
 
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.
 
