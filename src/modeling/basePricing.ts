@@ -363,22 +363,23 @@ const allocateIntegerPrices = (
     fractionalPrice: fractionalPrices[index]!,
     price: Math.floor(fractionalPrices[index]!),
   }));
-  let roundingRemainder = targetTotal - priced.reduce((total, entry) => total + entry.price, 0);
+  const roundingRemainder = targetTotal - priced.reduce((total, entry) => total + entry.price, 0);
 
-  while (roundingRemainder > 0) {
-    const recipient = priced
-      .filter(entry => entry.price < entry.candidate.hardCeiling)
-      .sort(
-        (left, right) =>
-          (right.fractionalPrice - Math.floor(right.fractionalPrice)) -
-          (left.fractionalPrice - Math.floor(left.fractionalPrice)) ||
-          right.candidate.rawPrice - left.candidate.rawPrice,
-      )[0];
+  const roundingRecipients = priced
+    .filter(entry => entry.price < entry.candidate.hardCeiling)
+    .sort(
+      (left, right) =>
+        (right.fractionalPrice - Math.floor(right.fractionalPrice)) -
+        (left.fractionalPrice - Math.floor(left.fractionalPrice)) ||
+        right.candidate.rawPrice - left.candidate.rawPrice,
+    );
 
-    if (!recipient) throw new Error("Unable to round prices to the requested spend target.");
+  if (roundingRecipients.length < roundingRemainder) {
+    throw new Error("Unable to round prices to the requested spend target.");
+  }
 
+  for (const recipient of roundingRecipients.slice(0, roundingRemainder)) {
     recipient.price += 1;
-    roundingRemainder -= 1;
   }
 
   return priced.map(({ candidate, price }) => {

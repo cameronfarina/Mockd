@@ -86,4 +86,36 @@ describe("audited base pricing", () => {
     expect(customPuka.rawPrice).toBeLessThan(defaultPuka.rawPrice);
     expect(customPuka.price).toBeLessThan(defaultPuka.price);
   });
+
+  it("spreads rounding dollars instead of dumping them into one player", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const customPrices = buildBasePrices(projections, historicalRecords, {
+      ...defaultPricingConfig,
+      playerContext: {
+        ...customWeightsPlayerContextConfig,
+        overrides: [
+          ...customWeightsPlayerContextConfig.overrides,
+          {
+            player: "Puka Nacua",
+            signals: {
+              role: -2,
+              injury: -1,
+            },
+          },
+          {
+            player: "Malik Nabers",
+            signals: {
+              role: 1,
+              bye: -0.25,
+            },
+          },
+        ],
+      },
+    });
+    const london = customPrices.find(price => price.name === "Drake London")!;
+
+    expect(london.rawPrice).toBeLessThan(60);
+    expect(london.price).toBeLessThanOrEqual(56);
+  });
 });
