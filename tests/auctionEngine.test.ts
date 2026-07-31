@@ -8,6 +8,7 @@ import {
   buildInitialRostersFromKeepers,
   buildOwnerAuctionBehaviors,
   buildOwnerDemandMultipliers,
+  buildOwnerRosterMaximums,
   createAuctionOwnerStates,
   resolveAuctionSale,
   simulateAuction,
@@ -363,6 +364,45 @@ describe("auction engine economics", () => {
     const depthBalancedBid = depthSale.bids.find(bid => bid.owner === "Hoody")!;
     expect(depthTopHeavyBid.buildStyleMultiplier).toBe(0.9);
     expect(depthTopHeavyBid.amount).toBeLessThan(depthBalancedBid.amount);
+  });
+
+  it("derives owner-specific roster maximums from backup-position history", async () => {
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const maximums = buildOwnerRosterMaximums(buildOwnerProfiles(historicalRecords));
+
+    expect(maximums.CJ?.QB).toBe(1);
+    expect(maximums.Tye?.QB).toBeUndefined();
+    expect(maximums.Seth?.TE).toBe(1);
+    expect(maximums.PJ?.TE).toBeUndefined();
+  });
+
+  it("applies owner-specific roster maximums during bidding", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 3,
+      rosterMaximums: positionAmounts(3),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerRosterMaximums: {
+        Beaton: { QB: 1 },
+      },
+      seed: "owner-roster-maximums",
+    });
+    const ownerStates = createAuctionOwnerStates({
+      config,
+      initialRostersByOwner: {
+        Beaton: [player("Beaton starter QB", "QB", 20)],
+      },
+    });
+    const sale = resolveAuctionSale(player("Backup QB", "QB", 10), ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    expect(sale.bids.some(bid => bid.owner === "Beaton")).toBe(false);
+    expect(sale.bids.some(bid => bid.owner === "Hoody")).toBe(true);
   });
 
   it("raises bids for cash-heavy owners late in the auction", () => {

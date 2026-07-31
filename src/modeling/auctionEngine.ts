@@ -10,6 +10,7 @@ export type PositionAmounts = Record<Position, number>;
 export type InitialRostersByOwner = Partial<Record<Owner, readonly Player[]>>;
 export type OwnerDemandMultipliers = Partial<Record<Owner, Partial<Record<Position, number>>>>;
 export type OwnerAuctionBehaviors = Partial<Record<Owner, OwnerAuctionBehavior>>;
+export type OwnerRosterMaximums = Partial<Record<Owner, Partial<Record<Position, number>>>>;
 export type PositionOverbidDamping = Partial<Record<Position, number>>;
 
 export interface ScarcityConfig {
@@ -87,6 +88,7 @@ export interface AuctionEngineConfig {
   reservePriceRatio: number;
   ownerDemandMultipliers: OwnerDemandMultipliers;
   ownerBehaviors: OwnerAuctionBehaviors;
+  ownerRosterMaximums: OwnerRosterMaximums;
   positionOverbidDamping: PositionOverbidDamping;
   scarcity: ScarcityConfig;
   rosterNeed: RosterNeedConfig;
@@ -99,9 +101,10 @@ export interface AuctionEngineConfig {
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "budgetPacing" | "topEndOverbidDamping" | "topEndSaleGuard">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "budgetPacing" | "topEndOverbidDamping" | "topEndSaleGuard">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
+    ownerRosterMaximums?: OwnerRosterMaximums;
     positionOverbidDamping?: PositionOverbidDamping;
     scarcity?: Partial<ScarcityConfig>;
     rosterNeed?: Partial<RosterNeedConfig>;
@@ -211,6 +214,7 @@ const replacementPatiencePriceThreshold = 3;
 const anchorBuildPriceThreshold = 40;
 const depthBuildPriceThreshold = 19;
 const targetAnchorRosterCount = 2;
+const onePlayerRosterCountThreshold = 1.4;
 const defaultReplacementPrice = 1;
 const defaultReplacementPriceLadder: readonly ReplacementPriceTier[] = [
   { count: 8, price: 8 },
@@ -258,6 +262,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   reservePriceRatio: 0.75,
   ownerDemandMultipliers: {},
   ownerBehaviors: {},
+  ownerRosterMaximums: {},
   positionOverbidDamping: {
     QB: 0.75,
     TE: 0.65,
@@ -324,6 +329,17 @@ const isFlexEligible = (position: Position): boolean =>
 const isPremiumPosition = (position: Position): boolean =>
   premiumPositions.some(premiumPosition => premiumPosition === position);
 
+const rosterMaximumFor = (
+  owner: Owner,
+  position: Position,
+  config: AuctionEngineConfig,
+): number => {
+  const globalMaximum = config.rosterMaximums[position];
+  const ownerMaximum = config.ownerRosterMaximums[owner]?.[position] ?? globalMaximum;
+
+  return Math.max(config.starterMinimums[position], Math.min(globalMaximum, ownerMaximum));
+};
+
 export const buildAuctionConfig = (
   overrides: AuctionEngineConfigOverrides = {},
 ): AuctionEngineConfig => ({
@@ -331,6 +347,7 @@ export const buildAuctionConfig = (
   ...overrides,
   ownerDemandMultipliers: overrides.ownerDemandMultipliers ?? defaultAuctionEngineConfig.ownerDemandMultipliers,
   ownerBehaviors: overrides.ownerBehaviors ?? defaultAuctionEngineConfig.ownerBehaviors,
+  ownerRosterMaximums: overrides.ownerRosterMaximums ?? defaultAuctionEngineConfig.ownerRosterMaximums,
   positionOverbidDamping: overrides.positionOverbidDamping ?? defaultAuctionEngineConfig.positionOverbidDamping,
   scarcity: {
     ...defaultAuctionEngineConfig.scarcity,
@@ -466,7 +483,7 @@ const canOwnerCompleteRosterAfterAdding = (
   if (state.rosterSlotsRemaining <= 0) return false;
 
   const counts = countPositions(state.roster);
-  if (counts[player.position] >= config.rosterMaximums[player.position]) return false;
+  if (counts[player.position] >= rosterMaximumFor(state.owner, player.position, config)) return false;
 
   counts[player.position] += 1;
   const slotsAfterPick = state.rosterSlotsRemaining - 1;
@@ -575,7 +592,7 @@ const rosterNeedMultiplierFor = (
   if ((position === "K" || position === "DST") && counts[position] >= 1) {
     multiplier *= config.rosterNeed.specialTeamsBenchMultiplier;
   }
-  if (counts[position] >= config.rosterMaximums[position] - 1) {
+  if (counts[position] >= rosterMaximumFor(state.owner, position, config) - 1) {
     multiplier *= config.rosterNeed.lastPositionSlotMultiplier;
   }
 
@@ -880,7 +897,7 @@ const nominationNeedScoreFor = (
   config: AuctionEngineConfig,
 ): number => {
   const counts = countPositions(state.roster);
-  if (counts[position] >= config.rosterMaximums[position]) return 0;
+  if (counts[position] >= rosterMaximumFor(state.owner, position, config)) return 0;
 
   if (counts[position] < config.starterMinimums[position]) return 1;
   if (isFlexEligible(position) && flexEligibleCount(counts) < minimumFlexEligibleCount(config)) {
@@ -1316,4 +1333,19 @@ export const buildOwnerAuctionBehaviors = (
   }
 
   return behaviors;
+};
+
+export const buildOwnerRosterMaximums = (
+  profiles: readonly OwnerProfile[],
+): OwnerRosterMaximums => {
+  const maximums: OwnerRosterMaximums = {};
+
+  for (const profile of profiles) {
+    const ownerMaximums: Partial<Record<Position, number>> = {};
+    if (profile.rosterCounts.QB <= onePlayerRosterCountThreshold) ownerMaximums.QB = 1;
+    if (profile.rosterCounts.TE <= onePlayerRosterCountThreshold) ownerMaximums.TE = 1;
+    if (Object.keys(ownerMaximums).length > 0) maximums[profile.owner] = ownerMaximums;
+  }
+
+  return maximums;
 };

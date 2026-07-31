@@ -48,6 +48,17 @@ describe("owner profiles", () => {
       expectNear(profile.averageKeeperCost, expected.keeper);
       expect(profile.profileLabel).toBe(expected.label);
     }
+
+    const cj = profiles.find(profile => profile.owner === "CJ");
+    const tye = profiles.find(profile => profile.owner === "Tye");
+    const seth = profiles.find(profile => profile.owner === "Seth");
+    const pj = profiles.find(profile => profile.owner === "PJ");
+    if (!cj || !tye || !seth || !pj) throw new Error("Expected owner profiles for roster-count checks.");
+
+    expectNear(cj.rosterCounts.QB, 1);
+    expectNear(tye.rosterCounts.QB, 2);
+    expectNear(seth.rosterCounts.TE, 1);
+    expectNear(pj.rosterCounts.TE, 2);
   });
 
   it("builds the league-level open-auction spend calibration targets", async () => {

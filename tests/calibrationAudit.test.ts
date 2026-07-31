@@ -86,6 +86,10 @@ describe("historical calibration audit", () => {
       historicalAverageCount: 22.33,
     });
     expect(Number.isFinite(qbCount?.delta ?? Number.NaN)).toBe(true);
+    expect(qbCount?.mockAverageCount).toBeLessThanOrEqual(24);
+
+    const teCount = audit.positionCounts.find(position => position.position === "TE");
+    expect(teCount?.mockAverageCount).toBeLessThanOrEqual(23);
 
     const qbCountGate = audit.gates.items.find(gate => gate.key === "position-count:QB");
     expect(qbCountGate).toMatchObject({

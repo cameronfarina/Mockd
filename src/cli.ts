@@ -3,7 +3,11 @@ import { leagueConfig } from "../config/league.js";
 import { customWeightsPlayerContextConfig } from "../config/playerContext.js";
 import { keeperSummary } from "./keeperModel.js";
 import { loadHistoricalAuctionRecords } from "./data/parseHistoricalBoards.js";
-import { buildOwnerAuctionBehaviors, buildOwnerDemandMultipliers } from "./modeling/auctionEngine.js";
+import {
+  buildOwnerAuctionBehaviors,
+  buildOwnerDemandMultipliers,
+  buildOwnerRosterMaximums,
+} from "./modeling/auctionEngine.js";
 import { buildHistoricalCalibrationAudit } from "./modeling/calibrationAudit.js";
 import {
   buildBasePrices,
@@ -99,6 +103,7 @@ const main = async (): Promise<void> => {
       profiles,
       ownerDemandMultipliers: buildOwnerDemandMultipliers(profiles),
       ownerAuctionBehaviors: buildOwnerAuctionBehaviors(profiles),
+      ownerRosterMaximums: buildOwnerRosterMaximums(profiles),
       openAuctionSpendTargets: buildLeagueOpenAuctionSpendTargets(historicalRecords),
     }, null, 2));
     return;

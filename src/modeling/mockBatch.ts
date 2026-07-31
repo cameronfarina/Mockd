@@ -10,6 +10,7 @@ import {
   buildInitialRostersFromKeepers,
   buildOwnerAuctionBehaviors,
   buildOwnerDemandMultipliers,
+  buildOwnerRosterMaximums,
   simulateAuction,
   type AuctionPick,
   type InitialRostersByOwner,
@@ -139,6 +140,7 @@ interface MockPreparation {
   scenarios: PreparedScenario[];
   ownerDemandMultipliers: ReturnType<typeof buildOwnerDemandMultipliers>;
   ownerBehaviors: ReturnType<typeof buildOwnerAuctionBehaviors>;
+  ownerRosterMaximums: ReturnType<typeof buildOwnerRosterMaximums>;
 }
 
 const defaultScenarioKeys: readonly KeeperScenarioKey[] = ["expected"];
@@ -196,11 +198,13 @@ const prepareMockInputs = ({
   const ownerProfiles = buildOwnerProfiles(historicalRecords);
   const ownerDemandMultipliers = buildOwnerDemandMultipliers(ownerProfiles);
   const ownerBehaviors = buildOwnerAuctionBehaviors(ownerProfiles);
+  const ownerRosterMaximums = buildOwnerRosterMaximums(ownerProfiles);
   const totalRosterSlots = leagueConfig.teams * leagueConfig.rosterSize;
 
   return {
     ownerDemandMultipliers,
     ownerBehaviors,
+    ownerRosterMaximums,
     scenarios: scenarioKeys.map(scenarioKey => {
       const scenario = scenarioByKey(scenarioKey, keeperScenarios);
       const adjustedPrices = applyKeeperScenarioToPrices(prices, scenario, keepers);
@@ -253,11 +257,12 @@ const runPreparedScenario = (
   preparedScenario: PreparedScenario,
   ownerDemandMultipliers: ReturnType<typeof buildOwnerDemandMultipliers>,
   ownerBehaviors: ReturnType<typeof buildOwnerAuctionBehaviors>,
+  ownerRosterMaximums: ReturnType<typeof buildOwnerRosterMaximums>,
   seed: string,
 ): MockRun => {
   const result = simulateAuction({
     players: preparedScenario.auctionPlayers,
-    config: buildAuctionConfig({ seed, ownerDemandMultipliers, ownerBehaviors }),
+    config: buildAuctionConfig({ seed, ownerDemandMultipliers, ownerBehaviors, ownerRosterMaximums }),
     initialRostersByOwner: preparedScenario.initialRostersByOwner,
   });
   const rosters = ownerOrder.map(owner => {
@@ -300,6 +305,7 @@ export const runMock = ({
     preparedScenario,
     preparation.ownerDemandMultipliers,
     preparation.ownerBehaviors,
+    preparation.ownerRosterMaximums,
     seed,
   );
 };
@@ -447,6 +453,7 @@ export const runMockBatch = ({
         preparedScenario,
         preparation.ownerDemandMultipliers,
         preparation.ownerBehaviors,
+        preparation.ownerRosterMaximums,
         `${seedPrefix}:${preparedScenario.scenario.key}:${index + 1}`,
       ),
     ),

@@ -86,7 +86,7 @@ Run:
 npm run profiles
 ```
 
-The profile output includes each owner's weighted open-auction spend by QB/RB/WR/TE, normal K/DST spending, top-two concentration, $1 player tendency, average keeper cost, and derived profile label. Known execution-error bids, such as Tye's 2025 $29 kicker budget dump, are excluded from normal K/DST calibration while remaining part of the raw historical board.
+The profile output includes each owner's weighted open-auction spend by QB/RB/WR/TE, roster-count tendencies by position, normal K/DST spending, top-two concentration, $1 player tendency, average keeper cost, and derived profile label. Known execution-error bids, such as Tye's 2025 $29 kicker budget dump, are excluded from normal K/DST calibration while remaining part of the raw historical board.
 
 The same profile data now derives auction behavior knobs used by mocks: position demand multipliers, price aggression, scarcity chasing, anchor-buy aggression, depth-buy discipline, and replacement-level patience. High top-two concentration nudges an owner toward stronger anchor bids without blindly inflating depth bids; high $1-player tendency still nudges that owner toward more back-end patience.
 
@@ -129,7 +129,7 @@ Nominations are synthetic and deterministic because the historical boards do not
 
 The auction engine does not globally discount the pool after a few expensive buys. Each owner carries their own remaining budget, remaining roster slots, and max bid, with $1 reserved for every unfilled slot. Budget pacing discounts bids that would strand too little money for future roster slots, while cash-heavy endgame pressure pushes owners to spend leftover money late. If two owners spend $80 early, those owners are capped; other owners with full budgets can still bid good players above anchor when comparable talent is scarce.
 
-Roster maximums are tuned to this league's historical draft shape: mocks cap owners at two QBs, one kicker, and one defense so cheap late fillers do not crowd out RB/WR depth.
+Roster maximums are tuned to this league's historical draft shape: mocks cap owners at two QBs, one kicker, and one defense so cheap late fillers do not crowd out RB/WR depth. Owner-specific history tightens that further for one-QB and one-TE owners, while owners who historically carried backups can still do it.
 
 Replacement players are no longer a flat $1 shelf. The engine applies a descending replacement-price ladder to QB/RB/WR/TE depth names from the projection file and keeps K/DST replacements at the fallback price, which reduces unrealistic $1-only endgames without making special teams too expensive.
 

@@ -1,4 +1,4 @@
-import { ownerOrder, type Owner, type Position } from "../../config/league.js";
+import { ownerOrder, positions, type Owner, type Position } from "../../config/league.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
 
 const profilePositions = ["QB", "RB", "WR", "TE"] as const satisfies readonly Position[];
@@ -11,6 +11,7 @@ export type HistoricalWeights = Record<number, number>;
 export interface OwnerProfile {
   owner: Owner;
   openAuctionSpend: Record<(typeof profilePositions)[number], number>;
+  rosterCounts: Record<Position, number>;
   normalSpecialTeamsSpend: number;
   topTwoConcentration: number;
   oneDollarPlayerCount: number;
@@ -65,6 +66,12 @@ const spendForPosition = (
   records
     .filter(record => record.position === position)
     .reduce((total, record) => total + record.price, 0);
+
+const rosterCountForPosition = (
+  records: readonly HistoricalAuctionRecord[],
+  position: Position,
+): number =>
+  records.filter(record => record.position === position).length;
 
 const normalSpecialTeamsSpend = (records: readonly HistoricalAuctionRecord[]): number =>
   auctionRecords(records)
@@ -122,6 +129,15 @@ const emptyProfileSpend = (): OwnerProfile["openAuctionSpend"] => ({
   TE: 0,
 });
 
+const emptyRosterCounts = (): OwnerProfile["rosterCounts"] => ({
+  QB: 0,
+  RB: 0,
+  WR: 0,
+  TE: 0,
+  K: 0,
+  DST: 0,
+});
+
 export const buildOwnerProfiles = (
   records: readonly HistoricalAuctionRecord[],
   weights: HistoricalWeights = defaultHistoricalWeights,
@@ -129,6 +145,7 @@ export const buildOwnerProfiles = (
   ownerOrder.map(owner => {
     const ownerRecords = records.filter(record => record.owner === owner);
     const openAuctionSpend = emptyProfileSpend();
+    const rosterCounts = emptyRosterCounts();
 
     for (const position of profilePositions) {
       openAuctionSpend[position] = roundToOneDecimal(
@@ -137,10 +154,18 @@ export const buildOwnerProfiles = (
         ),
       );
     }
+    for (const position of positions) {
+      rosterCounts[position] = roundToOneDecimal(
+        weightedSum(ownerRecords, weights, seasonRecords =>
+          rosterCountForPosition(seasonRecords, position),
+        ),
+      );
+    }
 
     const profileWithoutLabel = {
       owner,
       openAuctionSpend,
+      rosterCounts,
       normalSpecialTeamsSpend: roundToOneDecimal(
         weightedSum(ownerRecords, weights, seasonRecords =>
           normalSpecialTeamsSpend(seasonRecords),
