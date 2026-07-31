@@ -492,6 +492,10 @@ const main = async (): Promise<void> => {
       pricingConfig,
     });
     const audit = buildHistoricalCalibrationAudit({ historicalRecords, batch });
+    const firstRun = batch.runs[0];
+    if (!firstRun) throw new Error("Outputs command did not produce a mock run.");
+    const smokeReport = buildMockSmokeReport({ run: firstRun, batch, rounds: 2 });
+    const historicalBacktest = buildHistoricalBacktest(historicalRecords);
     const evidenceQueue = buildPlayerEvidenceQueue(buildTopPlayerSanityReport({
       projections: players,
       historicalRecords,
@@ -506,6 +510,8 @@ const main = async (): Promise<void> => {
     const artifacts = await writePrepOutputArtifacts({
       batch,
       audit,
+      smokeReport,
+      historicalBacktest,
       evidenceQueue,
       evidenceCoverageAudit,
       outputDirectory: optionValue("--out") ?? "data/processed/mock-prep",

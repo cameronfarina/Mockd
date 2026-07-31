@@ -5,10 +5,12 @@ import { describe, expect, it } from "vitest";
 import { keepers } from "../config/keepers.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
 import { buildHistoricalCalibrationAudit } from "../src/modeling/calibrationAudit.js";
+import { buildHistoricalBacktest } from "../src/modeling/historicalBacktest.js";
 import { runMockBatch } from "../src/modeling/mockBatch.js";
+import { buildMockSmokeReport } from "../src/modeling/mockSmoke.js";
 import type { EvidenceCoverageAudit } from "../src/modeling/playerEvidenceCoverage.js";
 import type { PlayerEvidenceQueue } from "../src/modeling/playerEvidenceQueue.js";
-import { writePrepOutputArtifacts } from "../src/modeling/prepOutputs.js";
+import { buildPrepOutputArtifacts, writePrepOutputArtifacts } from "../src/modeling/prepOutputs.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
@@ -121,12 +123,18 @@ describe("prep output artifacts", () => {
       seedPrefix: "outputs-test",
     });
     const audit = buildHistoricalCalibrationAudit({ historicalRecords, batch });
+    const firstRun = batch.runs[0];
+    if (!firstRun) throw new Error("Expected at least one mock run.");
+    const smokeReport = buildMockSmokeReport({ run: firstRun, batch, rounds: 2 });
+    const historicalBacktest = buildHistoricalBacktest(historicalRecords);
     const outputDirectory = await mkdtemp(join(tmpdir(), "mockd-prep-"));
 
     try {
       const artifacts = await writePrepOutputArtifacts({
         batch,
         audit,
+        smokeReport,
+        historicalBacktest,
         outputDirectory,
         evidenceQueue,
         evidenceCoverageAudit,
@@ -138,6 +146,10 @@ describe("prep output artifacts", () => {
         "calibration-summary.csv",
         "high-price-volume-calibration.csv",
         "historical-calibration-audit.json",
+        "historical-backtest-gates.csv",
+        "historical-backtest.json",
+        "mock-smoke-first-two-rounds.csv",
+        "mock-smoke.json",
         "mock-draft-board.csv",
         "owner-player-exposure.csv",
         "owner-summaries.csv",
@@ -182,6 +194,17 @@ describe("prep output artifacts", () => {
       expect(draftBoardLines).toHaveLength(batch.runs.reduce((count, run) => count + run.pickCount, 0) + 1);
       expect(draftBoardLines[1]).toContain(",expected,1,");
 
+      const smokeJson = JSON.parse(
+        await readFile(join(outputDirectory, "mock-smoke.json"), "utf8"),
+      ) as { seed: string; firstTwoRounds: unknown[]; warnings: unknown[] };
+      expect(smokeJson.seed).toBe(firstRun.seed);
+      expect(smokeJson.firstTwoRounds).toHaveLength(smokeReport.firstTwoRounds.length);
+      expect(smokeJson.warnings).toEqual(smokeReport.warnings);
+
+      const firstTwoRoundsCsv = await readFile(join(outputDirectory, "mock-smoke-first-two-rounds.csv"), "utf8");
+      expect(firstTwoRoundsCsv.split("\n")[0]).toBe("pick,round,nominator,winner,player,position,anchor_price,sale_price,sale_vs_anchor,budget_after_pick,roster_slots_after_pick");
+      expect(firstTwoRoundsCsv.trim().split("\n")).toHaveLength(smokeReport.firstTwoRounds.length + 1);
+
       const calibrationSummaryCsv = await readFile(join(outputDirectory, "calibration-summary.csv"), "utf8");
       expect(calibrationSummaryCsv.split("\n")[0]).toBe("category,key,label,target,actual,delta");
       expect(calibrationSummaryCsv).toContain("position_count");
@@ -213,8 +236,95 @@ describe("prep output artifacts", () => {
       expect(calibrationJson.runCount).toBe(2);
       expect(["pass", "warn", "fail"]).toContain(calibrationJson.gates.summary.status);
       expect(calibrationJson.gates.summary.credible).toBe(true);
+
+      const backtestJson = JSON.parse(
+        await readFile(join(outputDirectory, "historical-backtest.json"), "utf8"),
+      ) as { method: string; summary: { gateCount: number } };
+      expect(backtestJson).toMatchObject({
+        method: "leave-one-season-out",
+        summary: {
+          gateCount: historicalBacktest.summary.gateCount,
+        },
+      });
+
+      const backtestGatesCsv = await readFile(join(outputDirectory, "historical-backtest-gates.csv"), "utf8");
+      expect(backtestGatesCsv.split("\n")[0]).toBe("season,source_seasons,key,category,label,status,target,actual,delta,warn_threshold,fail_threshold");
+      expect(backtestGatesCsv.trim().split("\n")).toHaveLength(historicalBacktest.summary.gateCount + 1);
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
     }
   }, 15000);
+
+  it("keeps smoke and backtest artifacts optional for callers that only need legacy prep files", async () => {
+    const artifacts = buildPrepOutputArtifacts({
+      batch: {
+        options: {
+          scenarioKeys: ["expected"],
+          runsPerScenario: 0,
+          seedPrefix: "minimal",
+        },
+        runs: [],
+        summary: {
+          runCount: 0,
+          scenarios: [],
+          players: [],
+          owners: [],
+          ownerPlayerExposure: [],
+        },
+      },
+      audit: {
+        runCount: 0,
+        historicalSeasons: [],
+        summary: {
+          runCount: 0,
+          scenarioKeys: ["expected"],
+          runsPerScenario: 0,
+          largestPriceTierCountDeltas: [],
+          largestPositionCountDeltas: [],
+          largestPositionSpendDeltas: [],
+          largestOwnerSpendDeltas: [],
+          budgetRemaining: {
+            leagueAverageBudgetRemaining: 0,
+            ownersWithAverageBudgetRemaining: [],
+          },
+        },
+        priceTiers: [],
+        highPriceVolumes: [],
+        positionCounts: [],
+        positionSpend: [],
+        ownerSpend: [],
+        scenarios: [],
+        overall: {
+          historicalAverageAuctionSpend: 0,
+          scenarioAverageOpenAuctionDollars: 0,
+          mockAverageAuctionSpend: 0,
+          auctionSpendDelta: 0,
+          scenarioAuctionSpendDelta: 0,
+          historicalAverageDollarPlayers: 0,
+          mockAverageDollarPlayers: 0,
+          dollarPlayerDelta: 0,
+        },
+        gates: {
+          summary: {
+            status: "pass",
+            credible: true,
+            gateCount: 0,
+            passCount: 0,
+            warnCount: 0,
+            failCount: 0,
+          },
+          items: [],
+        },
+      },
+      outputDirectory: "unused",
+    });
+    const filenames = artifacts.map(artifact => artifact.filename);
+
+    expect(filenames).toContain("mock-batch-summary.json");
+    expect(filenames).toContain("historical-calibration-audit.json");
+    expect(filenames).not.toContain("mock-smoke.json");
+    expect(filenames).not.toContain("mock-smoke-first-two-rounds.csv");
+    expect(filenames).not.toContain("historical-backtest.json");
+    expect(filenames).not.toContain("historical-backtest-gates.csv");
+  });
 });

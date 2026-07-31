@@ -1,7 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { HistoricalBacktestReport } from "./historicalBacktest.js";
 import type { HistoricalCalibrationAudit } from "./calibrationAudit.js";
 import type { MockBatch } from "./mockBatch.js";
+import type { MockSmokeReport } from "./mockSmoke.js";
 import {
   playerEvidenceCoverageGatesCsv,
   type EvidenceCoverageAudit,
@@ -22,6 +24,8 @@ export interface BuildPrepOutputArtifactsOptions {
   batch: MockBatch;
   audit: HistoricalCalibrationAudit;
   outputDirectory: string;
+  smokeReport?: MockSmokeReport;
+  historicalBacktest?: HistoricalBacktestReport;
   evidenceQueue?: PlayerEvidenceQueue;
   evidenceCoverageAudit?: EvidenceCoverageAudit;
 }
@@ -167,6 +171,68 @@ const mockDraftBoardCsv = (batch: MockBatch): string =>
         pick.topBids[2]?.owner,
         pick.topBids[2]?.amount,
         pick.topBids[2]?.uncappedAmount,
+      ]),
+    ),
+  );
+
+const mockSmokeFirstTwoRoundsCsv = (smokeReport: MockSmokeReport): string =>
+  toCsv(
+    [
+      "pick",
+      "round",
+      "nominator",
+      "winner",
+      "player",
+      "position",
+      "anchor_price",
+      "sale_price",
+      "sale_vs_anchor",
+      "budget_after_pick",
+      "roster_slots_after_pick",
+    ],
+    smokeReport.firstTwoRounds.map(pick => [
+      pick.pick,
+      pick.round,
+      pick.nominator,
+      pick.winner,
+      pick.player,
+      pick.position,
+      pick.anchorPrice,
+      pick.salePrice,
+      pick.saleVsAnchor,
+      pick.budgetAfterPick,
+      pick.rosterSlotsAfterPick,
+    ]),
+  );
+
+const historicalBacktestGatesCsv = (backtest: HistoricalBacktestReport): string =>
+  toCsv(
+    [
+      "season",
+      "source_seasons",
+      "key",
+      "category",
+      "label",
+      "status",
+      "target",
+      "actual",
+      "delta",
+      "warn_threshold",
+      "fail_threshold",
+    ],
+    backtest.seasonBacktests.flatMap(seasonBacktest =>
+      seasonBacktest.gates.items.map(gate => [
+        seasonBacktest.season,
+        seasonBacktest.sourceSeasons.join("; "),
+        gate.key,
+        gate.category,
+        gate.label,
+        gate.status,
+        gate.target,
+        gate.actual,
+        gate.delta,
+        gate.warnThreshold,
+        gate.failThreshold,
       ]),
     ),
   );
@@ -343,6 +409,8 @@ export const buildPrepOutputArtifacts = ({
   batch,
   audit,
   outputDirectory,
+  smokeReport,
+  historicalBacktest,
   evidenceQueue,
   evidenceCoverageAudit,
 }: BuildPrepOutputArtifactsOptions): PrepOutputArtifact[] => {
@@ -355,6 +423,26 @@ export const buildPrepOutputArtifacts = ({
       filename: "historical-calibration-audit.json",
       content: jsonArtifact(audit),
     },
+    ...(smokeReport ? [
+      {
+        filename: "mock-smoke.json",
+        content: jsonArtifact(smokeReport),
+      },
+      {
+        filename: "mock-smoke-first-two-rounds.csv",
+        content: `${mockSmokeFirstTwoRoundsCsv(smokeReport)}\n`,
+      },
+    ] : []),
+    ...(historicalBacktest ? [
+      {
+        filename: "historical-backtest.json",
+        content: jsonArtifact(historicalBacktest),
+      },
+      {
+        filename: "historical-backtest-gates.csv",
+        content: `${historicalBacktestGatesCsv(historicalBacktest)}\n`,
+      },
+    ] : []),
     {
       filename: "calibration-summary.csv",
       content: `${calibrationSummaryCsv(audit)}\n`,

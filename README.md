@@ -216,6 +216,10 @@ WR spend uses a very light position overbid damper so owner preferences can stil
 ```text
 mock-batch-summary.json
 historical-calibration-audit.json
+mock-smoke.json
+mock-smoke-first-two-rounds.csv
+historical-backtest.json
+historical-backtest-gates.csv
 calibration-summary.csv
 calibration-gates.csv
 player-sale-ranges.csv
