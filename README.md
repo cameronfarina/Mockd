@@ -42,6 +42,7 @@ npm run scenarios:custom
 npm run mock
 npm run mocks
 npm run calibration
+npm run outputs
 npm run keepers
 ```
 
@@ -112,6 +113,7 @@ npm run mock
 npm run mock -- --scenario=expected --seed=economic-regression
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run calibration -- --scenarios=expected --runs=50 --seed-prefix=prep
+npm run outputs -- --scenarios=expected --runs=50 --seed-prefix=prep --out=data/processed/mock-prep
 ```
 
 `mock` runs a deterministic auction from the selected keeper scenario. Declared keepers are locked into their owners' rosters at keeper cost, the auction pool uses scenario-adjusted market prices, and additional $1 replacement players are added from the projection file when the known priced pool is smaller than the remaining roster slots.
@@ -122,6 +124,18 @@ The auction engine does not globally discount the pool after a few expensive buy
 
 `calibration` runs the same batch and compares it against the 2023-2025 historical auction boards by price tier, position spend, owner spend, top-two auction spend, and $1 player volume. This is the audit surface for tuning whether the simulated room is behaving like the real room.
 
+`outputs` writes the usable prep files:
+
+```text
+mock-batch-summary.json
+historical-calibration-audit.json
+player-sale-ranges.csv
+owner-summaries.csv
+owner-player-exposure.csv
+price-tier-calibration.csv
+position-spend-calibration.csv
+```
+
 When redirecting command output into JSON artifacts, use npm's silent mode:
 
 ```bash
@@ -131,15 +145,15 @@ npm run --silent scenarios > data/processed/keeper-scenarios.json
 npm run --silent mock > data/processed/mock-auction.json
 npm run --silent mocks -- --scenarios=expected --runs=50 > data/processed/mock-batch-summary.json
 npm run --silent calibration -- --scenarios=expected --runs=50 > data/processed/historical-calibration-audit.json
+npm run --silent outputs -- --scenarios=expected --runs=50 --out=data/processed/mock-prep
 ```
 
 The context layer is intentionally manual for now. Add only player facts you want the model to believe; unsupported contract, coaching, schedule, or bye assumptions should stay empty until you enter or import them from a trusted source.
 
 ## Next implementation work
 
-1. Generate Excel/CSV outputs directly from the codebase.
-2. Add import paths for richer player-context data sources.
-3. Add a web-app upload flow once the league-specific engine is trusted.
+1. Add import paths for richer player-context data sources.
+2. Add a web-app upload flow once the league-specific engine is trusted.
 
 ## Push to GitHub
 

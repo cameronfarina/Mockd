@@ -18,6 +18,7 @@ import {
   defaultHistoricalWeights,
 } from "./modeling/ownerProfiles.js";
 import { runMock, runMockBatch } from "./modeling/mockBatch.js";
+import { writePrepOutputArtifacts } from "./modeling/prepOutputs.js";
 import { buildProjectionRankings } from "./modeling/projectionRankings.js";
 import { loadEspnWeeksOneToFour } from "./projections.js";
 
@@ -262,7 +263,37 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights] | npm run scenarios [-- --custom-weights] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd]");
+  if (command === "outputs") {
+    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const batch = runMockBatch({
+      projections: players,
+      historicalRecords,
+      keepers,
+      scenarioKeys: scenarioListOptionValue(),
+      runsPerScenario: numericOptionValue("--runs", 50),
+      seedPrefix: optionValue("--seed-prefix") ?? "mockd",
+      pricingConfig,
+    });
+    const audit = buildHistoricalCalibrationAudit({ historicalRecords, batch });
+    const artifacts = await writePrepOutputArtifacts({
+      batch,
+      audit,
+      outputDirectory: optionValue("--out") ?? "data/processed/mock-prep",
+    });
+
+    console.log(JSON.stringify({
+      options: batch.options,
+      outputDirectory: optionValue("--out") ?? "data/processed/mock-prep",
+      files: artifacts.map(artifact => ({
+        filename: artifact.filename,
+        path: artifact.path,
+      })),
+    }, null, 2));
+    return;
+  }
+
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights] | npm run scenarios [-- --custom-weights] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd] | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep]");
 };
 
 main().catch(error => {
