@@ -13,6 +13,10 @@ import {
   type PlayerEvidenceQueue,
 } from "./playerEvidenceQueue.js";
 import { playerEvidenceTemplateCsv } from "./playerEvidenceTemplate.js";
+import {
+  playerOutlierReviewQueueCsv,
+  type PlayerOutlierReviewQueue,
+} from "./playerOutlierReviewQueue.js";
 
 export interface PrepOutputArtifact {
   filename: string;
@@ -28,6 +32,7 @@ export interface BuildPrepOutputArtifactsOptions {
   historicalBacktest?: HistoricalBacktestReport;
   evidenceQueue?: PlayerEvidenceQueue;
   evidenceCoverageAudit?: EvidenceCoverageAudit;
+  outlierQueue?: PlayerOutlierReviewQueue;
 }
 
 type CsvValue = string | number | boolean | undefined;
@@ -485,6 +490,7 @@ export const buildPrepOutputArtifacts = ({
   historicalBacktest,
   evidenceQueue,
   evidenceCoverageAudit,
+  outlierQueue,
 }: BuildPrepOutputArtifactsOptions): PrepOutputArtifact[] => {
   const files = [
     {
@@ -541,6 +547,10 @@ export const buildPrepOutputArtifacts = ({
     }, {
       filename: "player-evidence-template.csv",
       content: `${playerEvidenceTemplateCsv(evidenceQueue)}\n`,
+    }] : []),
+    ...(outlierQueue ? [{
+      filename: "player-outlier-review-queue.csv",
+      content: `${playerOutlierReviewQueueCsv(outlierQueue)}\n`,
     }] : []),
     ...(evidenceCoverageAudit ? [
       {

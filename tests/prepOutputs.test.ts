@@ -10,6 +10,7 @@ import { runMockBatch } from "../src/modeling/mockBatch.js";
 import { buildMockSmokeReport } from "../src/modeling/mockSmoke.js";
 import type { EvidenceCoverageAudit } from "../src/modeling/playerEvidenceCoverage.js";
 import type { PlayerEvidenceQueue } from "../src/modeling/playerEvidenceQueue.js";
+import type { PlayerOutlierReviewQueue } from "../src/modeling/playerOutlierReviewQueue.js";
 import { buildPrepOutputArtifacts, writePrepOutputArtifacts } from "../src/modeling/prepOutputs.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
 
@@ -109,6 +110,51 @@ const evidenceCoverageAudit = {
     },
   ],
 } satisfies EvidenceCoverageAudit;
+const outlierQueue = {
+  summary: {
+    playerCount: 1,
+    highPriorityCount: 1,
+    mediumPriorityCount: 0,
+    lowPriorityCount: 0,
+    reasonCounts: {
+      highMockPremium: 1,
+    },
+  },
+  rows: [
+    {
+      priority: "high",
+      rank: 11,
+      player: "Drake London",
+      position: "WR",
+      publicAnchorValue: 45,
+      basePrice: 49,
+      scenarioPrice: 56,
+      averageMockSalePrice: 62.67,
+      saleVsScenarioPrice: 6.67,
+      minMockSalePrice: 57,
+      maxMockSalePrice: 66,
+      mockSaleRange: 9,
+      draftedRate: 1,
+      rankGap: -5,
+      contextAdjustmentPercent: -0.1,
+      currentEvidenceCount: 5,
+      primaryReason: "highMockPremium",
+      outlierReasons: [
+        {
+          key: "highMockPremium",
+          severity: "review",
+          message: "Mock sale average is $6.67 above the scenario anchor.",
+          threshold: ">= $6 over scenario",
+          actual: "$6.67",
+        },
+      ],
+      thresholds: [">= $6 over scenario"],
+      auditCommand: "npm run audit -- --player=\"Drake London\" --scenario=expected",
+      reviewStatus: "open",
+      reviewNote: "",
+    },
+  ],
+} satisfies PlayerOutlierReviewQueue;
 
 describe("prep output artifacts", () => {
   it("writes batch summary, calibration, and CSV draft-prep artifacts", async () => {
@@ -138,6 +184,7 @@ describe("prep output artifacts", () => {
         outputDirectory,
         evidenceQueue,
         evidenceCoverageAudit,
+        outlierQueue,
       });
       const filenames = artifacts.map(artifact => artifact.filename).sort();
 
@@ -154,6 +201,7 @@ describe("prep output artifacts", () => {
         "mock-draft-board.csv",
         "owner-player-exposure.csv",
         "owner-summaries.csv",
+        "player-outlier-review-queue.csv",
         "player-evidence-coverage-gates.csv",
         "player-evidence-coverage.json",
         "player-evidence-queue.csv",
@@ -172,6 +220,10 @@ describe("prep output artifacts", () => {
       const evidenceQueueCsv = await readFile(join(outputDirectory, "player-evidence-queue.csv"), "utf8");
       expect(evidenceQueueCsv.split("\n")[0]).toBe("priority,rank,player,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,current_evidence_count,evidence_status,flags,categories,research_prompts");
       expect(evidenceQueueCsv).toContain("high,11,Drake London,WR,56,62.67,6.67,0,missing");
+
+      const outlierQueueCsv = await readFile(join(outputDirectory, "player-outlier-review-queue.csv"), "utf8");
+      expect(outlierQueueCsv.split("\n")[0]).toBe("priority,rank,player,position,public_anchor_value,base_price,scenario_price,average_mock_sale_price,sale_vs_scenario_price,min_mock_sale_price,max_mock_sale_price,mock_sale_range,drafted_rate,rank_gap,context_adjustment_percent,current_evidence_count,primary_reason,outlier_reasons,thresholds,audit_command,review_status,review_note");
+      expect(outlierQueueCsv).toContain("high,11,Drake London,WR,45,49,56,62.67,6.67,57,66,9,1,-5,-0.1,5,highMockPremium");
 
       const evidenceTemplateCsv = await readFile(join(outputDirectory, "player-evidence-template.csv"), "utf8");
       expect(evidenceTemplateCsv.split("\n")[0]).toBe("player,category,score,confidence,source,note,priority,rank,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,evidence_status,flags,research_prompt");
