@@ -15,7 +15,8 @@
     "prices:custom": "tsx src/cli.ts prices --custom-weights",
     "scenarios": "tsx src/cli.ts scenarios",
     "scenarios:custom": "tsx src/cli.ts scenarios --custom-weights",
-    "mock": "tsx src/cli.ts mock"
+    "mock": "tsx src/cli.ts mock",
+    "mocks": "tsx src/cli.ts mocks"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
