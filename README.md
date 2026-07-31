@@ -18,6 +18,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - deterministic owner-local auction simulation with scarcity pressure
 - per-owner budget trajectory diagnostics after every sold pick
 - nomination decision diagnostics that show why each player was put up for auction
+- room-pressure diagnostics that show how deep the legal bidder market was for each sale
 - repeatable smoke checks for roster validity, batch validity, and the first two nomination rounds
 - structured player price waterfalls from effective public anchor through mock-sale outcome
 - prioritized outlier review queues for top-player values that need human attention
@@ -253,6 +254,7 @@ owner-player-exposure.csv
 mock-draft-board.csv
 mock-bid-diagnostics.csv
 mock-nomination-diagnostics.csv
+mock-room-pressure-diagnostics.csv
 owner-budget-trajectory.csv
 price-tier-calibration.csv
 high-price-volume-calibration.csv
@@ -266,6 +268,8 @@ scenario-calibration.csv
 `mock-bid-diagnostics.csv` is the explainability companion for the draft board. It writes one row per retained top bid with bid rank, owner, amount, max-bid cap status, reserve/second-bid/nominator-opening sale resolution, sale-price basis, and the top multiplier drivers such as roster need, scarcity, room pressure, budget pacing, or damping.
 
 `mock-nomination-diagnostics.csv` is the nomination companion for the draft board. It writes the top three nomination candidates considered for each pick, with the selected player, candidate count, raw score components, and weighted contributions for market price, projection, nominator need, opponent need, affordability, scarcity, flush-money pressure, and deterministic tie-break.
+
+`mock-room-pressure-diagnostics.csv` is the bidder-depth companion for the draft board. It writes one row per sold player with legal bidder count, bidders at or above reserve/anchor/sale price, cash-heavy bidder count, bidder max-bid summary, and the winning owner's pre-sale budget pressure.
 
 `owner-budget-trajectory.csv` is the budget-timeline companion for the draft board. It writes one row per owner at the initial state and after each sold pick, including the pick context, initial spend, open-auction spend, remaining budget, max bid, roster slots, budget per slot, roster size, and position counts.
 

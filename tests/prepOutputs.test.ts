@@ -226,6 +226,7 @@ describe("prep output artifacts", () => {
         "mock-bid-diagnostics.csv",
         "mock-draft-board.csv",
         "mock-nomination-diagnostics.csv",
+        "mock-room-pressure-diagnostics.csv",
         "owner-budget-trajectory.csv",
         "owner-player-exposure.csv",
         "owner-summaries.csv",
@@ -318,6 +319,17 @@ describe("prep output artifacts", () => {
         ) + 1,
       );
       expect(nominationDiagnosticsLines[1]).toContain(",expected,1,");
+
+      const roomPressureDiagnosticsCsv = await readFile(
+        join(outputDirectory, "mock-room-pressure-diagnostics.csv"),
+        "utf8",
+      );
+      const roomPressureDiagnosticsLines = roomPressureDiagnosticsCsv.trim().split("\n");
+      expect(roomPressureDiagnosticsLines[0]).toBe("seed,scenario,pick,nominator,winner,player,position,anchor_price,sale_price,legal_bidder_count,bidders_at_or_above_reserve,bidders_at_or_above_anchor,bidders_at_or_above_sale_price,cash_heavy_bidder_count,max_bidder_max_bid,median_bidder_max_bid,average_bidder_max_bid,winning_owner_max_bid,winning_owner_budget_remaining_before,winning_owner_budget_per_roster_slot_before");
+      expect(roomPressureDiagnosticsLines).toHaveLength(
+        batch.runs.reduce((count, run) => count + run.pickCount, 0) + 1,
+      );
+      expect(roomPressureDiagnosticsLines[1]).toContain(",expected,1,");
 
       const ownerBudgetTrajectoryCsv = await readFile(
         join(outputDirectory, "owner-budget-trajectory.csv"),

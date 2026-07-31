@@ -231,6 +231,20 @@ export interface AuctionBidDiagnostics {
   drivers: AuctionBidDriver[];
 }
 
+export interface AuctionRoomPressureDiagnostics {
+  legalBidderCount: number;
+  biddersAtOrAboveReserve: number;
+  biddersAtOrAboveAnchor: number;
+  biddersAtOrAboveSalePrice: number;
+  cashHeavyBidderCount: number;
+  maxBidderMaxBid: number;
+  medianBidderMaxBid: number;
+  averageBidderMaxBid: number;
+  winningOwnerMaxBid: number;
+  winningOwnerBudgetRemainingBefore: number;
+  winningOwnerBudgetPerRosterSlotBefore: number | null;
+}
+
 export interface AuctionPickDiagnostics {
   secondBidAmount: number;
   reservePrice: number;
@@ -238,6 +252,7 @@ export interface AuctionPickDiagnostics {
   uncappedSalePrice: number;
   topEndGuardedPrice: number;
   salePriceBasis: AuctionSalePriceBasis;
+  roomPressure: AuctionRoomPressureDiagnostics;
   topBids: AuctionBidDiagnostics[];
 }
 
@@ -1134,6 +1149,64 @@ const bidDiagnosticsFor = (bid: AuctionBid): AuctionBidDiagnostics => ({
   drivers: bidDriversFor(bid).slice(0, 3),
 });
 
+const budgetPerRosterSlotFor = (state: AuctionOwnerState): number | null =>
+  state.rosterSlotsRemaining <= 0
+    ? null
+    : roundToTwo(state.budgetRemaining / state.rosterSlotsRemaining);
+
+const median = (values: readonly number[]): number => {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+
+  return sorted.length % 2 === 0
+    ? roundToTwo((sorted[middle - 1]! + sorted[middle]!) / 2)
+    : sorted[middle]!;
+};
+
+const roomPressureDiagnosticsFor = ({
+  bids,
+  ownerStates,
+  reservePrice,
+  anchorPrice,
+  salePrice,
+  winningBid,
+  config,
+}: {
+  bids: readonly AuctionBid[];
+  ownerStates: readonly AuctionOwnerState[];
+  reservePrice: number;
+  anchorPrice: number;
+  salePrice: number;
+  winningBid: AuctionBid;
+  config: AuctionEngineConfig;
+}): AuctionRoomPressureDiagnostics => {
+  const stateByOwner = new Map(ownerStates.map(state => [state.owner, state]));
+  const bidderStates = bids.flatMap(bid => {
+    const state = stateByOwner.get(bid.owner);
+    return state ? [state] : [];
+  });
+  const bidderMaxBids = bids.map(bid => bid.maxBid);
+  const winningState = stateByOwner.get(winningBid.owner);
+
+  return {
+    legalBidderCount: bids.length,
+    biddersAtOrAboveReserve: bids.filter(bid => bid.amount >= reservePrice).length,
+    biddersAtOrAboveAnchor: bids.filter(bid => bid.amount >= anchorPrice).length,
+    biddersAtOrAboveSalePrice: bids.filter(bid => bid.amount >= salePrice).length,
+    cashHeavyBidderCount: bidderStates.filter(state => {
+      const budgetPerRosterSlot = budgetPerRosterSlotFor(state);
+      return budgetPerRosterSlot !== null && budgetPerRosterSlot >= config.roomPressure.targetBudgetPerSlot;
+    }).length,
+    maxBidderMaxBid: bidderMaxBids.length === 0 ? 0 : Math.max(...bidderMaxBids),
+    medianBidderMaxBid: median(bidderMaxBids),
+    averageBidderMaxBid: roundToTwo(average(bidderMaxBids)),
+    winningOwnerMaxBid: winningBid.maxBid,
+    winningOwnerBudgetRemainingBefore: winningState?.budgetRemaining ?? 0,
+    winningOwnerBudgetPerRosterSlotBefore: winningState ? budgetPerRosterSlotFor(winningState) : null,
+  };
+};
+
 const salePriceBasisFor = (
   winningBidAmount: number,
   floors: readonly { basis: AuctionSalePriceBasis; amount: number }[],
@@ -1244,6 +1317,15 @@ export const resolveAuctionSale = (
       uncappedSalePrice,
       topEndGuardedPrice,
       salePriceBasis: salePriceBasisFor(winningBid.amount, salePriceFloors),
+      roomPressure: roomPressureDiagnosticsFor({
+        bids,
+        ownerStates,
+        reservePrice,
+        anchorPrice: player.price,
+        salePrice: price,
+        winningBid,
+        config,
+      }),
       topBids: bids.slice(0, 3).map(bidDiagnosticsFor),
     },
   };
@@ -1565,11 +1647,6 @@ const applySaleToState = (
 
 const allRostersFull = (states: readonly AuctionOwnerState[]): boolean =>
   states.every(state => state.rosterSlotsRemaining === 0);
-
-const budgetPerRosterSlotFor = (state: AuctionOwnerState): number | null =>
-  state.rosterSlotsRemaining <= 0
-    ? null
-    : roundToTwo(state.budgetRemaining / state.rosterSlotsRemaining);
 
 const budgetTrajectoryRowsFor = (
   ownerStates: readonly AuctionOwnerState[],

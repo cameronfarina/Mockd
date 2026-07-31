@@ -3,6 +3,7 @@ import type {
   AuctionBidDriver,
   AuctionBudgetTrajectoryRow,
   AuctionNominationDiagnostics,
+  AuctionRoomPressureDiagnostics,
   AuctionSalePriceBasis,
 } from "./auctionEngine.js";
 import type { KeeperScenarioKey } from "./keeperInflation.js";
@@ -40,6 +41,7 @@ export interface MockSmokePick {
   budgetAfterPick: number;
   rosterSlotsAfterPick: number;
   nominationDiagnostics: AuctionNominationDiagnostics;
+  roomPressure: AuctionRoomPressureDiagnostics;
   saleResolution: MockSmokeSaleResolution;
   bidDiagnostics: MockSmokeBidDiagnostic[];
 }
@@ -116,6 +118,7 @@ const firstRoundsFor = (run: MockRun, rounds: number): MockSmokePick[] => {
     budgetAfterPick: pick.budgetAfterPick,
     rosterSlotsAfterPick: pick.rosterSlotsAfterPick,
     nominationDiagnostics: pick.nominationDiagnostics,
+    roomPressure: pick.diagnostics.roomPressure,
     saleResolution: {
       secondBidAmount: pick.diagnostics.secondBidAmount,
       reservePrice: pick.diagnostics.reservePrice,

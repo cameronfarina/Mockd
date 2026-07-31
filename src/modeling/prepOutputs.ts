@@ -326,6 +326,60 @@ const mockNominationDiagnosticsCsv = (batch: MockBatch): string =>
     ),
   );
 
+const mockRoomPressureDiagnosticsCsv = (batch: MockBatch): string =>
+  toCsv(
+    [
+      "seed",
+      "scenario",
+      "pick",
+      "nominator",
+      "winner",
+      "player",
+      "position",
+      "anchor_price",
+      "sale_price",
+      "legal_bidder_count",
+      "bidders_at_or_above_reserve",
+      "bidders_at_or_above_anchor",
+      "bidders_at_or_above_sale_price",
+      "cash_heavy_bidder_count",
+      "max_bidder_max_bid",
+      "median_bidder_max_bid",
+      "average_bidder_max_bid",
+      "winning_owner_max_bid",
+      "winning_owner_budget_remaining_before",
+      "winning_owner_budget_per_roster_slot_before",
+    ],
+    batch.runs.flatMap(run =>
+      run.picks.map(pick => {
+        const roomPressure = pick.diagnostics.roomPressure;
+
+        return [
+          run.seed,
+          run.keeperScenario.key,
+          pick.pick,
+          pick.nominator,
+          pick.owner,
+          pick.player,
+          pick.position,
+          pick.marketPrice,
+          pick.price,
+          roomPressure.legalBidderCount,
+          roomPressure.biddersAtOrAboveReserve,
+          roomPressure.biddersAtOrAboveAnchor,
+          roomPressure.biddersAtOrAboveSalePrice,
+          roomPressure.cashHeavyBidderCount,
+          roomPressure.maxBidderMaxBid,
+          roomPressure.medianBidderMaxBid,
+          roomPressure.averageBidderMaxBid,
+          roomPressure.winningOwnerMaxBid,
+          roomPressure.winningOwnerBudgetRemainingBefore,
+          roomPressure.winningOwnerBudgetPerRosterSlotBefore,
+        ];
+      }),
+    ),
+  );
+
 const ownerBudgetTrajectoryCsv = (batch: MockBatch): string =>
   toCsv(
     [
@@ -719,6 +773,10 @@ export const buildPrepOutputArtifacts = ({
     {
       filename: "mock-nomination-diagnostics.csv",
       content: `${mockNominationDiagnosticsCsv(batch)}\n`,
+    },
+    {
+      filename: "mock-room-pressure-diagnostics.csv",
+      content: `${mockRoomPressureDiagnosticsCsv(batch)}\n`,
     },
     {
       filename: "owner-budget-trajectory.csv",

@@ -842,6 +842,27 @@ describe("auction engine economics", () => {
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.budgetPacingMultiplier).toBeLessThan(1);
     expect(beatonBid?.uncappedAmount).toBeLessThan(target.price);
+
+    const winningState = ownerStates.find(state => state.owner === sale.winner);
+    if (!winningState) throw new Error("Expected winning owner state.");
+    const sortedMaxBids = sale.bids.map(bid => bid.maxBid).sort((left, right) => left - right);
+    const middle = Math.floor(sortedMaxBids.length / 2);
+    const medianMaxBid = sortedMaxBids.length % 2 === 0
+      ? (sortedMaxBids[middle - 1]! + sortedMaxBids[middle]!) / 2
+      : sortedMaxBids[middle]!;
+
+    expect(sale.diagnostics.roomPressure).toMatchObject({
+      legalBidderCount: sale.bids.length,
+      biddersAtOrAboveReserve: sale.bids.filter(bid => bid.amount >= sale.diagnostics.reservePrice).length,
+      biddersAtOrAboveAnchor: sale.bids.filter(bid => bid.amount >= target.price).length,
+      biddersAtOrAboveSalePrice: sale.bids.filter(bid => bid.amount >= sale.price).length,
+      maxBidderMaxBid: Math.max(...sale.bids.map(bid => bid.maxBid)),
+      medianBidderMaxBid: medianMaxBid,
+      winningOwnerMaxBid: sale.bids[0]?.maxBid,
+      winningOwnerBudgetRemainingBefore: winningState.budgetRemaining,
+      winningOwnerBudgetPerRosterSlotBefore: winningState.budgetRemaining / winningState.rosterSlotsRemaining,
+    });
+    expect(sale.diagnostics.roomPressure.cashHeavyBidderCount).toBeGreaterThan(0);
   });
 
   it("records owner budget trajectory from initial budgets through every sold pick", () => {
