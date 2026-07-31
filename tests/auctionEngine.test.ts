@@ -285,6 +285,85 @@ describe("auction engine economics", () => {
     expect(target.price).toBe(40);
   });
 
+  it("derives separate anchor and depth tendencies from owner build profiles", async () => {
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const profiles = buildOwnerProfiles(historicalRecords);
+    const behaviors = buildOwnerAuctionBehaviors(profiles);
+
+    const mello = behaviors.Mello;
+    const tye = behaviors.Tye;
+    expect(mello).toBeDefined();
+    expect(tye).toBeDefined();
+    if (!mello || !tye) throw new Error("Expected owner behaviors for Mello and Tye.");
+
+    const melloAnchorAggression = mello.anchorAggression;
+    const tyeAnchorAggression = tye.anchorAggression;
+    const melloDepthAggression = mello.depthAggression;
+    const tyeDepthAggression = tye.depthAggression;
+    if (
+      melloAnchorAggression === undefined ||
+      tyeAnchorAggression === undefined ||
+      melloDepthAggression === undefined ||
+      tyeDepthAggression === undefined
+    ) {
+      throw new Error("Expected complete build-style behavior controls.");
+    }
+
+    expect(melloAnchorAggression).toBeGreaterThan(tyeAnchorAggression);
+    expect(melloDepthAggression).toBeLessThan(tyeDepthAggression);
+    expect(melloDepthAggression).toBeLessThan(1);
+    expect(tyeDepthAggression).toBeGreaterThan(1);
+  });
+
+  it("applies build-style behavior differently to anchor and depth bids", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 3,
+      rosterMaximums: positionAmounts(3),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1,
+          scarcityChase: 1,
+          replacementPatience: 1,
+          anchorAggression: 1.1,
+          depthAggression: 0.9,
+        },
+        Hoody: {
+          priceAggression: 1,
+          scarcityChase: 1,
+          replacementPatience: 1,
+          anchorAggression: 1,
+          depthAggression: 1,
+        },
+      },
+      seed: "build-style-bids",
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+
+    const anchorSale = resolveAuctionSale(player("Anchor RB", "RB", 45), ownerStates, [], config);
+    expect(anchorSale).toBeDefined();
+    if (!anchorSale) throw new Error("Expected anchor sale to resolve.");
+
+    const anchorTopHeavyBid = anchorSale.bids.find(bid => bid.owner === "Beaton")!;
+    const anchorBalancedBid = anchorSale.bids.find(bid => bid.owner === "Hoody")!;
+    expect(anchorTopHeavyBid.buildStyleMultiplier).toBe(1.1);
+    expect(anchorTopHeavyBid.amount).toBeGreaterThan(anchorBalancedBid.amount);
+
+    const depthSale = resolveAuctionSale(player("Depth RB", "RB", 12), ownerStates, [], config);
+    expect(depthSale).toBeDefined();
+    if (!depthSale) throw new Error("Expected depth sale to resolve.");
+
+    const depthTopHeavyBid = depthSale.bids.find(bid => bid.owner === "Beaton")!;
+    const depthBalancedBid = depthSale.bids.find(bid => bid.owner === "Hoody")!;
+    expect(depthTopHeavyBid.buildStyleMultiplier).toBe(0.9);
+    expect(depthTopHeavyBid.amount).toBeLessThan(depthBalancedBid.amount);
+  });
+
   it("raises bids for cash-heavy owners late in the auction", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({

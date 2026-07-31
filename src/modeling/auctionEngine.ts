@@ -70,7 +70,11 @@ export interface OwnerAuctionBehavior {
   priceAggression: number;
   scarcityChase: number;
   replacementPatience: number;
+  anchorAggression?: number;
+  depthAggression?: number;
 }
+
+type CompleteOwnerAuctionBehavior = Required<OwnerAuctionBehavior>;
 
 export interface AuctionEngineConfig {
   owners: readonly Owner[];
@@ -128,6 +132,7 @@ export interface AuctionBid {
   scarcityMultiplier: number;
   behaviorAggressionMultiplier: number;
   behaviorScarcityMultiplier: number;
+  buildStyleMultiplier: number;
   replacementPatienceMultiplier: number;
   endgamePressureMultiplier: number;
   budgetPacingMultiplier: number;
@@ -203,6 +208,9 @@ const premiumPositions = ["QB", "RB", "WR", "TE"] as const satisfies readonly Po
 const defaultSeed = "mockd-default";
 const hashDivisor = 0x100000000;
 const replacementPatiencePriceThreshold = 3;
+const anchorBuildPriceThreshold = 40;
+const depthBuildPriceThreshold = 19;
+const targetAnchorRosterCount = 2;
 const defaultReplacementPrice = 1;
 const defaultReplacementPriceLadder: readonly ReplacementPriceTier[] = [
   { count: 8, price: 8 },
@@ -524,17 +532,22 @@ const ownerDemandMultiplierFor = (
 ): number =>
   config.ownerDemandMultipliers[owner]?.[position] ?? 1;
 
-const defaultOwnerAuctionBehavior: OwnerAuctionBehavior = {
+const defaultOwnerAuctionBehavior: CompleteOwnerAuctionBehavior = {
   priceAggression: 1,
   scarcityChase: 1,
   replacementPatience: 1,
+  anchorAggression: 1,
+  depthAggression: 1,
 };
 
 const ownerBehaviorFor = (
   owner: Owner,
   config: AuctionEngineConfig,
-): OwnerAuctionBehavior =>
-  config.ownerBehaviors[owner] ?? defaultOwnerAuctionBehavior;
+): CompleteOwnerAuctionBehavior =>
+  ({
+    ...defaultOwnerAuctionBehavior,
+    ...config.ownerBehaviors[owner],
+  });
 
 const rosterNeedMultiplierFor = (
   state: AuctionOwnerState,
@@ -671,6 +684,28 @@ const positionOverbidDampingMultiplierFor = (
   return adjustedBidMultiplier / bidMultiplier;
 };
 
+const anchorRosterCount = (roster: readonly Player[]): number =>
+  roster.filter(player => player.price >= anchorBuildPriceThreshold).length;
+
+const buildStyleMultiplierFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  behavior: CompleteOwnerAuctionBehavior,
+): number => {
+  if (
+    player.price >= anchorBuildPriceThreshold &&
+    anchorRosterCount(state.roster) < targetAnchorRosterCount
+  ) {
+    return behavior.anchorAggression;
+  }
+
+  if (player.price <= depthBuildPriceThreshold) {
+    return behavior.depthAggression;
+  }
+
+  return 1;
+};
+
 const bidForOwner = (
   state: AuctionOwnerState,
   player: Player,
@@ -681,6 +716,7 @@ const bidForOwner = (
   const rosterNeedMultiplier = rosterNeedMultiplierFor(state, player.position, config);
   const ownerBehavior = ownerBehaviorFor(state.owner, config);
   const behaviorScarcityMultiplier = 1 + (scarcityMultiplier - 1) * ownerBehavior.scarcityChase;
+  const buildStyleMultiplier = buildStyleMultiplierFor(state, player, ownerBehavior);
   const replacementPatienceMultiplier = player.price <= replacementPatiencePriceThreshold
     ? ownerBehavior.replacementPatience
     : 1;
@@ -691,6 +727,7 @@ const bidForOwner = (
     rosterNeedMultiplier *
     behaviorScarcityMultiplier *
     ownerBehavior.priceAggression *
+    buildStyleMultiplier *
     replacementPatienceMultiplier *
     endgamePressureMultiplier *
     budgetPacingMultiplier;
@@ -719,6 +756,7 @@ const bidForOwner = (
     scarcityMultiplier,
     behaviorAggressionMultiplier: ownerBehavior.priceAggression,
     behaviorScarcityMultiplier,
+    buildStyleMultiplier,
     replacementPatienceMultiplier,
     endgamePressureMultiplier,
     budgetPacingMultiplier,
@@ -1272,6 +1310,8 @@ export const buildOwnerAuctionBehaviors = (
       priceAggression: clamp(1 + concentrationDelta * 0.003, 0.94, 1.08),
       scarcityChase: clamp(1 + concentrationDelta * 0.006, 0.9, 1.15),
       replacementPatience: clamp(1 - oneDollarDelta * 0.02, 0.92, 1.05),
+      anchorAggression: clamp(1 + concentrationDelta * 0.004, 0.94, 1.1),
+      depthAggression: clamp(1 - concentrationDelta * 0.003 - oneDollarDelta * 0.01, 0.9, 1.08),
     };
   }
 
