@@ -16,6 +16,19 @@ export interface MockSmokeBidDiagnostic {
   uncappedAmount: number;
   maxBid: number;
   cappedByMaxBid: boolean;
+  ownerDemandMultiplier: number;
+  rosterNeedMultiplier: number;
+  scarcityMultiplier: number;
+  behaviorAggressionMultiplier: number;
+  behaviorScarcityMultiplier: number;
+  buildStyleMultiplier: number;
+  replacementPatienceMultiplier: number;
+  endgamePressureMultiplier: number;
+  roomPressureMultiplier: number;
+  budgetPacingMultiplier: number;
+  topEndDampingMultiplier: number;
+  positionOverbidDampingMultiplier: number;
+  contextPenaltyDampingMultiplier: number;
   drivers: AuctionBidDriver[];
 }
 
@@ -136,6 +149,19 @@ const firstRoundsFor = (run: MockRun, rounds: number): MockSmokePick[] => {
         uncappedAmount: bid.uncappedAmount,
         maxBid: bid.maxBid,
         cappedByMaxBid: diagnostics?.cappedByMaxBid ?? bid.amount < bid.uncappedAmount,
+        ownerDemandMultiplier: bid.ownerDemandMultiplier,
+        rosterNeedMultiplier: bid.rosterNeedMultiplier,
+        scarcityMultiplier: bid.scarcityMultiplier,
+        behaviorAggressionMultiplier: bid.behaviorAggressionMultiplier,
+        behaviorScarcityMultiplier: bid.behaviorScarcityMultiplier,
+        buildStyleMultiplier: bid.buildStyleMultiplier,
+        replacementPatienceMultiplier: bid.replacementPatienceMultiplier,
+        endgamePressureMultiplier: bid.endgamePressureMultiplier,
+        roomPressureMultiplier: bid.roomPressureMultiplier,
+        budgetPacingMultiplier: bid.budgetPacingMultiplier,
+        topEndDampingMultiplier: bid.topEndDampingMultiplier,
+        positionOverbidDampingMultiplier: bid.positionOverbidDampingMultiplier,
+        contextPenaltyDampingMultiplier: bid.contextPenaltyDampingMultiplier,
         drivers: diagnostics?.drivers ?? [],
       };
     }),

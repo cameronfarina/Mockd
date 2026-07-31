@@ -272,7 +272,7 @@ scenario-calibration.csv
 
 `mock-draft-board.csv` is the full pick-by-pick board across every run, including seed, scenario, nominator, winning owner, player, position, anchor price, sale price, post-pick budget, and the top three bids.
 
-`mock-bid-diagnostics.csv` is the explainability companion for the draft board. It writes one row per retained top bid with bid rank, owner, amount, max-bid cap status, reserve/second-bid/nominator-opening sale resolution, sale-price basis, and the top multiplier drivers such as roster need, scarcity, room pressure, budget pacing, or damping.
+`mock-bid-diagnostics.csv` is the explainability companion for the draft board. It writes one row per retained top bid with bid rank, owner, amount, max-bid cap status, explicit owner demand, scarcity, room pressure, budget pacing, top-end, position, and context-penalty multipliers, reserve/second-bid/nominator-opening sale resolution, sale-price basis, and the top multiplier drivers.
 
 `mock-nomination-diagnostics.csv` is the nomination companion for the draft board. It writes the top three nomination candidates considered for each pick, with the selected player, candidate count, raw score components, and weighted contributions for market price, projection, nominator need, opponent need, affordability, scarcity, flush-money pressure, and deterministic tie-break.
 

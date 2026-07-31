@@ -81,6 +81,11 @@ describe("mock smoke report", () => {
           owner: report.firstTwoRounds[0]?.winner,
           cappedByMaxBid: expect.any(Boolean),
           drivers: expect.any(Array),
+          scarcityMultiplier: expect.any(Number),
+          roomPressureMultiplier: expect.any(Number),
+          topEndDampingMultiplier: expect.any(Number),
+          positionOverbidDampingMultiplier: expect.any(Number),
+          contextPenaltyDampingMultiplier: expect.any(Number),
         }),
       ]),
     );
