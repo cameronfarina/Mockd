@@ -206,6 +206,17 @@ const highPriceVolumeCalibrationCsv = (audit: HistoricalCalibrationAudit): strin
     ]),
   );
 
+const positionCountCalibrationCsv = (audit: HistoricalCalibrationAudit): string =>
+  toCsv(
+    ["position", "historical_average_count", "mock_average_count", "delta"],
+    audit.positionCounts.map(position => [
+      position.position,
+      position.historicalAverageCount,
+      position.mockAverageCount,
+      position.delta,
+    ]),
+  );
+
 const positionSpendCalibrationCsv = (audit: HistoricalCalibrationAudit): string =>
   toCsv(
     ["position", "historical_average_spend", "mock_average_spend", "delta"],
@@ -223,6 +234,14 @@ const calibrationSummaryCsv = (audit: HistoricalCalibrationAudit): string =>
     [
       ...audit.summary.largestPriceTierCountDeltas.map(delta => [
         "price_tier_count",
+        delta.key,
+        delta.label,
+        delta.target,
+        delta.actual,
+        delta.delta,
+      ] satisfies readonly CsvValue[]),
+      ...audit.summary.largestPositionCountDeltas.map(delta => [
+        "position_count",
         delta.key,
         delta.label,
         delta.target,
@@ -317,6 +336,10 @@ export const buildPrepOutputArtifacts = ({
     {
       filename: "high-price-volume-calibration.csv",
       content: `${highPriceVolumeCalibrationCsv(audit)}\n`,
+    },
+    {
+      filename: "position-count-calibration.csv",
+      content: `${positionCountCalibrationCsv(audit)}\n`,
     },
     {
       filename: "position-spend-calibration.csv",

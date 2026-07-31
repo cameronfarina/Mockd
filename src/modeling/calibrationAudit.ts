@@ -29,6 +29,13 @@ export interface PositionSpendCalibration {
   delta: number;
 }
 
+export interface PositionCountCalibration {
+  position: Position;
+  historicalAverageCount: number;
+  mockAverageCount: number;
+  delta: number;
+}
+
 export interface OwnerSpendCalibration {
   owner: Owner;
   historicalAverageAuctionSpend: number;
@@ -86,6 +93,7 @@ export type CalibrationGateCategory =
   | "auction_spend"
   | "high_price_volume"
   | "price_tier_count"
+  | "position_count"
   | "position_spend"
   | "owner_spend"
   | "budget_remaining";
@@ -125,6 +133,7 @@ export interface CalibrationSummary {
   scenarioKeys: MockBatch["options"]["scenarioKeys"];
   runsPerScenario: number;
   largestPriceTierCountDeltas: CalibrationDeltaSummary[];
+  largestPositionCountDeltas: CalibrationDeltaSummary[];
   largestPositionSpendDeltas: CalibrationDeltaSummary[];
   largestOwnerSpendDeltas: CalibrationDeltaSummary[];
   budgetRemaining: BudgetRemainingCalibrationSummary;
@@ -136,6 +145,7 @@ export interface HistoricalCalibrationAudit {
   summary: CalibrationSummary;
   priceTiers: PriceTierCalibration[];
   highPriceVolumes: HighPriceVolumeCalibration[];
+  positionCounts: PositionCountCalibration[];
   positionSpend: PositionSpendCalibration[];
   ownerSpend: OwnerSpendCalibration[];
   overall: OverallCalibration;
@@ -172,6 +182,15 @@ const positionSpendThresholds: Record<Position, { warn: number; fail: number }> 
   TE: { warn: 25, fail: 50 },
   K: { warn: 10, fail: 20 },
   DST: { warn: 10, fail: 20 },
+};
+
+const positionCountThresholds: Record<Position, { warn: number; fail: number }> = {
+  QB: { warn: 3, fail: 6 },
+  RB: { warn: 8, fail: 16 },
+  WR: { warn: 8, fail: 16 },
+  TE: { warn: 4, fail: 8 },
+  K: { warn: 3, fail: 6 },
+  DST: { warn: 3, fail: 6 },
 };
 
 const roundToTwo = (value: number): number =>
@@ -303,6 +322,43 @@ const mockPositionSpend = (
       .filter(pick => pick.position === position)
       .reduce((total, pick) => total + pick.price, 0),
   ));
+
+const historicalPositionCount = (
+  records: readonly HistoricalAuctionRecord[],
+  seasons: readonly number[],
+  position: Position,
+): number =>
+  average(seasons.map(season =>
+    records.filter(record => record.season === season && record.position === position).length,
+  ));
+
+const mockPositionCount = (
+  runs: readonly MockRun[],
+  position: Position,
+): number =>
+  average(runs.map(run =>
+    run.rosters
+      .flatMap(roster => roster.players)
+      .filter(player => player.position === position)
+      .length,
+  ));
+
+const summarizePositionCounts = (
+  records: readonly HistoricalAuctionRecord[],
+  runs: readonly MockRun[],
+  seasons: readonly number[],
+): PositionCountCalibration[] =>
+  positions.map(position => {
+    const historicalAverageCount = roundToTwo(historicalPositionCount(records, seasons, position));
+    const mockAverageCount = roundToTwo(mockPositionCount(runs, position));
+
+    return {
+      position,
+      historicalAverageCount,
+      mockAverageCount,
+      delta: roundToTwo(mockAverageCount - historicalAverageCount),
+    };
+  });
 
 const summarizePositionSpend = (
   records: readonly HistoricalAuctionRecord[],
@@ -488,6 +544,7 @@ const summarizeBudgetRemaining = (batch: MockBatch): BudgetRemainingCalibrationS
 const summarizeCalibration = (
   batch: MockBatch,
   priceTierCalibration: readonly PriceTierCalibration[],
+  positionCountCalibration: readonly PositionCountCalibration[],
   positionSpendCalibration: readonly PositionSpendCalibration[],
   ownerSpendCalibration: readonly OwnerSpendCalibration[],
 ): CalibrationSummary => ({
@@ -501,6 +558,16 @@ const summarizeCalibration = (
       target: tier.historicalAverageCount,
       actual: tier.mockAverageCount,
       delta: tier.countDelta,
+    })),
+    3,
+  ),
+  largestPositionCountDeltas: topDeltaSummaries(
+    positionCountCalibration.map(position => ({
+      key: position.position,
+      label: position.position,
+      target: position.historicalAverageCount,
+      actual: position.mockAverageCount,
+      delta: position.delta,
     })),
     3,
   ),
@@ -602,6 +669,7 @@ const summarizeGates = (
   summary: CalibrationSummary,
   priceTierCalibration: readonly PriceTierCalibration[],
   highPriceVolumes: readonly HighPriceVolumeCalibration[],
+  positionCountCalibration: readonly PositionCountCalibration[],
   positionSpendCalibration: readonly PositionSpendCalibration[],
   ownerSpendCalibration: readonly OwnerSpendCalibration[],
   overall: OverallCalibration,
@@ -651,6 +719,19 @@ const summarizeGates = (
         label: priceTierGateLabel(tier),
         target: tier.historicalAverageCount,
         actual: tier.mockAverageCount,
+        warnThreshold: thresholds.warn,
+        failThreshold: thresholds.fail,
+      });
+    }),
+    ...positionCountCalibration.map(position => {
+      const thresholds = positionCountThresholds[position.position];
+
+      return calibrationGate({
+        key: `position-count:${position.position}`,
+        category: "position_count",
+        label: `${position.position} roster count`,
+        target: position.historicalAverageCount,
+        actual: position.mockAverageCount,
         warnThreshold: thresholds.warn,
         failThreshold: thresholds.fail,
       });
@@ -710,13 +791,20 @@ export const buildHistoricalCalibrationAudit = ({
   batch,
 }: BuildHistoricalCalibrationAuditOptions): HistoricalCalibrationAudit => {
   const records = openAuctionRecords(historicalRecords);
-  const seasons = historicalSeasons(records);
+  const seasons = historicalSeasons(historicalRecords);
   const runs = batch.runs;
   const priceTierCalibration = summarizePriceTiers(records, runs, seasons);
   const highPriceVolumes = summarizeHighPriceVolumes(records, runs, seasons);
+  const positionCountCalibration = summarizePositionCounts(historicalRecords, runs, seasons);
   const positionSpendCalibration = summarizePositionSpend(records, runs, seasons);
   const ownerSpendCalibration = summarizeOwnerSpend(records, runs, seasons);
-  const summary = summarizeCalibration(batch, priceTierCalibration, positionSpendCalibration, ownerSpendCalibration);
+  const summary = summarizeCalibration(
+    batch,
+    priceTierCalibration,
+    positionCountCalibration,
+    positionSpendCalibration,
+    ownerSpendCalibration,
+  );
   const overall = summarizeOverall(records, runs, seasons);
 
   return {
@@ -725,6 +813,7 @@ export const buildHistoricalCalibrationAudit = ({
     summary,
     priceTiers: priceTierCalibration,
     highPriceVolumes,
+    positionCounts: positionCountCalibration,
     positionSpend: positionSpendCalibration,
     ownerSpend: ownerSpendCalibration,
     overall,
@@ -733,6 +822,7 @@ export const buildHistoricalCalibrationAudit = ({
       summary,
       priceTierCalibration,
       highPriceVolumes,
+      positionCountCalibration,
       positionSpendCalibration,
       ownerSpendCalibration,
       overall,

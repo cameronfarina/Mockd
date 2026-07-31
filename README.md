@@ -20,6 +20,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - calibration gates that mark mock batches as pass, warn, or fail against explicit economic thresholds
 - replacement-depth pricing and budget pacing so owners do not strand themselves into unrealistic $1-only endgames
 - high-price volume gates for `$70+`, `$75+`, and `$80+` player counts against historical single-draft ceilings
+- roster-shape calibration for QB/RB/WR/TE/K/DST counts so mocks do not hoard backup QBs or special teams
 - legal lineup optimization performed **after** the full roster is built
 - validation guards for duplicate players, budget, roster size, and position limits
 - the current validated Excel model as an output artifact
@@ -128,6 +129,8 @@ Nominations are synthetic and deterministic because the historical boards do not
 
 The auction engine does not globally discount the pool after a few expensive buys. Each owner carries their own remaining budget, remaining roster slots, and max bid, with $1 reserved for every unfilled slot. Budget pacing discounts bids that would strand too little money for future roster slots, while cash-heavy endgame pressure pushes owners to spend leftover money late. If two owners spend $80 early, those owners are capped; other owners with full budgets can still bid good players above anchor when comparable talent is scarce.
 
+Roster maximums are tuned to this league's historical draft shape: mocks cap owners at two QBs, one kicker, and one defense so cheap late fillers do not crowd out RB/WR depth.
+
 Replacement players are no longer a flat $1 shelf. The engine applies a descending replacement-price ladder to QB/RB/WR/TE depth names from the projection file and keeps K/DST replacements at the fallback price, which reduces unrealistic $1-only endgames without making special teams too expensive.
 
 Historical live-auction ceilings from the 2023-2025 boards are now explicit calibration inputs: `$70+` players peaked at 5 in a draft, `$75+` players peaked at 3, and `$80+` players peaked at 1. The engine dampens only the over-anchor portion of elite bids and guards sub-$70 anchors from crossing the `$70` line, which keeps top prices from drifting into unrealistic four-or-five-player `$80+` rooms.
@@ -140,7 +143,7 @@ TE spend uses the same shape with lighter defaults: elite TE overbids are dampen
 
 `smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, and warnings such as owners leaving too much budget unused.
 
-`calibration` runs the same batch and compares it against the 2023-2025 historical auction boards by price tier, position spend, owner spend, top-two auction spend, and $1 player volume. The audit includes pass/warn/fail gates for roster validity, auction spend, tier counts, position spend, owner spend, and leftover budget so tuning work has an explicit credibility signal. Historical auction spend remains visible as context, but league and owner auction-spend gates target the selected keeper scenario's open auction dollars because keeper costs change the room's available spend year to year.
+`calibration` runs the same batch and compares it against the 2023-2025 historical auction boards by price tier, high-price volume, roster position counts, position spend, owner spend, top-two auction spend, and $1 player volume. The audit includes pass/warn/fail gates for roster validity, auction spend, tier counts, roster counts, position spend, owner spend, and leftover budget so tuning work has an explicit credibility signal. Historical auction spend remains visible as context, but league and owner auction-spend gates target the selected keeper scenario's open auction dollars because keeper costs change the room's available spend year to year.
 
 `outputs` writes the usable prep files:
 
@@ -155,6 +158,7 @@ owner-player-exposure.csv
 mock-draft-board.csv
 price-tier-calibration.csv
 high-price-volume-calibration.csv
+position-count-calibration.csv
 position-spend-calibration.csv
 ```
 

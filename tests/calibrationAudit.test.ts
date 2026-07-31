@@ -59,6 +59,7 @@ describe("historical calibration audit", () => {
     expect(audit.historicalSeasons).toEqual([2023, 2024, 2025]);
     expect(audit.priceTiers.map(tier => tier.key)).toEqual(["elite", "strong", "starter", "depth", "dollar"]);
     expect(audit.highPriceVolumes.map(volume => volume.threshold)).toEqual([70, 75, 80]);
+    expect(audit.positionCounts.map(position => position.position)).toEqual([...positions]);
     expect(audit.positionSpend.map(position => position.position)).toEqual([...positions]);
     expect(audit.ownerSpend).toHaveLength(ownerOrder.length);
     expect(audit.overall.mockAverageAuctionSpend).toBeGreaterThan(0);
@@ -79,6 +80,21 @@ describe("historical calibration audit", () => {
     const rbSpend = audit.positionSpend.find(position => position.position === "RB");
     expect(rbSpend).toBeDefined();
     expect(Number.isFinite(rbSpend?.delta ?? Number.NaN)).toBe(true);
+
+    const qbCount = audit.positionCounts.find(position => position.position === "QB");
+    expect(qbCount).toMatchObject({
+      historicalAverageCount: 22.33,
+    });
+    expect(Number.isFinite(qbCount?.delta ?? Number.NaN)).toBe(true);
+
+    const qbCountGate = audit.gates.items.find(gate => gate.key === "position-count:QB");
+    expect(qbCountGate).toMatchObject({
+      category: "position_count",
+      label: "QB roster count",
+      target: qbCount?.historicalAverageCount,
+      actual: qbCount?.mockAverageCount,
+      delta: qbCount?.delta,
+    });
 
     const beaton = audit.ownerSpend.find(owner => owner.owner === "Beaton");
     expect(beaton).toBeDefined();
@@ -104,6 +120,7 @@ describe("historical calibration audit", () => {
     });
 
     expect(audit.summary.largestPriceTierCountDeltas).toHaveLength(3);
+    expect(audit.summary.largestPositionCountDeltas).toHaveLength(3);
     expect(audit.summary.largestPositionSpendDeltas).toHaveLength(3);
     expect(audit.summary.largestOwnerSpendDeltas).toHaveLength(5);
     for (const ownerDelta of audit.summary.largestOwnerSpendDeltas) {

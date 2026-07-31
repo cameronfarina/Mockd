@@ -40,6 +40,7 @@ describe("prep output artifacts", () => {
         "owner-summaries.csv",
         "player-sale-ranges.csv",
         "price-tier-calibration.csv",
+        "position-count-calibration.csv",
         "position-spend-calibration.csv",
         "mock-batch-summary.json",
       ].sort());
@@ -55,6 +56,7 @@ describe("prep output artifacts", () => {
 
       const calibrationSummaryCsv = await readFile(join(outputDirectory, "calibration-summary.csv"), "utf8");
       expect(calibrationSummaryCsv.split("\n")[0]).toBe("category,key,label,target,actual,delta");
+      expect(calibrationSummaryCsv).toContain("position_count");
       expect(calibrationSummaryCsv).toContain("owner_spend");
 
       const calibrationGatesCsv = await readFile(join(outputDirectory, "calibration-gates.csv"), "utf8");
@@ -65,6 +67,10 @@ describe("prep output artifacts", () => {
       const highPriceVolumeCsv = await readFile(join(outputDirectory, "high-price-volume-calibration.csv"), "utf8");
       expect(highPriceVolumeCsv.split("\n")[0]).toBe("threshold,historical_average_count,historical_max_count,mock_average_count,mock_max_count,average_count_delta,max_count_delta");
       expect(highPriceVolumeCsv).toContain("80,0.33,1,");
+
+      const positionCountCsv = await readFile(join(outputDirectory, "position-count-calibration.csv"), "utf8");
+      expect(positionCountCsv.split("\n")[0]).toBe("position,historical_average_count,mock_average_count,delta");
+      expect(positionCountCsv).toContain("QB,22.33,");
 
       const calibrationJson = JSON.parse(
         await readFile(join(outputDirectory, "historical-calibration-audit.json"), "utf8"),

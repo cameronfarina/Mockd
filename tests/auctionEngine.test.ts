@@ -20,6 +20,7 @@ import type { Player } from "../src/types.js";
 import { validateRoster } from "../src/validateMocks.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+const fullMockReplacementBuffer = 160;
 
 const positionAmounts = (value: number): Record<Position, number> =>
   positions.reduce<Record<Position, number>>(
@@ -700,7 +701,7 @@ describe("auction engine economics", () => {
       pricedPlayers: adjustedPrices.availablePrices,
       projections,
       excludedNames: adjustedPrices.unavailableKeepers.map(keeper => keeper.player),
-      targetCount: ownerOrder.length * 16 - keeperCount + 24,
+      targetCount: ownerOrder.length * 16 - keeperCount + fullMockReplacementBuffer,
     });
     const result = simulateAuction({
       players: auctionPlayers,
@@ -723,6 +724,16 @@ describe("auction engine economics", () => {
 
       const validation = validateRoster(roster);
       expect(validation.valid, `${owner}: ${validation.errors.join(", ")}`).toBe(true);
+      const counts = positions.reduce<Record<Position, number>>(
+        (totals, position) => ({
+          ...totals,
+          [position]: roster.players.filter(player => player.position === position).length,
+        }),
+        { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
+      );
+      expect(counts.QB, `${owner} QB count`).toBeLessThanOrEqual(2);
+      expect(counts.K, `${owner} K count`).toBeLessThanOrEqual(1);
+      expect(counts.DST, `${owner} DST count`).toBeLessThanOrEqual(1);
       for (const rosterPlayer of roster.players) draftedNames.add(rosterPlayer.name);
     }
 
