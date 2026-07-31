@@ -10,6 +10,7 @@ export type PositionAmounts = Record<Position, number>;
 export type InitialRostersByOwner = Partial<Record<Owner, readonly Player[]>>;
 export type OwnerDemandMultipliers = Partial<Record<Owner, Partial<Record<Position, number>>>>;
 export type OwnerAuctionBehaviors = Partial<Record<Owner, OwnerAuctionBehavior>>;
+export type PositionOverbidDamping = Partial<Record<Position, number>>;
 
 export interface ScarcityConfig {
   comparablePriceRatio: number;
@@ -22,6 +23,7 @@ export interface RosterNeedConfig {
   missingStarterMultiplier: number;
   missingFlexMultiplier: number;
   emptyPremiumPositionMultiplier: number;
+  benchQuarterbackMultiplier: number;
   specialTeamsBenchMultiplier: number;
   lastPositionSlotMultiplier: number;
 }
@@ -80,6 +82,7 @@ export interface AuctionEngineConfig {
   reservePriceRatio: number;
   ownerDemandMultipliers: OwnerDemandMultipliers;
   ownerBehaviors: OwnerAuctionBehaviors;
+  positionOverbidDamping: PositionOverbidDamping;
   scarcity: ScarcityConfig;
   rosterNeed: RosterNeedConfig;
   nomination: NominationConfig;
@@ -91,9 +94,10 @@ export interface AuctionEngineConfig {
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "budgetPacing" | "topEndOverbidDamping" | "topEndSaleGuard">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "budgetPacing" | "topEndOverbidDamping" | "topEndSaleGuard">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
+    positionOverbidDamping?: PositionOverbidDamping;
     scarcity?: Partial<ScarcityConfig>;
     rosterNeed?: Partial<RosterNeedConfig>;
     nomination?: Partial<NominationConfig>;
@@ -127,6 +131,7 @@ export interface AuctionBid {
   endgamePressureMultiplier: number;
   budgetPacingMultiplier: number;
   topEndDampingMultiplier: number;
+  positionOverbidDampingMultiplier: number;
   tieBreak: number;
 }
 
@@ -244,6 +249,9 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   reservePriceRatio: 0.75,
   ownerDemandMultipliers: {},
   ownerBehaviors: {},
+  positionOverbidDamping: {
+    QB: 0.75,
+  },
   scarcity: {
     comparablePriceRatio: 0.8,
     minimumComparablePrice: 5,
@@ -254,6 +262,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     missingStarterMultiplier: 1.03,
     missingFlexMultiplier: 1.015,
     emptyPremiumPositionMultiplier: 1,
+    benchQuarterbackMultiplier: 0.55,
     specialTeamsBenchMultiplier: 0.85,
     lastPositionSlotMultiplier: 0.97,
   },
@@ -311,6 +320,7 @@ export const buildAuctionConfig = (
   ...overrides,
   ownerDemandMultipliers: overrides.ownerDemandMultipliers ?? defaultAuctionEngineConfig.ownerDemandMultipliers,
   ownerBehaviors: overrides.ownerBehaviors ?? defaultAuctionEngineConfig.ownerBehaviors,
+  positionOverbidDamping: overrides.positionOverbidDamping ?? defaultAuctionEngineConfig.positionOverbidDamping,
   scarcity: {
     ...defaultAuctionEngineConfig.scarcity,
     ...overrides.scarcity,
@@ -540,6 +550,9 @@ const rosterNeedMultiplierFor = (
   if (isPremiumPosition(position) && counts[position] === 0) {
     multiplier *= config.rosterNeed.emptyPremiumPositionMultiplier;
   }
+  if (position === "QB" && config.starterMinimums.QB > 0 && counts.QB >= config.starterMinimums.QB) {
+    multiplier *= config.rosterNeed.benchQuarterbackMultiplier;
+  }
   if ((position === "K" || position === "DST") && counts[position] >= 1) {
     multiplier *= config.rosterNeed.specialTeamsBenchMultiplier;
   }
@@ -638,6 +651,20 @@ const topEndDampingMultiplierFor = (
   return adjustedBidMultiplier / rawBidMultiplier;
 };
 
+const positionOverbidDampingMultiplierFor = (
+  position: Position,
+  bidMultiplier: number,
+  config: AuctionEngineConfig,
+): number => {
+  if (bidMultiplier <= 1) return 1;
+
+  const overbidDiscount = config.positionOverbidDamping[position] ?? 0;
+  if (overbidDiscount <= 0) return 1;
+
+  const adjustedBidMultiplier = 1 + (bidMultiplier - 1) * (1 - clamp(overbidDiscount, 0, 1));
+  return adjustedBidMultiplier / bidMultiplier;
+};
+
 const bidForOwner = (
   state: AuctionOwnerState,
   player: Player,
@@ -662,10 +689,16 @@ const bidForOwner = (
     endgamePressureMultiplier *
     budgetPacingMultiplier;
   const topEndDampingMultiplier = topEndDampingMultiplierFor(player, rawBidMultiplier, config);
+  const topEndAdjustedBidMultiplier = rawBidMultiplier * topEndDampingMultiplier;
+  const positionOverbidDampingMultiplier = positionOverbidDampingMultiplierFor(
+    player.position,
+    topEndAdjustedBidMultiplier,
+    config,
+  );
   const uncappedAmount = Math.max(
     config.minimumBid,
     Math.round(
-      player.price * rawBidMultiplier * topEndDampingMultiplier,
+      player.price * topEndAdjustedBidMultiplier * positionOverbidDampingMultiplier,
     ),
   );
 
@@ -684,6 +717,7 @@ const bidForOwner = (
     endgamePressureMultiplier,
     budgetPacingMultiplier,
     topEndDampingMultiplier,
+    positionOverbidDampingMultiplier,
     tieBreak: deterministicTieBreak(config.seed, state.owner, player.name),
   };
 };
