@@ -140,7 +140,7 @@ TE spend uses the same shape with lighter defaults: elite TE overbids are dampen
 
 `smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, and warnings such as owners leaving too much budget unused.
 
-`calibration` runs the same batch and compares it against the 2023-2025 historical auction boards by price tier, position spend, owner spend, top-two auction spend, and $1 player volume. The audit includes pass/warn/fail gates for roster validity, auction spend, tier counts, position spend, owner spend, and leftover budget so tuning work has an explicit credibility signal. Historical auction spend remains visible as context, but the auction-spend gate targets the selected keeper scenario's open auction dollars because keeper costs change the room's available spend year to year.
+`calibration` runs the same batch and compares it against the 2023-2025 historical auction boards by price tier, position spend, owner spend, top-two auction spend, and $1 player volume. The audit includes pass/warn/fail gates for roster validity, auction spend, tier counts, position spend, owner spend, and leftover budget so tuning work has an explicit credibility signal. Historical auction spend remains visible as context, but league and owner auction-spend gates target the selected keeper scenario's open auction dollars because keeper costs change the room's available spend year to year.
 
 `outputs` writes the usable prep files:
 

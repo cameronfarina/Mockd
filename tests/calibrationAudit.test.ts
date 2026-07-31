@@ -1,12 +1,39 @@
 import { describe, expect, it } from "vitest";
 import { keepers } from "../config/keepers.js";
-import { ownerOrder, positions } from "../config/league.js";
+import { leagueConfig, ownerOrder, positions, type Owner } from "../config/league.js";
 import { buildHistoricalCalibrationAudit } from "../src/modeling/calibrationAudit.js";
 import { runMockBatch } from "../src/modeling/mockBatch.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+
+const roundToTwo = (value: number): number =>
+  Math.round((value + Number.EPSILON) * 100) / 100;
+
+const average = (values: readonly number[]): number =>
+  values.reduce((total, value) => total + value, 0) / values.length;
+
+const auctionSpendForOwner = (
+  run: ReturnType<typeof runMockBatch>["runs"][number],
+  owner: Owner,
+): number =>
+  run.picks
+    .filter(pick => pick.owner === owner)
+    .reduce((total, pick) => total + pick.price, 0);
+
+const scenarioOpenBudgetForOwner = (
+  batch: ReturnType<typeof runMockBatch>,
+  owner: Owner,
+): number =>
+  roundToTwo(average(batch.runs.map(run => {
+    const auctionSpend = auctionSpendForOwner(run, owner);
+    const roster = run.rosters.find(summary => summary.owner === owner);
+    if (!roster) throw new Error(`Missing roster for ${owner}.`);
+
+    const keeperSpend = roster.spend - auctionSpend;
+    return leagueConfig.auctionBudget - keeperSpend;
+  })));
 
 describe("historical calibration audit", () => {
   it("compares batch mock economics to historical league auctions", async () => {
@@ -57,9 +84,36 @@ describe("historical calibration audit", () => {
     expect(beaton).toBeDefined();
     expect(Number.isFinite(beaton?.mockAverageAuctionSpend ?? Number.NaN)).toBe(true);
 
+    const seth = audit.ownerSpend.find(owner => owner.owner === "Seth");
+    const sethScenarioOpenBudget = scenarioOpenBudgetForOwner(batch, "Seth");
+    expect(seth).toMatchObject({
+      scenarioAverageOpenAuctionBudget: sethScenarioOpenBudget,
+    });
+    expect(seth?.scenarioSpendDelta).toBe(
+      roundToTwo((seth?.mockAverageAuctionSpend ?? 0) - sethScenarioOpenBudget),
+    );
+
+    const sethSpendGate = audit.gates.items.find(gate => gate.key === "owner-spend:Seth");
+    expect(sethSpendGate).toMatchObject({
+      category: "owner_spend",
+      label: "Seth scenario auction spend",
+      status: "pass",
+      target: seth?.scenarioAverageOpenAuctionBudget,
+      actual: seth?.mockAverageAuctionSpend,
+      delta: seth?.scenarioSpendDelta,
+    });
+
     expect(audit.summary.largestPriceTierCountDeltas).toHaveLength(3);
     expect(audit.summary.largestPositionSpendDeltas).toHaveLength(3);
     expect(audit.summary.largestOwnerSpendDeltas).toHaveLength(5);
+    for (const ownerDelta of audit.summary.largestOwnerSpendDeltas) {
+      const ownerSpend = audit.ownerSpend.find(owner => owner.owner === ownerDelta.key);
+      expect(ownerDelta).toMatchObject({
+        target: ownerSpend?.scenarioAverageOpenAuctionBudget,
+        actual: ownerSpend?.mockAverageAuctionSpend,
+        delta: ownerSpend?.scenarioSpendDelta,
+      });
+    }
     expect(audit.summary.budgetRemaining.leagueAverageBudgetRemaining).toBeGreaterThanOrEqual(0);
     expect(audit.summary.budgetRemaining.ownersWithAverageBudgetRemaining.every(owner =>
       owner.averageBudgetRemaining > 0,

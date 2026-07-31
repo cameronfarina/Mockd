@@ -32,8 +32,10 @@ export interface PositionSpendCalibration {
 export interface OwnerSpendCalibration {
   owner: Owner;
   historicalAverageAuctionSpend: number;
+  scenarioAverageOpenAuctionBudget: number;
   mockAverageAuctionSpend: number;
   spendDelta: number;
+  scenarioSpendDelta: number;
   historicalAverageTopTwoAuctionSpend: number;
   mockAverageTopTwoAuctionSpend: number;
   topTwoDelta: number;
@@ -347,15 +349,30 @@ const historicalOwnerTopTwoSpend = (
       .map(record => record.price)),
   ));
 
+const mockOwnerAuctionSpendForRun = (
+  run: MockRun,
+  owner: Owner,
+): number =>
+  run.picks
+    .filter(pick => pick.owner === owner)
+    .reduce((total, pick) => total + pick.price, 0);
+
 const mockOwnerAuctionSpend = (
   runs: readonly MockRun[],
   owner: Owner,
 ): number =>
-  average(runs.map(run =>
-    run.picks
-      .filter(pick => pick.owner === owner)
-      .reduce((total, pick) => total + pick.price, 0),
-  ));
+  average(runs.map(run => mockOwnerAuctionSpendForRun(run, owner)));
+
+const scenarioOwnerOpenAuctionBudget = (
+  runs: readonly MockRun[],
+  owner: Owner,
+): number =>
+  average(runs.map(run => {
+    const roster = run.rosters.find(summary => summary.owner === owner);
+    if (!roster) throw new Error(`Missing roster summary for ${owner}.`);
+
+    return mockOwnerAuctionSpendForRun(run, owner) + roster.budgetRemaining;
+  }));
 
 const mockOwnerTopTwoSpend = (
   runs: readonly MockRun[],
@@ -374,6 +391,7 @@ const summarizeOwnerSpend = (
 ): OwnerSpendCalibration[] =>
   ownerOrder.map(owner => {
     const historicalAverageAuctionSpend = roundToTwo(historicalOwnerAuctionSpend(records, seasons, owner));
+    const scenarioAverageOpenAuctionBudget = roundToTwo(scenarioOwnerOpenAuctionBudget(runs, owner));
     const mockAverageAuctionSpend = roundToTwo(mockOwnerAuctionSpend(runs, owner));
     const historicalAverageTopTwoAuctionSpend = roundToTwo(historicalOwnerTopTwoSpend(records, seasons, owner));
     const mockAverageTopTwoAuctionSpend = roundToTwo(mockOwnerTopTwoSpend(runs, owner));
@@ -381,8 +399,10 @@ const summarizeOwnerSpend = (
     return {
       owner,
       historicalAverageAuctionSpend,
+      scenarioAverageOpenAuctionBudget,
       mockAverageAuctionSpend,
       spendDelta: roundToTwo(mockAverageAuctionSpend - historicalAverageAuctionSpend),
+      scenarioSpendDelta: roundToTwo(mockAverageAuctionSpend - scenarioAverageOpenAuctionBudget),
       historicalAverageTopTwoAuctionSpend,
       mockAverageTopTwoAuctionSpend,
       topTwoDelta: roundToTwo(mockAverageTopTwoAuctionSpend - historicalAverageTopTwoAuctionSpend),
@@ -498,9 +518,9 @@ const summarizeCalibration = (
     ownerSpendCalibration.map(owner => ({
       key: owner.owner,
       label: owner.owner,
-      target: owner.historicalAverageAuctionSpend,
+      target: owner.scenarioAverageOpenAuctionBudget,
       actual: owner.mockAverageAuctionSpend,
-      delta: owner.spendDelta,
+      delta: owner.scenarioSpendDelta,
     })),
     5,
   ),
@@ -652,11 +672,11 @@ const summarizeGates = (
       calibrationGate({
         key: `owner-spend:${owner.owner}`,
         category: "owner_spend",
-        label: `${owner.owner} auction spend`,
-        target: owner.historicalAverageAuctionSpend,
+        label: `${owner.owner} scenario auction spend`,
+        target: owner.scenarioAverageOpenAuctionBudget,
         actual: owner.mockAverageAuctionSpend,
-        warnThreshold: 20,
-        failThreshold: 40,
+        warnThreshold: 10,
+        failThreshold: 20,
       }),
     ),
     calibrationGate({
