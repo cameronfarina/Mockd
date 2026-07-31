@@ -26,6 +26,18 @@ export interface RosterNeedConfig {
   lastPositionSlotMultiplier: number;
 }
 
+export interface NominationConfig {
+  earlyEliteBiasPicks: number;
+  earlyMarketPriceWeight: number;
+  marketPriceWeight: number;
+  projectionWeight: number;
+  ownerNeedWeight: number;
+  affordabilityWeight: number;
+  scarcityWeight: number;
+  flushMoneyWeight: number;
+  tieBreakWeight: number;
+}
+
 export interface OwnerAuctionBehavior {
   priceAggression: number;
   scarcityChase: number;
@@ -45,15 +57,17 @@ export interface AuctionEngineConfig {
   ownerBehaviors: OwnerAuctionBehaviors;
   scarcity: ScarcityConfig;
   rosterNeed: RosterNeedConfig;
+  nomination: NominationConfig;
   seed: string;
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "scarcity" | "rosterNeed">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "scarcity" | "rosterNeed" | "nomination">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
     scarcity?: Partial<ScarcityConfig>;
     rosterNeed?: Partial<RosterNeedConfig>;
+    nomination?: Partial<NominationConfig>;
   };
 
 export interface AuctionOwnerState {
@@ -90,6 +104,7 @@ export interface AuctionSale {
 
 export interface AuctionPick {
   pick: number;
+  nominator: Owner;
   owner: Owner;
   player: string;
   position: Position;
@@ -192,6 +207,17 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     specialTeamsBenchMultiplier: 0.85,
     lastPositionSlotMultiplier: 0.97,
   },
+  nomination: {
+    earlyEliteBiasPicks: 6,
+    earlyMarketPriceWeight: 2,
+    marketPriceWeight: 1.05,
+    projectionWeight: 0.15,
+    ownerNeedWeight: 1.8,
+    affordabilityWeight: 0.35,
+    scarcityWeight: 0.45,
+    flushMoneyWeight: 0.5,
+    tieBreakWeight: 0.001,
+  },
   seed: defaultSeed,
 };
 
@@ -221,6 +247,10 @@ export const buildAuctionConfig = (
   rosterNeed: {
     ...defaultAuctionEngineConfig.rosterNeed,
     ...overrides.rosterNeed,
+  },
+  nomination: {
+    ...defaultAuctionEngineConfig.nomination,
+    ...overrides.nomination,
   },
 });
 
@@ -548,6 +578,229 @@ const compareAuctionPlayers = (left: Player, right: Player): number =>
   right.weeks1To4 - left.weeks1To4 ||
   left.name.localeCompare(right.name);
 
+interface NominationSelection {
+  index: number;
+  player: Player;
+  score: number;
+}
+
+interface NominationTurn {
+  owner: Owner;
+  nextCursor: number;
+}
+
+const highestMarketPrice = (players: readonly Player[]): number =>
+  players.reduce((highest, player) => Math.max(highest, player.price), 0);
+
+const highestProjectionTotal = (players: readonly Player[]): number =>
+  players.reduce((highest, player) => Math.max(highest, player.weeks1To4), 0);
+
+const playersAfterNomination = (
+  players: readonly Player[],
+  nominatedIndex: number,
+): Player[] =>
+  players.filter((_player, index) => index !== nominatedIndex);
+
+const nextNominationTurn = (
+  ownerStates: readonly AuctionOwnerState[],
+  config: AuctionEngineConfig,
+  nominationCursor: number,
+): NominationTurn => {
+  if (config.owners.length === 0) throw new Error("Auction config must include at least one owner.");
+
+  for (let offset = 0; offset < config.owners.length; offset += 1) {
+    const ownerIndex = (nominationCursor + offset) % config.owners.length;
+    const owner = config.owners[ownerIndex];
+    if (!owner) continue;
+
+    const ownerState = ownerStates.find(state => state.owner === owner);
+    if (ownerState && ownerState.rosterSlotsRemaining > 0) {
+      return {
+        owner,
+        nextCursor: ownerIndex + 1,
+      };
+    }
+  }
+
+  throw new Error("Unable to find an owner with an open roster slot.");
+};
+
+const nominationNeedScoreFor = (
+  state: AuctionOwnerState,
+  position: Position,
+  config: AuctionEngineConfig,
+): number => {
+  const counts = countPositions(state.roster);
+  if (counts[position] >= config.rosterMaximums[position]) return 0;
+
+  if (counts[position] < config.starterMinimums[position]) return 1;
+  if (isFlexEligible(position) && flexEligibleCount(counts) < minimumFlexEligibleCount(config)) {
+    return 0.65;
+  }
+  if (isPremiumPosition(position) && counts[position] === 0) return 0.2;
+
+  return 0;
+};
+
+const nominationAffordabilityScoreFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): number => {
+  if (!ownerCanBidOnPlayer(state, player, ownerStates, remainingPlayers, config)) return 0;
+  if (player.price <= config.minimumBid) return 1;
+
+  return clamp(state.maxBid / player.price, 0, 1);
+};
+
+const nominationScarcityScoreFor = (
+  position: Position,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): number => {
+  const playersAtPosition = remainingPlayersAtPosition(remainingPlayers, position) + 1;
+  const ownersNeedingPosition = ownerStates
+    .filter(state => nominationNeedScoreFor(state, position, config) > 0)
+    .length;
+
+  return clamp(ownersNeedingPosition / Math.max(1, playersAtPosition), 0, 1);
+};
+
+const nominationFlushMoneyScoreFor = (
+  nominator: Owner,
+  player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+  marketPriceScore: number,
+  nominatorInterestScore: number,
+): number => {
+  const reservePrice = Math.max(config.minimumBid, Math.round(player.price * config.reservePriceRatio));
+  const otherOwnerCount = Math.max(1, ownerStates.length - 1);
+  const interestedOtherOwners = ownerStates
+    .filter(state => state.owner !== nominator)
+    .filter(state => ownerCanBidOnPlayer(state, player, ownerStates, remainingPlayers, config))
+    .filter(state => state.maxBid >= reservePrice)
+    .length;
+  const bidderPressure = interestedOtherOwners / otherOwnerCount;
+  const lowPersonalInterest = 1 - clamp(nominatorInterestScore, 0, 1) * 0.5;
+
+  return bidderPressure * marketPriceScore * lowPersonalInterest;
+};
+
+const nominationScoreFor = ({
+  player,
+  index,
+  availablePlayers,
+  ownerStates,
+  nominator,
+  pickIndex,
+  topMarketPrice,
+  topProjectionTotal,
+  config,
+}: {
+  player: Player;
+  index: number;
+  availablePlayers: readonly Player[];
+  ownerStates: readonly AuctionOwnerState[];
+  nominator: Owner;
+  pickIndex: number;
+  topMarketPrice: number;
+  topProjectionTotal: number;
+  config: AuctionEngineConfig;
+}): number | undefined => {
+  const remainingPlayers = playersAfterNomination(availablePlayers, index);
+  const playerCanSell = ownerStates.some(state =>
+    ownerCanBidOnPlayer(state, player, ownerStates, remainingPlayers, config),
+  );
+  if (!playerCanSell) return undefined;
+
+  const nominatorState = ownerStates.find(state => state.owner === nominator);
+  if (!nominatorState) throw new Error(`Missing auction state for ${nominator}.`);
+
+  const marketPriceScore = player.price / Math.max(1, topMarketPrice);
+  const projectionScore = player.weeks1To4 / Math.max(1, topProjectionTotal);
+  const ownerNeedScore = nominationNeedScoreFor(nominatorState, player.position, config);
+  const affordabilityScore = nominationAffordabilityScoreFor(
+    nominatorState,
+    player,
+    ownerStates,
+    remainingPlayers,
+    config,
+  );
+  const scarcityScore = nominationScarcityScoreFor(player.position, ownerStates, remainingPlayers, config);
+  const nominatorInterestScore = (ownerNeedScore + affordabilityScore) / 2;
+  const flushMoneyScore = nominationFlushMoneyScoreFor(
+    nominator,
+    player,
+    ownerStates,
+    remainingPlayers,
+    config,
+    marketPriceScore,
+    nominatorInterestScore,
+  );
+  const marketPriceWeight = pickIndex < config.nomination.earlyEliteBiasPicks
+    ? config.nomination.earlyMarketPriceWeight
+    : config.nomination.marketPriceWeight;
+  const tieBreakScore = 1 - deterministicTieBreak(config.seed, nominator, player.name);
+
+  return (
+    marketPriceScore * marketPriceWeight +
+    projectionScore * config.nomination.projectionWeight +
+    ownerNeedScore * config.nomination.ownerNeedWeight +
+    affordabilityScore * config.nomination.affordabilityWeight +
+    scarcityScore * config.nomination.scarcityWeight +
+    flushMoneyScore * config.nomination.flushMoneyWeight +
+    tieBreakScore * config.nomination.tieBreakWeight
+  );
+};
+
+const selectNominatedPlayer = ({
+  availablePlayers,
+  ownerStates,
+  nominator,
+  pickIndex,
+  config,
+}: {
+  availablePlayers: readonly Player[];
+  ownerStates: readonly AuctionOwnerState[];
+  nominator: Owner;
+  pickIndex: number;
+  config: AuctionEngineConfig;
+}): NominationSelection | undefined => {
+  const topMarketPrice = highestMarketPrice(availablePlayers);
+  const topProjectionTotal = highestProjectionTotal(availablePlayers);
+  let selected: NominationSelection | undefined;
+
+  for (const [index, player] of availablePlayers.entries()) {
+    const score = nominationScoreFor({
+      player,
+      index,
+      availablePlayers,
+      ownerStates,
+      nominator,
+      pickIndex,
+      topMarketPrice,
+      topProjectionTotal,
+      config,
+    });
+    if (score === undefined) continue;
+
+    if (
+      !selected ||
+      score > selected.score ||
+      (score === selected.score && compareAuctionPlayers(player, selected.player) < 0)
+    ) {
+      selected = { index, player, score };
+    }
+  }
+
+  return selected;
+};
+
 const applySaleToState = (
   state: AuctionOwnerState,
   soldPlayer: Player,
@@ -564,14 +817,33 @@ export const simulateAuction = ({
   initialRostersByOwner = {},
 }: SimulateAuctionOptions): AuctionResult => {
   let ownerStates = createAuctionOwnerStates({ config, initialRostersByOwner });
-  const sortedPlayers = [...players].sort(compareAuctionPlayers);
+  const availablePlayers = [...players].sort(compareAuctionPlayers);
+  const passedPlayers: Player[] = [];
   const picks: AuctionPick[] = [];
+  let nominationCursor = 0;
 
-  for (let index = 0; index < sortedPlayers.length && !allRostersFull(ownerStates); index += 1) {
-    const nominatedPlayer = sortedPlayers[index]!;
-    const remainingPlayers = sortedPlayers.slice(index + 1);
-    const sale = resolveAuctionSale(nominatedPlayer, ownerStates, remainingPlayers, config);
-    if (!sale) continue;
+  while (availablePlayers.length > 0 && !allRostersFull(ownerStates)) {
+    const nominationTurn = nextNominationTurn(ownerStates, config, nominationCursor);
+    const nominator = nominationTurn.owner;
+    const nomination = selectNominatedPlayer({
+      availablePlayers,
+      ownerStates,
+      nominator,
+      pickIndex: picks.length,
+      config,
+    });
+    if (!nomination) break;
+
+    const nominatedPlayers = availablePlayers.splice(nomination.index, 1);
+    const nominatedPlayer = nominatedPlayers[0];
+    if (!nominatedPlayer) throw new Error("Unable to remove nominated player from auction pool.");
+
+    const sale = resolveAuctionSale(nominatedPlayer, ownerStates, availablePlayers, config);
+    nominationCursor = nominationTurn.nextCursor;
+    if (!sale) {
+      passedPlayers.push(nominatedPlayer);
+      continue;
+    }
 
     const soldPlayer = { ...nominatedPlayer, price: sale.price };
     const winnerState = ownerStates.find(state => state.owner === sale.winner);
@@ -581,6 +853,7 @@ export const simulateAuction = ({
     ownerStates = ownerStates.map(state => state.owner === sale.winner ? updatedWinnerState : state);
     picks.push({
       pick: picks.length + 1,
+      nominator,
       owner: sale.winner,
       player: soldPlayer.name,
       position: soldPlayer.position,
@@ -613,7 +886,9 @@ export const simulateAuction = ({
     rosters,
     ownerStates,
     picks,
-    unsoldPlayers: sortedPlayers.filter(player => !soldNames.has(player.name)),
+    unsoldPlayers: [...availablePlayers, ...passedPlayers]
+      .filter(player => !soldNames.has(player.name))
+      .sort(compareAuctionPlayers),
   };
 };
 

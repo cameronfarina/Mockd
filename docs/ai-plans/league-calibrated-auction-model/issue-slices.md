@@ -166,12 +166,14 @@ Generate realistic legal auction mock drafts using fixed prices and owner-specif
 ### Behavior
 
 Owners bid according to budget, roster needs, position caps, strategy, and historical tendencies.
+Owners rotate through synthetic nominations because historical nomination order is unavailable; nomination choices bias elite players early and then react to roster needs, affordability, scarcity, and room-spend pressure.
 
 ### Acceptance Criteria
 
 - Every mock has 16 unique players.
 - Every mock spends at most $200 and preferably $198-$200.
 - Player prices are never mutated downward to force budget fit.
+- Picks record the nominating owner separately from the winning owner.
 - Seeded RNG produces stable snapshots.
 
 ### Notes For Agents

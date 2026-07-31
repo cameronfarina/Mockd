@@ -118,6 +118,8 @@ npm run outputs -- --scenarios=expected --runs=50 --seed-prefix=prep --out=data/
 
 `mock` runs a deterministic auction from the selected keeper scenario. Declared keepers are locked into their owners' rosters at keeper cost, the auction pool uses scenario-adjusted market prices, and additional $1 replacement players are added from the projection file when the known priced pool is smaller than the remaining roster slots.
 
+Nominations are synthetic and deterministic because the historical boards do not include reliable nomination order. Owners rotate through nominations, the first phase strongly prefers elite market players, and later nominations adapt to the current nominator's roster needs, max bid, positional scarcity, and chance to make other owners spend. Each pick records both the nominator and the winning owner.
+
 The auction engine does not globally discount the pool after a few expensive buys. Each owner carries their own remaining budget, remaining roster slots, and max bid, with $1 reserved for every unfilled slot. If two owners spend $80 early, those owners are capped; other owners with full budgets can still bid good players above anchor when comparable talent is scarce.
 
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.

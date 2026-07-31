@@ -36,6 +36,102 @@ const player = (name: string, position: Position, price: number, weeks1To4 = pri
 });
 
 describe("auction engine economics", () => {
+  it("records the rotating nominator while elite market names come off early", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 1,
+      rosterMaximums: positionAmounts(1),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      seed: "nomination-order",
+    });
+
+    const result = simulateAuction({
+      players: [
+        player("Later value WR", "WR", 35),
+        player("Elite market RB", "RB", 70),
+      ],
+      config,
+    });
+
+    expect(result.picks[0]).toMatchObject({
+      nominator: "Beaton",
+      player: "Elite market RB",
+    });
+  });
+
+  it("lets the current nominator target an affordable roster need instead of the next luxury player", () => {
+    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const starterMinimums = {
+      ...positionAmounts(0),
+      RB: 1,
+    };
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums,
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      seed: "nomination-needs",
+    });
+
+    const result = simulateAuction({
+      players: [
+        player("Elite opening WR", "WR", 70),
+        player("Luxury QB", "QB", 60),
+        player("Hoody reachable RB", "RB", 18),
+        player("Fallback RB 1", "RB", 17),
+        player("Fallback RB 2", "RB", 16),
+      ],
+      initialRostersByOwner: {
+        Hoody: [player("Hoody kept QB", "QB", 80)],
+      },
+      config,
+    });
+
+    expect(result.picks[1]).toMatchObject({
+      nominator: "Hoody",
+      player: "Hoody reachable RB",
+    });
+  });
+
+  it("continues the nomination rotation after skipping owners with full rosters", () => {
+    const owners: Owner[] = ["Beaton", "Hoody", "PJ", "Seth"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 1,
+      rosterMaximums: positionAmounts(1),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {
+        Seth: {
+          RB: 1.4,
+        },
+      },
+      seed: "nomination-full-skip",
+    });
+
+    const result = simulateAuction({
+      players: [
+        player("Elite RB", "RB", 50),
+        player("Value WR", "WR", 40),
+        player("Fallback QB", "QB", 30),
+      ],
+      initialRostersByOwner: {
+        Beaton: [player("Beaton kept TE", "TE", 1)],
+      },
+      config,
+    });
+
+    expect(result.picks.slice(0, 2).map(pick => pick.nominator)).toEqual(["Hoody", "PJ"]);
+  });
+
   it("caps overspent owners without globally discounting the next tier", () => {
     const owners: Owner[] = ["Beaton", "Hoody", "PJ", "Seth"];
     const config = buildAuctionConfig({
@@ -152,6 +248,7 @@ describe("auction engine economics", () => {
     });
 
     expect(result.picks).toHaveLength(ownerOrder.length * 16 - keeperCount);
+    expect(result.picks.every(pick => ownerOrder.includes(pick.nominator))).toBe(true);
 
     const draftedNames = new Set<string>();
     for (const owner of ownerOrder) {
