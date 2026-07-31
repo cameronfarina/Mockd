@@ -115,6 +115,72 @@ const sanityReport = {
       maxMockSalePrice: 45,
       contextAdjustmentPercent: 0,
       contextEvidenceCount: 1,
+      contextEvidence: [
+        {
+          player: "Malik Nabers",
+          category: "opportunity",
+          score: 1,
+          confidence: 0.9,
+          adjustedSignal: 0.9,
+          source: "https://example.com/targets",
+          note: "Target share remained elite",
+        },
+      ],
+      flags: [
+        {
+          key: "hardCeilingPressure",
+          severity: "info",
+          message: "Base price is at the WR hard ceiling.",
+        },
+      ],
+    },
+    {
+      rank: 21,
+      name: "Example Duplicate",
+      position: "WR",
+      publicAnchorValue: 30,
+      projectionRank: 20,
+      espnRank: 20,
+      rankGap: 0,
+      basePrice: 38,
+      scenarioPrice: 42,
+      draftedCount: 3,
+      draftedRate: 1,
+      averageMockSalePrice: 42,
+      saleVsScenarioPrice: 0,
+      minMockSalePrice: 42,
+      maxMockSalePrice: 42,
+      contextAdjustmentPercent: 0,
+      contextEvidenceCount: 3,
+      contextEvidence: [
+        {
+          player: "Example Duplicate",
+          category: "opportunity",
+          score: 1,
+          confidence: 1,
+          adjustedSignal: 1,
+          source: "https://example.com/targets-a",
+          note: "First target source",
+        },
+        {
+          player: "Example Duplicate",
+          category: "opportunity",
+          score: 0.5,
+          confidence: 1,
+          adjustedSignal: 0.5,
+          source: "https://example.com/targets-b",
+          note: "Second target source",
+        },
+        {
+          player: "Example Duplicate",
+          category: "opportunity",
+          score: 0.25,
+          confidence: 1,
+          adjustedSignal: 0.25,
+          source: "https://example.com/targets-c",
+          note: "Third target source",
+        },
+      ],
       flags: [
         {
           key: "hardCeilingPressure",
@@ -131,21 +197,22 @@ describe("player evidence queue", () => {
     const queue = buildPlayerEvidenceQueue(sanityReport);
 
     expect(queue.summary).toMatchObject({
-      playerCount: 3,
+      playerCount: 4,
       highPriorityCount: 2,
-      mediumPriorityCount: 1,
+      mediumPriorityCount: 2,
     });
     expect(queue.summary.categoryCounts).toMatchObject({
-      opportunity: 3,
+      opportunity: 4,
       defensiveAttention: 2,
-      skillFit: 3,
+      skillFit: 4,
       environment: 2,
-      risk: 3,
+      risk: 4,
     });
     expect(queue.rows.map(row => row.player)).toEqual([
       "Jahmyr Gibbs",
       "Drake London",
       "Malik Nabers",
+      "Example Duplicate",
     ]);
 
     const london = queue.rows.find(row => row.player === "Drake London");
@@ -158,6 +225,17 @@ describe("player evidence queue", () => {
     expect(london?.researchPrompts).toContain(
       "Opportunity: Validate role, routes/targets/touches, and whether the Weeks 1-4 projection is sustainable.",
     );
+    expect(queue.rows.find(row => row.player === "Malik Nabers")?.currentEvidence).toEqual([
+      expect.objectContaining({
+        category: "opportunity",
+        source: "https://example.com/targets",
+      }),
+    ]);
+    expect(queue.rows.find(row => row.player === "Example Duplicate")).toMatchObject({
+      currentEvidenceCount: 3,
+      evidenceStatus: "partial",
+      categories: ["opportunity", "skillFit", "risk"],
+    });
 
     const csv = playerEvidenceQueueCsv(queue);
     expect(csv.split("\n")[0]).toBe("priority,rank,player,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,current_evidence_count,evidence_status,flags,categories,research_prompts");

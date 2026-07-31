@@ -39,8 +39,10 @@ describe("QA report", () => {
           status: "fail",
           highPriorityMissingCount: 0,
           missingEvidenceCount: 8,
+          provenanceIncompleteEvidenceCount: 0,
           coverageRate: 0.38,
           completeEvidenceRate: 0.38,
+          provenanceCompleteEvidenceRate: 1,
         },
         gates: {
           summary: {
@@ -64,6 +66,55 @@ describe("QA report", () => {
       status: "fail",
       severity: "advisory",
     });
+  });
+
+  it("calls out provenance gaps in the evidence coverage message", () => {
+    const report = buildQaReport({
+      options: {
+        scenarioKeys: ["expected"],
+        runsPerScenario: 2,
+        seedPrefix: "qa-report-test",
+      },
+      smoke: {
+        invalidRosterCount: 0,
+        firstTwoRoundSummary: {
+          pickCount: 28,
+        },
+        warnings: [],
+      },
+      calibration: {
+        gates: {
+          summary: passingGateSummary,
+          items: [],
+        },
+      },
+      backtest: {
+        summary: passingGateSummary,
+      },
+      evidenceCoverage: {
+        summary: {
+          status: "fail",
+          highPriorityMissingCount: 0,
+          missingEvidenceCount: 0,
+          provenanceIncompleteEvidenceCount: 4,
+          coverageRate: 1,
+          completeEvidenceRate: 1,
+          provenanceCompleteEvidenceRate: 0.5,
+        },
+        gates: {
+          summary: {
+            ...passingGateSummary,
+            status: "fail",
+            credible: false,
+            failCount: 1,
+            passCount: 3,
+          },
+        },
+      },
+    });
+
+    expect(report.checks.find(check => check.key === "evidence-coverage")?.message)
+      .toContain("4 evidence row(s) have incomplete provenance");
   });
 
   it("fails hard when calibration or backtest credibility fails", () => {
@@ -112,8 +163,10 @@ describe("QA report", () => {
           status: "pass",
           highPriorityMissingCount: 0,
           missingEvidenceCount: 0,
+          provenanceIncompleteEvidenceCount: 0,
           coverageRate: 1,
           completeEvidenceRate: 1,
+          provenanceCompleteEvidenceRate: 1,
         },
         gates: {
           summary: passingGateSummary,

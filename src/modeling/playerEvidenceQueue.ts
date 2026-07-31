@@ -1,6 +1,7 @@
 import {
   type FactualPlayerContextCategory,
   factualPlayerContextCategories,
+  type PlayerContextEvidence,
 } from "../../config/playerContext.js";
 import type {
   SanityFlagKey,
@@ -20,6 +21,7 @@ export interface PlayerEvidenceQueueRow {
   averageMockSalePrice: number;
   saleVsScenarioPrice: number;
   currentEvidenceCount: number;
+  currentEvidence?: readonly PlayerContextEvidence[];
   evidenceStatus: PlayerEvidenceStatus;
   flags: SanityFlagKey[];
   categories: FactualPlayerContextCategory[];
@@ -94,8 +96,11 @@ const evidenceStatusFor = (
   player: TopPlayerSanityRow,
   categories: readonly FactualPlayerContextCategory[],
 ): PlayerEvidenceStatus => {
-  if (player.contextEvidenceCount === 0) return "missing";
-  if (player.contextEvidenceCount < categories.length) return "partial";
+  const coveredCategories = new Set((player.contextEvidence ?? []).map(evidence => evidence.category));
+  const coveredCategoryCount = categories.filter(category => coveredCategories.has(category)).length;
+
+  if (coveredCategoryCount === 0) return "missing";
+  if (coveredCategoryCount < categories.length) return "partial";
   return "present";
 };
 
@@ -120,6 +125,7 @@ const rowFor = (player: TopPlayerSanityRow): PlayerEvidenceQueueRow => {
     averageMockSalePrice: player.averageMockSalePrice,
     saleVsScenarioPrice: player.saleVsScenarioPrice,
     currentEvidenceCount: player.contextEvidenceCount,
+    ...(player.contextEvidence ? { currentEvidence: player.contextEvidence } : {}),
     evidenceStatus: evidenceStatusFor(player, categories),
     flags: player.flags.map(flag => flag.key),
     categories,

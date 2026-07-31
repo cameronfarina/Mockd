@@ -55,14 +55,18 @@ const evidenceCoverageAudit = {
     missingEvidenceCount: 1,
     partialEvidenceCount: 0,
     highPriorityMissingCount: 1,
+    evidenceRowCount: 0,
+    provenanceCompleteEvidenceCount: 0,
+    provenanceIncompleteEvidenceCount: 0,
     coverageRate: 0,
     completeEvidenceRate: 0,
+    provenanceCompleteEvidenceRate: 1,
   },
   gates: {
     summary: {
       status: "fail",
-      gateCount: 3,
-      passCount: 0,
+      gateCount: 4,
+      passCount: 1,
       warnCount: 0,
       failCount: 3,
     },
@@ -97,6 +101,16 @@ const evidenceCoverageAudit = {
         warnThreshold: 0.6,
         failThreshold: 0.25,
       },
+      {
+        key: "evidence-provenance-rate",
+        label: "Evidence provenance rate",
+        status: "pass",
+        target: 1,
+        actual: 1,
+        delta: 0,
+        warnThreshold: 1,
+        failThreshold: 0.75,
+      },
     ],
   },
   missingPlayers: [
@@ -109,6 +123,7 @@ const evidenceCoverageAudit = {
       categories: ["opportunity", "defensiveAttention"],
     },
   ],
+  provenanceIssues: [],
 } satisfies EvidenceCoverageAudit;
 const outlierQueue = {
   summary: {
@@ -240,6 +255,7 @@ describe("prep output artifacts", () => {
       );
       expect(evidenceCoverageGatesCsv.split("\n")[0]).toBe("key,label,status,target,actual,delta,warn_threshold,fail_threshold");
       expect(evidenceCoverageGatesCsv).toContain("high-priority-missing,High-priority missing evidence,fail");
+      expect(evidenceCoverageGatesCsv).toContain("evidence-provenance-rate,Evidence provenance rate");
 
       const draftBoardCsv = await readFile(join(outputDirectory, "mock-draft-board.csv"), "utf8");
       const draftBoardLines = draftBoardCsv.trim().split("\n");

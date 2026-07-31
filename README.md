@@ -173,7 +173,7 @@ The sanity report scans the top auction-available players for review prompts: hi
 
 `evidence:adapt` normalizes a completed local evidence CSV or JSON export back to canonical `player,category,score,confidence,source,note,provider,source_date,source_quality` rows. The first adapter, `scored-local`, is intentionally deterministic: it does not fetch or infer facts, it only validates and strips context columns from completed local research exports. Untouched template rows are skipped, while half-completed rows fail until `score`, `source`, and `note` are filled together.
 
-`evidence:coverage` turns that queue into pass/warn/fail gates for high-priority missing evidence, overall evidence coverage, and complete evidence coverage. A failing coverage audit means the pricing model is still allowed to run, but the affected top-player values should be treated as unaudited until sourced evidence rows are added.
+`evidence:coverage` turns that queue into pass/warn/fail gates for high-priority missing evidence, overall evidence coverage, complete category coverage, and evidence provenance completeness. A failing coverage audit means the pricing model is still allowed to run, but the affected top-player values should be treated as unaudited until sourced evidence rows are added or partial provenance is completed.
 
 ## Auction Simulation
 

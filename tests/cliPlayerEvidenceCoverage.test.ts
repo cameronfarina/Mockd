@@ -28,6 +28,7 @@ describe("CLI player evidence coverage", () => {
         status: string;
         playerCount: number;
         highPriorityMissingCount: number;
+        provenanceCompleteEvidenceRate: number;
       };
       gates: {
         summary: {
@@ -49,13 +50,15 @@ describe("CLI player evidence coverage", () => {
     expect(audit.summary.highPriorityMissingCount).toBeGreaterThan(0);
     expect(audit.gates.summary).toMatchObject({
       status: "fail",
-      gateCount: 3,
+      gateCount: 4,
     });
     expect(audit.gates.items.map(gate => gate.key)).toEqual([
       "high-priority-missing",
       "evidence-coverage-rate",
       "complete-evidence-rate",
+      "evidence-provenance-rate",
     ]);
+    expect(audit.summary.provenanceCompleteEvidenceRate).toBe(1);
     expect(audit.missingPlayers.some(player => player.player === "Drake London")).toBe(true);
   }, 15000);
 });

@@ -1,5 +1,6 @@
 import type { KeeperDeclaration } from "../../config/keepers.js";
 import type { Position } from "../../config/league.js";
+import type { PlayerContextEvidence } from "../../config/playerContext.js";
 import { normalizePlayerName } from "../data/normalizePlayerName.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
 import type { ProjectionRecord } from "../projections.js";
@@ -58,6 +59,7 @@ export interface TopPlayerSanityRow {
   maxMockSalePrice: number;
   contextAdjustmentPercent: number;
   contextEvidenceCount: number;
+  contextEvidence?: readonly PlayerContextEvidence[];
   flags: readonly SanityFlag[];
 }
 
@@ -299,6 +301,7 @@ export const buildTopPlayerSanityReport = ({
       maxMockSalePrice: saleSummary.maxSalePrice,
       contextAdjustmentPercent: player.contextAdjustmentPercent,
       contextEvidenceCount: player.contextEvidence?.length ?? 0,
+      ...(player.contextEvidence ? { contextEvidence: player.contextEvidence } : {}),
       flags: flagsFor(player, saleSummary),
     };
   });

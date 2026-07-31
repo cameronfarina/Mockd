@@ -51,8 +51,10 @@ export interface QaEvidenceCoverageInput {
     status: QaStatus;
     highPriorityMissingCount: number;
     missingEvidenceCount: number;
+    provenanceIncompleteEvidenceCount?: number;
     coverageRate: number;
     completeEvidenceRate: number;
+    provenanceCompleteEvidenceRate?: number;
   };
   gates: {
     summary: QaGateSummaryInput;
@@ -165,7 +167,11 @@ const evidenceCoverageCheck = (coverage: QaEvidenceCoverageInput): QaCheck => ({
   label: "Evidence coverage",
   status: coverage.summary.status,
   severity: "advisory",
-  message: `${coverage.summary.missingEvidenceCount} player(s) still missing evidence; ${coverage.summary.highPriorityMissingCount} high-priority missing.`,
+  message: [
+    `${coverage.summary.missingEvidenceCount} player(s) still missing evidence`,
+    `${coverage.summary.highPriorityMissingCount} high-priority missing`,
+    `${coverage.summary.provenanceIncompleteEvidenceCount ?? 0} evidence row(s) have incomplete provenance`,
+  ].join("; ") + ".",
   topItems: [],
 });
 

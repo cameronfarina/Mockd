@@ -43,6 +43,25 @@ const queue = {
       averageMockSalePrice: 62.67,
       saleVsScenarioPrice: 6.67,
       currentEvidenceCount: 2,
+      currentEvidence: [
+        {
+          player: "Drake London",
+          category: "opportunity",
+          score: 1,
+          confidence: 0.9,
+          adjustedSignal: 0.9,
+          source: "https://example.com/targets",
+          note: "Target share remained elite",
+        },
+        {
+          player: "Drake London",
+          category: "defensiveAttention",
+          score: -0.5,
+          confidence: 0.8,
+          adjustedSignal: -0.4,
+          source: "https://example.com/coverage",
+        },
+      ],
       evidenceStatus: "partial",
       flags: ["highMockPremium", "largeProjectionRankLift"],
       categories: ["opportunity", "defensiveAttention", "skillFit"],
@@ -57,6 +76,40 @@ const queue = {
       averageMockSalePrice: 45,
       saleVsScenarioPrice: 1,
       currentEvidenceCount: 3,
+      currentEvidence: [
+        {
+          player: "Malik Nabers",
+          category: "opportunity",
+          score: 1,
+          confidence: 0.9,
+          adjustedSignal: 0.9,
+          source: "https://example.com/targets",
+          note: "Target share remained elite",
+          provider: "FantasyPros",
+          sourceDate: "2026-07-15",
+          sourceQuality: "primary",
+        },
+        {
+          player: "Malik Nabers",
+          category: "skillFit",
+          score: 0.5,
+          confidence: 0.8,
+          adjustedSignal: 0.4,
+          source: "https://example.com/routes",
+          note: "Separation profile supports role",
+        },
+        {
+          player: "Malik Nabers",
+          category: "risk",
+          score: -0.25,
+          confidence: 0.8,
+          adjustedSignal: -0.2,
+          source: "https://example.com/injury",
+          note: "Minor availability risk",
+          provider: "FantasyPros",
+          sourceDate: "2026-07-15",
+        },
+      ],
       evidenceStatus: "present",
       flags: ["hardCeilingPressure"],
       categories: ["opportunity", "skillFit", "risk"],
@@ -76,16 +129,21 @@ describe("player evidence coverage audit", () => {
       missingEvidenceCount: 1,
       highPriorityMissingCount: 1,
       coverageRate: 0.67,
+      evidenceRowCount: 5,
+      provenanceCompleteEvidenceCount: 3,
+      provenanceIncompleteEvidenceCount: 2,
+      provenanceCompleteEvidenceRate: 0.6,
     });
     expect(audit.gates.summary).toMatchObject({
       status: "fail",
-      gateCount: 3,
-      failCount: 1,
+      gateCount: 4,
+      failCount: 2,
     });
     expect(audit.gates.items.map(gate => gate.key)).toEqual([
       "high-priority-missing",
       "evidence-coverage-rate",
       "complete-evidence-rate",
+      "evidence-provenance-rate",
     ]);
     expect(audit.gates.items.find(gate => gate.key === "high-priority-missing")).toMatchObject({
       status: "fail",
@@ -103,9 +161,28 @@ describe("player evidence coverage audit", () => {
         categories: ["opportunity", "defensiveAttention", "skillFit", "environment", "risk"],
       },
     ]);
+    expect(audit.provenanceIssues).toEqual([
+      {
+        priority: "high",
+        rank: 11,
+        player: "Drake London",
+        position: "WR",
+        incompleteEvidenceCount: 1,
+        missingFields: ["note"],
+      },
+      {
+        priority: "medium",
+        rank: 20,
+        player: "Malik Nabers",
+        position: "WR",
+        incompleteEvidenceCount: 1,
+        missingFields: ["sourceQuality"],
+      },
+    ]);
 
     const csv = playerEvidenceCoverageGatesCsv(audit);
     expect(csv.split("\n")[0]).toBe("key,label,status,target,actual,delta,warn_threshold,fail_threshold");
     expect(csv).toContain("high-priority-missing,High-priority missing evidence,fail,0,1,1,1,1");
+    expect(csv).toContain("evidence-provenance-rate,Evidence provenance rate,fail,1,0.6,-0.4,1,0.75");
   });
 });

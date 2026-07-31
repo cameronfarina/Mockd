@@ -26,6 +26,15 @@ export interface MissingEvidencePlayer {
   categories: PlayerEvidenceQueueRow["categories"];
 }
 
+export interface EvidenceProvenanceIssue {
+  priority: PlayerEvidenceQueuePriority;
+  rank: number;
+  player: string;
+  position: string;
+  incompleteEvidenceCount: number;
+  missingFields: string[];
+}
+
 export interface EvidenceCoverageAudit {
   summary: {
     status: EvidenceCoverageStatus;
@@ -35,8 +44,12 @@ export interface EvidenceCoverageAudit {
     missingEvidenceCount: number;
     partialEvidenceCount: number;
     highPriorityMissingCount: number;
+    evidenceRowCount: number;
+    provenanceCompleteEvidenceCount: number;
+    provenanceIncompleteEvidenceCount: number;
     coverageRate: number;
     completeEvidenceRate: number;
+    provenanceCompleteEvidenceRate: number;
   };
   gates: {
     summary: {
@@ -49,6 +62,7 @@ export interface EvidenceCoverageAudit {
     items: EvidenceCoverageGate[];
   };
   missingPlayers: MissingEvidencePlayer[];
+  provenanceIssues: EvidenceProvenanceIssue[];
 }
 
 type CsvValue = string | number | boolean | undefined;
@@ -57,6 +71,10 @@ const defaultMinimumCoverageRate = 0.8;
 const defaultFailingCoverageRate = 0.5;
 const defaultMinimumCompleteEvidenceRate = 0.6;
 const defaultFailingCompleteEvidenceRate = 0.25;
+const defaultMinimumProvenanceRate = 1;
+const defaultFailingProvenanceRate = 0.75;
+const requiredProvenanceFields = ["source", "note"] as const;
+const optionalMetadataFields = ["provider", "sourceDate", "sourceQuality"] as const;
 
 const roundToTwo = (value: number): number =>
   Math.round((value + Number.EPSILON) * 100) / 100;
@@ -106,6 +124,48 @@ const missingPlayerFor = (
   categories: row.categories,
 });
 
+const hasText = (value: unknown): boolean =>
+  typeof value === "string" && value.trim().length > 0;
+
+const missingProvenanceFieldsFor = (
+  evidence: NonNullable<PlayerEvidenceQueueRow["currentEvidence"]>[number],
+): string[] => {
+  const missingFields: string[] = requiredProvenanceFields
+    .filter(field => !hasText(evidence[field]));
+  const presentMetadataFields = optionalMetadataFields
+    .filter(field => hasText(evidence[field]));
+
+  if (presentMetadataFields.length > 0 && presentMetadataFields.length < optionalMetadataFields.length) {
+    missingFields.push(
+      ...optionalMetadataFields.filter(field => !hasText(evidence[field])),
+    );
+  }
+
+  return missingFields;
+};
+
+const uniqueInOrder = (
+  values: readonly string[],
+): string[] => [...new Set(values)];
+
+const provenanceIssueFor = (
+  row: PlayerEvidenceQueueRow,
+): EvidenceProvenanceIssue | undefined => {
+  const incompleteEvidence = (row.currentEvidence ?? [])
+    .map(evidence => missingProvenanceFieldsFor(evidence))
+    .filter(missingFields => missingFields.length > 0);
+  if (incompleteEvidence.length === 0) return undefined;
+
+  return {
+    priority: row.priority,
+    rank: row.rank,
+    player: row.player,
+    position: row.position,
+    incompleteEvidenceCount: incompleteEvidence.length,
+    missingFields: uniqueInOrder(incompleteEvidence.flat()),
+  };
+};
+
 export const buildPlayerEvidenceCoverageAudit = (
   queue: PlayerEvidenceQueue,
 ): EvidenceCoverageAudit => {
@@ -117,6 +177,17 @@ export const buildPlayerEvidenceCoverageAudit = (
   const highPriorityMissingCount = missingRows.filter(row => row.priority === "high").length;
   const coverageRate = rate(coveredPlayerCount, playerCount);
   const completeEvidenceRate = rate(completeEvidenceCount, playerCount);
+  const evidenceRows = queue.rows.flatMap(row => row.currentEvidence ?? []);
+  const evidenceRowCount = evidenceRows.length;
+  const provenanceIncompleteEvidenceCount = evidenceRows
+    .filter(evidence => missingProvenanceFieldsFor(evidence).length > 0)
+    .length;
+  const provenanceCompleteEvidenceCount = evidenceRowCount - provenanceIncompleteEvidenceCount;
+  const provenanceCompleteEvidenceRate = rate(provenanceCompleteEvidenceCount, evidenceRowCount);
+  const provenanceIssues = queue.rows.flatMap(row => {
+    const issue = provenanceIssueFor(row);
+    return issue ? [issue] : [];
+  });
   const gates: EvidenceCoverageGate[] = [
     {
       key: "high-priority-missing",
@@ -156,6 +227,20 @@ export const buildPlayerEvidenceCoverageAudit = (
       warnThreshold: defaultMinimumCompleteEvidenceRate,
       failThreshold: defaultFailingCompleteEvidenceRate,
     },
+    {
+      key: "evidence-provenance-rate",
+      label: "Evidence provenance rate",
+      status: rateGateStatus(
+        provenanceCompleteEvidenceRate,
+        defaultMinimumProvenanceRate,
+        defaultFailingProvenanceRate,
+      ),
+      target: defaultMinimumProvenanceRate,
+      actual: provenanceCompleteEvidenceRate,
+      delta: roundToTwo(provenanceCompleteEvidenceRate - defaultMinimumProvenanceRate),
+      warnThreshold: defaultMinimumProvenanceRate,
+      failThreshold: defaultFailingProvenanceRate,
+    },
   ];
   const summary = gateSummary(gates);
 
@@ -168,14 +253,19 @@ export const buildPlayerEvidenceCoverageAudit = (
       missingEvidenceCount: missingRows.length,
       partialEvidenceCount,
       highPriorityMissingCount,
+      evidenceRowCount,
+      provenanceCompleteEvidenceCount,
+      provenanceIncompleteEvidenceCount,
       coverageRate,
       completeEvidenceRate,
+      provenanceCompleteEvidenceRate,
     },
     gates: {
       summary,
       items: gates,
     },
     missingPlayers: missingRows.map(missingPlayerFor),
+    provenanceIssues,
   };
 };
 
