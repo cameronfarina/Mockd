@@ -16,6 +16,8 @@ export type PositionOverbidDamping = Partial<Record<Position, number>>;
 export interface ScarcityConfig {
   comparablePriceRatio: number;
   minimumComparablePrice: number;
+  bidderDepthWeight: number;
+  maxDemandSlotsPerOwner: number;
   slope: number;
   maxMultiplier: number;
 }
@@ -302,6 +304,8 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   scarcity: {
     comparablePriceRatio: 0.8,
     minimumComparablePrice: 5,
+    bidderDepthWeight: 0.35,
+    maxDemandSlotsPerOwner: 2,
     slope: 0.03,
     maxMultiplier: 1.08,
   },
@@ -616,6 +620,42 @@ const ownerDemandMultiplierFor = (
 ): number =>
   config.ownerDemandMultipliers[owner]?.[position] ?? 1;
 
+const positionCapacityFor = (
+  state: AuctionOwnerState,
+  position: Position,
+  config: AuctionEngineConfig,
+): number => {
+  const counts = countPositions(state.roster);
+  return Math.min(
+    state.rosterSlotsRemaining,
+    Math.max(0, rosterMaximumFor(state.owner, position, config) - counts[position]),
+  );
+};
+
+const tierDemandSlotsFor = (
+  state: AuctionOwnerState,
+  position: Position,
+  comparablePrice: number,
+  config: AuctionEngineConfig,
+): number => {
+  const affordableComparableSlots = Math.floor(state.maxBid / comparablePrice);
+  return clamp(
+    Math.min(positionCapacityFor(state, position, config), affordableComparableSlots),
+    1,
+    Math.max(1, config.scarcity.maxDemandSlotsPerOwner),
+  );
+};
+
+const weightedBidderDemandFor = (
+  state: AuctionOwnerState,
+  position: Position,
+  comparablePrice: number,
+  config: AuctionEngineConfig,
+): number => {
+  const demandSlots = tierDemandSlotsFor(state, position, comparablePrice, config);
+  return 1 + Math.max(0, demandSlots - 1) * Math.max(0, config.scarcity.bidderDepthWeight);
+};
+
 const defaultOwnerAuctionBehavior: CompleteOwnerAuctionBehavior = {
   priceAggression: 1,
   scarcityChase: 1,
@@ -682,8 +722,11 @@ const scarcityMultiplierFor = (
   const activeBidders = ownerStates
     .filter(state => ownerCanBidOnPlayer(state, player, ownerStates, remainingPlayers, config))
     .filter(state => state.maxBid >= comparablePrice)
-    .length;
-  const pressure = activeBidders / Math.max(1, comparablePlayersRemaining);
+  const weightedBidderDemand = activeBidders.reduce(
+    (total, state) => total + weightedBidderDemandFor(state, player.position, comparablePrice, config),
+    0,
+  );
+  const pressure = weightedBidderDemand / Math.max(1, comparablePlayersRemaining);
 
   return clamp(
     1 + Math.max(0, pressure - 1) * config.scarcity.slope,
