@@ -34,6 +34,11 @@ export interface TopAnchorMinimum {
   shareOfAnchoredPrice: number;
 }
 
+export interface TopPriceVolumeLimit {
+  threshold: number;
+  maxCount: number;
+}
+
 export interface PricingConfig {
   draftedPoolCounts: PositionAmounts;
   positionMarketMultipliers: PositionAmounts;
@@ -46,6 +51,7 @@ export interface PricingConfig {
   projectionFloorRules: Partial<Record<Position, ProjectionFloorRule>>;
   projectionRankPriceFloors: Partial<Record<Position, readonly ProjectionRankPriceFloor[]>>;
   playerContext: PlayerContextConfig;
+  topPriceVolumeLimits: readonly TopPriceVolumeLimit[];
   spendTargetRoundingPriority: readonly Position[];
 }
 
@@ -79,6 +85,10 @@ export interface PricePoolSummary {
 
 interface PriceCandidate extends Omit<BasePrice, "price"> {
   allocationWeight: number;
+}
+
+interface AllocationCandidate extends PriceCandidate {
+  allocationCeiling: number;
 }
 
 export const defaultPricingConfig = {
@@ -142,6 +152,11 @@ export const defaultPricingConfig = {
     TE: [{ maxProjectionRank: 2, price: 38 }],
   },
   playerContext: defaultPlayerContextConfig,
+  topPriceVolumeLimits: [
+    { threshold: 77, maxCount: 1 },
+    { threshold: 72, maxCount: 3 },
+    { threshold: 67, maxCount: 5 },
+  ],
   spendTargetRoundingPriority: ["RB", "TE", "K", "DST", "WR", "QB"],
 } as const satisfies PricingConfig;
 
@@ -305,12 +320,60 @@ const candidateForRanking = (
   };
 };
 
-const allocateIntegerPrices = (
+const compareCandidateStrength = (left: PriceCandidate, right: PriceCandidate): number =>
+  right.rawPrice - left.rawPrice ||
+  right.weeks1To4 - left.weeks1To4 ||
+  left.name.localeCompare(right.name);
+
+const topPriceVolumeCaps = (
   candidates: readonly PriceCandidate[],
+  config: PricingConfig,
+): Map<string, number> => {
+  const caps = new Map(candidates.map(candidate => [candidate.normalizedName, candidate.hardCeiling]));
+  const limits = [...config.topPriceVolumeLimits].sort((left, right) => right.threshold - left.threshold);
+  const rankedCandidates = [...candidates].sort(compareCandidateStrength);
+
+  for (const limit of limits) {
+    const allowedNames = new Set(
+      rankedCandidates
+        .slice(0, limit.maxCount)
+        .map(candidate => candidate.normalizedName),
+    );
+
+    for (const candidate of rankedCandidates) {
+      if (allowedNames.has(candidate.normalizedName)) continue;
+      caps.set(
+        candidate.normalizedName,
+        Math.min(caps.get(candidate.normalizedName) ?? candidate.hardCeiling, limit.threshold - 1),
+      );
+    }
+  }
+
+  return caps;
+};
+
+const applyTopPriceVolumeCaps = (
+  candidates: readonly PriceCandidate[],
+  config: PricingConfig,
+): AllocationCandidate[] => {
+  const caps = topPriceVolumeCaps(candidates, config);
+
+  return candidates.map(candidate => {
+    const allocationCeiling = caps.get(candidate.normalizedName) ?? candidate.hardCeiling;
+    return {
+      ...candidate,
+      minimumPrice: Math.min(candidate.minimumPrice, allocationCeiling),
+      allocationCeiling,
+    };
+  });
+};
+
+const allocateIntegerPrices = (
+  candidates: readonly AllocationCandidate[],
   targetTotal: number,
 ): BasePrice[] => {
   const minimumTotal = candidates.reduce((total, candidate) => total + candidate.minimumPrice, 0);
-  const maximumTotal = candidates.reduce((total, candidate) => total + candidate.hardCeiling, 0);
+  const maximumTotal = candidates.reduce((total, candidate) => total + candidate.allocationCeiling, 0);
 
   if (minimumTotal > targetTotal) {
     throw new Error(`Minimum prices exceed ${candidates[0]?.position ?? "position"} spend target.`);
@@ -320,7 +383,7 @@ const allocateIntegerPrices = (
   }
 
   const fractionalPrices = candidates.map(candidate =>
-    clamp(candidate.rawPrice, candidate.minimumPrice, candidate.hardCeiling),
+    clamp(candidate.rawPrice, candidate.minimumPrice, candidate.allocationCeiling),
   );
 
   let adjustment = targetTotal - fractionalPrices.reduce((total, price) => total + price, 0);
@@ -330,7 +393,7 @@ const allocateIntegerPrices = (
       .map((candidate, index) => ({ candidate, index }))
       .filter(({ candidate, index }) =>
         isIncreasing
-          ? fractionalPrices[index]! < candidate.hardCeiling
+          ? fractionalPrices[index]! < candidate.allocationCeiling
           : fractionalPrices[index]! > candidate.minimumPrice,
       )
       .map(({ index }) => index);
@@ -347,7 +410,7 @@ const allocateIntegerPrices = (
       const candidate = candidates[index]!;
       const share = Math.abs(adjustment) * (candidate.allocationWeight / weightTotal);
       const capacity = isIncreasing
-        ? candidate.hardCeiling - fractionalPrices[index]!
+        ? candidate.allocationCeiling - fractionalPrices[index]!
         : fractionalPrices[index]! - candidate.minimumPrice;
       const amount = Math.min(share, capacity);
 
@@ -369,7 +432,7 @@ const allocateIntegerPrices = (
   const roundingRemainder = targetTotal - priced.reduce((total, entry) => total + entry.price, 0);
 
   const roundingRecipients = priced
-    .filter(entry => entry.price < entry.candidate.hardCeiling)
+    .filter(entry => entry.price < entry.candidate.allocationCeiling)
     .sort(
       (left, right) =>
         Number(right.price > 1) - Number(left.price > 1) ||
@@ -387,7 +450,11 @@ const allocateIntegerPrices = (
   }
 
   return priced.map(({ candidate, price }) => {
-    const { allocationWeight: _allocationWeight, ...basePrice } = candidate;
+    const {
+      allocationWeight: _allocationWeight,
+      allocationCeiling: _allocationCeiling,
+      ...basePrice
+    } = candidate;
     return { ...basePrice, price };
   });
 };
@@ -400,24 +467,28 @@ export const buildBasePrices = (
   const spendTargets = deriveAuditedSpendTargets(historicalRecords, config);
   const overrideByName = roleOverrideByName(playerOverrides);
   const rankings = buildProjectionRankings(projections);
+  const candidates = positions.flatMap(position => {
+    const poolCount = config.draftedPoolCounts[position];
+    const positionRankings = rankings
+      .filter(ranking => ranking.position === position)
+      .slice(0, poolCount);
+
+    if (positionRankings.length < poolCount) {
+      throw new Error(`Only found ${positionRankings.length} ${position} projections for ${poolCount} price slots.`);
+    }
+
+    const spendTarget = spendTargets[position];
+    return positionRankings.map(ranking => candidateForRanking(ranking, spendTarget, overrideByName, config));
+  });
+  const cappedCandidates = applyTopPriceVolumeCaps(candidates, config);
 
   return positions
-    .flatMap(position => {
-      const poolCount = config.draftedPoolCounts[position];
-      const positionRankings = rankings
-        .filter(ranking => ranking.position === position)
-        .slice(0, poolCount);
-
-      if (positionRankings.length < poolCount) {
-        throw new Error(`Only found ${positionRankings.length} ${position} projections for ${poolCount} price slots.`);
-      }
-
-      const spendTarget = spendTargets[position];
-      return allocateIntegerPrices(
-        positionRankings.map(ranking => candidateForRanking(ranking, spendTarget, overrideByName, config)),
-        spendTarget,
-      );
-    })
+    .flatMap(position =>
+      allocateIntegerPrices(
+        cappedCandidates.filter(candidate => candidate.position === position),
+        spendTargets[position],
+      ),
+    )
     .sort((left, right) => right.price - left.price || right.weeks1To4 - left.weeks1To4 || left.name.localeCompare(right.name));
 };
 

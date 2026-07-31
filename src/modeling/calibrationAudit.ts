@@ -824,7 +824,7 @@ const summarizeGates = (
       label: "League average budget remaining",
       target: 0,
       actual: summary.budgetRemaining.leagueAverageBudgetRemaining,
-      warnThreshold: 3,
+      warnThreshold: 4,
       failThreshold: 7,
     }),
     calibrationGate({

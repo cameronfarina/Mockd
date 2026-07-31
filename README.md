@@ -50,6 +50,7 @@ npm run audit -- --player="Drake London"
 npm run sanity -- --scenario=expected --limit=40 --runs=10
 npm run evidence:queue -- --scenario=expected --limit=40 --runs=10
 npm run evidence:template -- --scenario=expected --limit=40 --runs=10
+npm run evidence:adapt -- --input=data/raw/player-evidence-template.csv
 npm run evidence:coverage -- --scenario=expected --limit=40 --runs=10
 npm run scenarios
 npm run scenarios:custom
@@ -131,6 +132,10 @@ player,category,score,confidence,source,note
 
 `category` must be one of `opportunity`, `defensiveAttention`, `skillFit`, `environment`, or `risk`. `score` is the signed evidence signal, `confidence` is optional from `0` to `1`, and the model applies `score * confidence` before category and total caps. `source` and `note` are preserved in each player's pricing audit so factual inputs can be inspected instead of hidden as assumptions.
 
+Positive evidence is intentionally capped tighter than negative evidence by default: one good news stack should not create a whole extra tier of $75-plus players, but real role, health, environment, or defensive-attention problems can still pull a player down. The base pricing allocator also enforces historical top-price volume limits before keeper inflation so the model can redistribute dollars into the mid-tier without inventing too many elite-price buys.
+
+The initial sourced 2026 evidence set lives at `data/raw/player-evidence-2026-initial.csv` and can be used directly with `--player-evidence=data/raw/player-evidence-2026-initial.csv`.
+
 `scenarios` removes known keepers from the priced auction pool and applies confirmed-only, expected, and high-retention inflation factors. Scenario counts and average keeper costs are config-driven so unannounced keepers are not assigned to owners.
 
 `scenarios:custom` applies the same keeper scenario logic after custom player-context weights are turned on.
@@ -144,6 +149,7 @@ npm run sanity -- --scenario=expected --limit=40 --runs=10
 npm run evidence:queue -- --scenario=expected --limit=40 --runs=10
 npm run evidence:queue -- --scenario=expected --limit=40 --runs=10 --format=csv
 npm run evidence:template -- --scenario=expected --limit=40 --runs=10
+npm run evidence:adapt -- --input=data/raw/player-evidence-template.csv
 npm run evidence:coverage -- --scenario=expected --limit=40 --runs=10
 ```
 
@@ -154,6 +160,8 @@ The sanity report scans the top auction-available players for review prompts: hi
 `evidence:queue` converts those sanity flags into prioritized factual research rows. Each row lists the player, price context, existing evidence count, flags, evidence status, and the exact categories to research: opportunity, defensive attention, skill fit, environment, and risk. Use `--format=csv` when you want a fillable research queue.
 
 `evidence:template` writes a fillable `player,category,score,confidence,source,note` evidence CSV with extra context columns from the queue. Leave rows blank until researched; once `score`, `source`, and `note` are filled, the same file can be passed back through `--player-evidence`.
+
+`evidence:adapt` normalizes a completed local evidence CSV or JSON export back to canonical `player,category,score,confidence,source,note` rows. The first adapter, `scored-local`, is intentionally deterministic: it does not fetch or infer facts, it only validates and strips context columns from completed local research exports.
 
 `evidence:coverage` turns that queue into pass/warn/fail gates for high-priority missing evidence, overall evidence coverage, and complete evidence coverage. A failing coverage audit means the pricing model is still allowed to run, but the affected top-player values should be treated as unaudited until sourced evidence rows are added.
 
@@ -235,6 +243,7 @@ npm run --silent calibration -- --scenarios=expected --runs=50 > data/processed/
 npm run --silent outputs -- --scenarios=expected --runs=50 --out=data/processed/mock-prep
 npm run --silent evidence:queue -- --scenario=expected --limit=40 --format=csv > data/processed/player-evidence-queue.csv
 npm run --silent evidence:template -- --scenario=expected --limit=40 > data/processed/player-evidence-template.csv
+npm run --silent evidence:adapt -- --input=data/processed/player-evidence-template.csv > data/processed/player-evidence.adapted.csv
 npm run --silent evidence:coverage -- --scenario=expected --limit=40 > data/processed/player-evidence-coverage.json
 ```
 
@@ -242,8 +251,9 @@ The context layer is deterministic and source-driven. Add only player facts you 
 
 ## Next implementation work
 
-1. Add source adapters for richer player evidence providers.
-2. Add a web-app upload flow once the league-specific engine is trusted.
+1. Fill and maintain sourced player evidence rows for the high-priority queue.
+2. Add richer provider-specific evidence adapters once the local scored adapter is proven.
+3. Add a web-app upload flow once the league-specific engine is trusted.
 
 ## Push to GitHub
 

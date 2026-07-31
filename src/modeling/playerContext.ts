@@ -46,7 +46,13 @@ export const calculatePlayerContextAdjustment = (
   const override = overrideForPlayer(playerName, config);
   const signals = override?.signals ?? {};
   const uncappedAdjustment = config.enabled ? weightedSignalSum(signals, config.weights) : 0;
-  const cappedAdjustment = clamp(uncappedAdjustment, -config.maxAdjustment, config.maxAdjustment);
+  const maxPositiveAdjustment = config.maxPositiveAdjustment ?? config.maxAdjustment;
+  const maxNegativeAdjustment = config.maxNegativeAdjustment ?? config.maxAdjustment;
+  const cappedAdjustment = clamp(
+    uncappedAdjustment,
+    -maxNegativeAdjustment,
+    maxPositiveAdjustment,
+  );
 
   return {
     enabled: config.enabled,

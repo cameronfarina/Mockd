@@ -84,6 +84,49 @@ describe("player context custom weights", () => {
     expect(adjustment.factor).toBe(0.9);
   });
 
+  it("can cap positive context more tightly than negative context", () => {
+    const positiveAdjustment = calculatePlayerContextAdjustment("Positive Player", {
+      ...contextConfig,
+      maxPositiveAdjustment: 0.04,
+      maxNegativeAdjustment: 0.18,
+      overrides: [
+        {
+          player: "Positive Player",
+          signals: {
+            opportunity: 2,
+            defensiveAttention: 1,
+            skillFit: 2,
+            environment: 2,
+            risk: 1,
+          },
+        },
+      ],
+    });
+    const negativeAdjustment = calculatePlayerContextAdjustment("Negative Player", {
+      ...contextConfig,
+      maxPositiveAdjustment: 0.04,
+      maxNegativeAdjustment: 0.18,
+      overrides: [
+        {
+          player: "Negative Player",
+          signals: {
+            opportunity: -2,
+            defensiveAttention: -2,
+            skillFit: -2,
+            environment: -2,
+            risk: -2,
+          },
+        },
+      ],
+    });
+
+    expect(positiveAdjustment.uncappedAdjustment).toBeGreaterThan(0.04);
+    expect(positiveAdjustment.cappedAdjustment).toBe(0.04);
+    expect(negativeAdjustment.uncappedAdjustment).toBeLessThan(-0.04);
+    expect(negativeAdjustment.cappedAdjustment).toBeLessThan(-0.04);
+    expect(negativeAdjustment.cappedAdjustment).toBeGreaterThanOrEqual(-0.18);
+  });
+
   it("includes factual evidence dimensions in the adjustment audit", () => {
     const adjustment = calculatePlayerContextAdjustment("Example Player", {
       ...contextConfig,

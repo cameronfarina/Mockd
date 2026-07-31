@@ -46,6 +46,8 @@ export interface PlayerContextConfig {
   enabled: boolean;
   weights: PlayerContextWeights;
   maxAdjustment: number;
+  maxPositiveAdjustment?: number;
+  maxNegativeAdjustment?: number;
   overrides: readonly PlayerContextOverride[];
 }
 
@@ -56,11 +58,11 @@ export const defaultPlayerContextWeights: PlayerContextWeights = {
   coaching: 0.04,
   schedule: 0.03,
   bye: 0.02,
-  opportunity: 0.06,
-  defensiveAttention: 0.05,
-  skillFit: 0.04,
-  environment: 0.04,
-  risk: 0.05,
+  opportunity: 0.05,
+  defensiveAttention: 0.06,
+  skillFit: 0.05,
+  environment: 0.06,
+  risk: 0.07,
 };
 
 const playerContextOverrides = [
@@ -166,6 +168,8 @@ export const defaultPlayerContextConfig = {
   enabled: false,
   weights: defaultPlayerContextWeights,
   maxAdjustment: 0.18,
+  maxPositiveAdjustment: 0.04,
+  maxNegativeAdjustment: 0.18,
   overrides: playerContextOverrides,
 } as const satisfies PlayerContextConfig;
 

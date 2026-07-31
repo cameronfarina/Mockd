@@ -74,6 +74,8 @@ export interface TopEndSaleGuardConfig {
   capBelowThresholdAt: number;
   premiumThreshold: number;
   capBelowPremiumThresholdAt: number;
+  eliteThreshold: number;
+  capBelowEliteThresholdAt: number;
 }
 
 export interface TierSaleGuardConfig {
@@ -281,7 +283,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   ownerRosterMaximums: {},
   positionOverbidDamping: {
     QB: 0.75,
-    WR: 0.08,
+    WR: 0.18,
     TE: 0.65,
   },
   scarcity: {
@@ -336,8 +338,10 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   topEndSaleGuard: {
     threshold: 70,
     capBelowThresholdAt: 69,
-    premiumThreshold: 72,
+    premiumThreshold: 75,
     capBelowPremiumThresholdAt: 74,
+    eliteThreshold: 80,
+    capBelowEliteThresholdAt: 79,
   },
   tierSaleGuard: {
     threshold: 40,
@@ -890,9 +894,16 @@ const topEndSaleGuardPriceFor = (
 
   if (
     player.price < guard.premiumThreshold &&
-    uncappedSalePrice > guard.capBelowPremiumThresholdAt
+    uncappedSalePrice >= guard.premiumThreshold
   ) {
     return Math.max(player.price, guard.capBelowPremiumThresholdAt);
+  }
+
+  if (
+    player.price < guard.eliteThreshold &&
+    uncappedSalePrice >= guard.eliteThreshold
+  ) {
+    return Math.max(player.price, guard.capBelowEliteThresholdAt);
   }
 
   return uncappedSalePrice;

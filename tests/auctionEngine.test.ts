@@ -917,6 +917,50 @@ describe("auction engine economics", () => {
     expect(sale.price).toBe(74);
   });
 
+  it("keeps sub-elite anchors from adding extra $80-plus sales", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1.2,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+        Hoody: {
+          priceAggression: 1.2,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+      },
+      topEndOverbidDamping: {
+        startPrice: 50,
+        fullEffectPrice: 75,
+        maxOverbidDiscount: 0,
+      },
+      topEndSaleGuard: {
+        eliteThreshold: 80,
+        capBelowEliteThresholdAt: 79,
+      },
+      seed: "elite-sale-guard",
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+    const target = player("Sub elite RB", "RB", 77);
+    const sale = resolveAuctionSale(target, ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    expect(sale.marketPrice).toBe(77);
+    expect(sale.price).toBe(79);
+  });
+
   it("keeps starter-tier anchors from adding extra $40-plus sales", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({

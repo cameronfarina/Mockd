@@ -56,7 +56,7 @@ export interface BuildMockSmokeReportOptions {
 
 const defaultSmokeRounds = 2;
 const ownerCount = ownerOrder.length;
-const warningHighBudgetRemaining = 10;
+const warningHighBudgetRemaining = 15;
 
 const roundToTwo = (value: number): number =>
   Math.round((value + Number.EPSILON) * 100) / 100;

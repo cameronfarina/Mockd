@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { keepers } from "../config/keepers.js";
 import { customWeightsPlayerContextConfig } from "../config/playerContext.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
+import { loadPlayerContextEvidenceOverrides } from "../src/data/playerContextEvidenceImports.js";
+import { mergePlayerContextOverrides } from "../src/data/playerContextImports.js";
 import { buildBasePrices, defaultPricingConfig, summarizePricePool } from "../src/modeling/basePricing.js";
+import { applyKeeperScenarioToPrices, buildKeeperScenarios } from "../src/modeling/keeperInflation.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+const initialEvidencePath = "data/raw/player-evidence-2026-initial.csv";
 
 const expectPriceBetween = (actual: number, low: number, high: number): void => {
   expect(actual).toBeGreaterThanOrEqual(low);
@@ -85,6 +90,33 @@ describe("audited base pricing", () => {
     expect(customPuka.contextAdjustmentFactor).toBeLessThan(1);
     expect(customPuka.rawPrice).toBeLessThan(defaultPuka.rawPrice);
     expect(customPuka.price).toBeLessThan(defaultPuka.price);
+  });
+
+  it("keeps evidence-driven top-price volume inside historical league bounds", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const evidenceOverrides = await loadPlayerContextEvidenceOverrides(initialEvidencePath);
+    const prices = buildBasePrices(projections, historicalRecords, {
+      ...defaultPricingConfig,
+      playerContext: {
+        ...customWeightsPlayerContextConfig,
+        overrides: mergePlayerContextOverrides(
+          customWeightsPlayerContextConfig.overrides,
+          evidenceOverrides,
+        ),
+      },
+    });
+    const expectedScenario = buildKeeperScenarios(keepers).find(scenario => scenario.key === "expected");
+    if (!expectedScenario) throw new Error("Expected keeper scenario was not found.");
+    const availablePrices = applyKeeperScenarioToPrices(prices, expectedScenario, keepers).availablePrices;
+
+    expect(summarizePricePool(prices).spend).toEqual(defaultPricingConfig.auditedSpendTargets);
+    expect(prices.filter(price => price.price >= 67).length).toBeLessThanOrEqual(5);
+    expect(prices.filter(price => price.price >= 72).length).toBeLessThanOrEqual(3);
+    expect(prices.filter(price => price.price >= 77).length).toBeLessThanOrEqual(1);
+    expect(availablePrices.filter(price => price.scenarioPrice >= 70).length).toBeLessThanOrEqual(5);
+    expect(availablePrices.filter(price => price.scenarioPrice >= 75).length).toBeLessThanOrEqual(3);
+    expect(availablePrices.filter(price => price.scenarioPrice >= 80).length).toBeLessThanOrEqual(1);
   });
 
   it("spreads rounding dollars instead of dumping them into one player", async () => {
