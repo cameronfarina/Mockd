@@ -31,6 +31,7 @@ describe("prep output artifacts", () => {
       const filenames = artifacts.map(artifact => artifact.filename).sort();
 
       expect(filenames).toEqual([
+        "calibration-summary.csv",
         "historical-calibration-audit.json",
         "owner-player-exposure.csv",
         "owner-summaries.csv",
@@ -42,6 +43,10 @@ describe("prep output artifacts", () => {
 
       const playerCsv = await readFile(join(outputDirectory, "player-sale-ranges.csv"), "utf8");
       expect(playerCsv.split("\n")[0]).toBe("name,position,drafted_count,drafted_rate,average_market_price,average_sale_price,minimum_sale_price,maximum_sale_price");
+
+      const calibrationSummaryCsv = await readFile(join(outputDirectory, "calibration-summary.csv"), "utf8");
+      expect(calibrationSummaryCsv.split("\n")[0]).toBe("category,key,label,target,actual,delta");
+      expect(calibrationSummaryCsv).toContain("owner_spend");
 
       const calibrationJson = JSON.parse(
         await readFile(join(outputDirectory, "historical-calibration-audit.json"), "utf8"),

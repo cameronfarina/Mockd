@@ -23,6 +23,9 @@ describe("historical calibration audit", () => {
     const audit = buildHistoricalCalibrationAudit({ historicalRecords, batch });
 
     expect(audit.runCount).toBe(2);
+    expect(audit.summary.runCount).toBe(2);
+    expect(audit.summary.scenarioKeys).toEqual(["expected"]);
+    expect(audit.summary.runsPerScenario).toBe(2);
     expect(audit.historicalSeasons).toEqual([2023, 2024, 2025]);
     expect(audit.priceTiers.map(tier => tier.key)).toEqual(["elite", "strong", "starter", "depth", "dollar"]);
     expect(audit.positionSpend.map(position => position.position)).toEqual([...positions]);
@@ -37,5 +40,13 @@ describe("historical calibration audit", () => {
     const beaton = audit.ownerSpend.find(owner => owner.owner === "Beaton");
     expect(beaton).toBeDefined();
     expect(Number.isFinite(beaton?.mockAverageAuctionSpend ?? Number.NaN)).toBe(true);
+
+    expect(audit.summary.largestPriceTierCountDeltas).toHaveLength(3);
+    expect(audit.summary.largestPositionSpendDeltas).toHaveLength(3);
+    expect(audit.summary.largestOwnerSpendDeltas).toHaveLength(5);
+    expect(audit.summary.budgetRemaining.leagueAverageBudgetRemaining).toBeGreaterThanOrEqual(0);
+    expect(audit.summary.budgetRemaining.ownersWithAverageBudgetRemaining.every(owner =>
+      owner.averageBudgetRemaining > 0,
+    )).toBe(true);
   });
 });

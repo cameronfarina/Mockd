@@ -48,9 +48,38 @@ export interface OverallCalibration {
   dollarPlayerDelta: number;
 }
 
+export interface CalibrationDeltaSummary {
+  key: string;
+  label: string;
+  target: number;
+  actual: number;
+  delta: number;
+}
+
+export interface OwnerBudgetRemainingSummary {
+  owner: Owner;
+  averageBudgetRemaining: number;
+}
+
+export interface BudgetRemainingCalibrationSummary {
+  leagueAverageBudgetRemaining: number;
+  ownersWithAverageBudgetRemaining: OwnerBudgetRemainingSummary[];
+}
+
+export interface CalibrationSummary {
+  runCount: number;
+  scenarioKeys: MockBatch["options"]["scenarioKeys"];
+  runsPerScenario: number;
+  largestPriceTierCountDeltas: CalibrationDeltaSummary[];
+  largestPositionSpendDeltas: CalibrationDeltaSummary[];
+  largestOwnerSpendDeltas: CalibrationDeltaSummary[];
+  budgetRemaining: BudgetRemainingCalibrationSummary;
+}
+
 export interface HistoricalCalibrationAudit {
   runCount: number;
   historicalSeasons: number[];
+  summary: CalibrationSummary;
   priceTiers: PriceTierCalibration[];
   positionSpend: PositionSpendCalibration[];
   ownerSpend: OwnerSpendCalibration[];
@@ -288,6 +317,74 @@ const summarizeOverall = (
   };
 };
 
+const byAbsoluteDelta = (left: CalibrationDeltaSummary, right: CalibrationDeltaSummary): number =>
+  Math.abs(right.delta) - Math.abs(left.delta) ||
+  left.key.localeCompare(right.key);
+
+const topDeltaSummaries = (
+  summaries: readonly CalibrationDeltaSummary[],
+  limit: number,
+): CalibrationDeltaSummary[] =>
+  [...summaries].sort(byAbsoluteDelta).slice(0, limit);
+
+const summarizeBudgetRemaining = (batch: MockBatch): BudgetRemainingCalibrationSummary => ({
+  leagueAverageBudgetRemaining: roundToTwo(
+    average(batch.summary.owners.map(owner => owner.averageBudgetRemaining)),
+  ),
+  ownersWithAverageBudgetRemaining: batch.summary.owners
+    .filter(owner => owner.averageBudgetRemaining > 0)
+    .map(owner => ({
+      owner: owner.owner,
+      averageBudgetRemaining: owner.averageBudgetRemaining,
+    }))
+    .sort((left, right) =>
+      right.averageBudgetRemaining - left.averageBudgetRemaining ||
+      ownerOrder.indexOf(left.owner) - ownerOrder.indexOf(right.owner),
+    ),
+});
+
+const summarizeCalibration = (
+  batch: MockBatch,
+  priceTierCalibration: readonly PriceTierCalibration[],
+  positionSpendCalibration: readonly PositionSpendCalibration[],
+  ownerSpendCalibration: readonly OwnerSpendCalibration[],
+): CalibrationSummary => ({
+  runCount: batch.runs.length,
+  scenarioKeys: batch.options.scenarioKeys,
+  runsPerScenario: batch.options.runsPerScenario,
+  largestPriceTierCountDeltas: topDeltaSummaries(
+    priceTierCalibration.map(tier => ({
+      key: tier.key,
+      label: tier.label,
+      target: tier.historicalAverageCount,
+      actual: tier.mockAverageCount,
+      delta: tier.countDelta,
+    })),
+    3,
+  ),
+  largestPositionSpendDeltas: topDeltaSummaries(
+    positionSpendCalibration.map(position => ({
+      key: position.position,
+      label: position.position,
+      target: position.historicalAverageSpend,
+      actual: position.mockAverageSpend,
+      delta: position.delta,
+    })),
+    3,
+  ),
+  largestOwnerSpendDeltas: topDeltaSummaries(
+    ownerSpendCalibration.map(owner => ({
+      key: owner.owner,
+      label: owner.owner,
+      target: owner.historicalAverageAuctionSpend,
+      actual: owner.mockAverageAuctionSpend,
+      delta: owner.spendDelta,
+    })),
+    5,
+  ),
+  budgetRemaining: summarizeBudgetRemaining(batch),
+});
+
 export const buildHistoricalCalibrationAudit = ({
   historicalRecords,
   batch,
@@ -295,13 +392,17 @@ export const buildHistoricalCalibrationAudit = ({
   const records = openAuctionRecords(historicalRecords);
   const seasons = historicalSeasons(records);
   const runs = batch.runs;
+  const priceTierCalibration = summarizePriceTiers(records, runs, seasons);
+  const positionSpendCalibration = summarizePositionSpend(records, runs, seasons);
+  const ownerSpendCalibration = summarizeOwnerSpend(records, runs, seasons);
 
   return {
     runCount: runs.length,
     historicalSeasons: seasons,
-    priceTiers: summarizePriceTiers(records, runs, seasons),
-    positionSpend: summarizePositionSpend(records, runs, seasons),
-    ownerSpend: summarizeOwnerSpend(records, runs, seasons),
+    summary: summarizeCalibration(batch, priceTierCalibration, positionSpendCalibration, ownerSpendCalibration),
+    priceTiers: priceTierCalibration,
+    positionSpend: positionSpendCalibration,
+    ownerSpend: ownerSpendCalibration,
     overall: summarizeOverall(records, runs, seasons),
   };
 };

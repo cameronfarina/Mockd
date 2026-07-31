@@ -145,6 +145,45 @@ const positionSpendCalibrationCsv = (audit: HistoricalCalibrationAudit): string 
     ]),
   );
 
+const calibrationSummaryCsv = (audit: HistoricalCalibrationAudit): string =>
+  toCsv(
+    ["category", "key", "label", "target", "actual", "delta"],
+    [
+      ...audit.summary.largestPriceTierCountDeltas.map(delta => [
+        "price_tier_count",
+        delta.key,
+        delta.label,
+        delta.target,
+        delta.actual,
+        delta.delta,
+      ] satisfies readonly CsvValue[]),
+      ...audit.summary.largestPositionSpendDeltas.map(delta => [
+        "position_spend",
+        delta.key,
+        delta.label,
+        delta.target,
+        delta.actual,
+        delta.delta,
+      ] satisfies readonly CsvValue[]),
+      ...audit.summary.largestOwnerSpendDeltas.map(delta => [
+        "owner_spend",
+        delta.key,
+        delta.label,
+        delta.target,
+        delta.actual,
+        delta.delta,
+      ] satisfies readonly CsvValue[]),
+      ...audit.summary.budgetRemaining.ownersWithAverageBudgetRemaining.map(owner => [
+        "budget_remaining",
+        owner.owner,
+        owner.owner,
+        0,
+        owner.averageBudgetRemaining,
+        owner.averageBudgetRemaining,
+      ] satisfies readonly CsvValue[]),
+    ],
+  );
+
 export const buildPrepOutputArtifacts = ({
   batch,
   audit,
@@ -158,6 +197,10 @@ export const buildPrepOutputArtifacts = ({
     {
       filename: "historical-calibration-audit.json",
       content: jsonArtifact(audit),
+    },
+    {
+      filename: "calibration-summary.csv",
+      content: `${calibrationSummaryCsv(audit)}\n`,
     },
     {
       filename: "player-sale-ranges.csv",
