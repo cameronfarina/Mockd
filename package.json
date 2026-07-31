@@ -18,6 +18,7 @@
     "audit": "tsx src/cli.ts audit",
     "sanity": "tsx src/cli.ts sanity",
     "evidence:queue": "tsx src/cli.ts evidence-queue",
+    "evidence:coverage": "tsx src/cli.ts evidence-coverage",
     "mock": "tsx src/cli.ts mock",
     "mocks": "tsx src/cli.ts mocks",
     "smoke": "tsx src/cli.ts smoke",

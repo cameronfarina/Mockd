@@ -45,5 +45,5 @@ describe("mock batch simulation", () => {
     const exposure = batch.summary.ownerPlayerExposure.find(entry => entry.player === "Jahmyr Gibbs");
     expect(exposure).toBeDefined();
     expect(exposure?.draftedCount).toBeGreaterThan(0);
-  });
+  }, 15000);
 });

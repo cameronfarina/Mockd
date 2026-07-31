@@ -3,6 +3,10 @@ import { join } from "node:path";
 import type { HistoricalCalibrationAudit } from "./calibrationAudit.js";
 import type { MockBatch } from "./mockBatch.js";
 import {
+  playerEvidenceCoverageGatesCsv,
+  type EvidenceCoverageAudit,
+} from "./playerEvidenceCoverage.js";
+import {
   playerEvidenceQueueCsv,
   type PlayerEvidenceQueue,
 } from "./playerEvidenceQueue.js";
@@ -18,6 +22,7 @@ export interface BuildPrepOutputArtifactsOptions {
   audit: HistoricalCalibrationAudit;
   outputDirectory: string;
   evidenceQueue?: PlayerEvidenceQueue;
+  evidenceCoverageAudit?: EvidenceCoverageAudit;
 }
 
 type CsvValue = string | number | boolean | undefined;
@@ -338,6 +343,7 @@ export const buildPrepOutputArtifacts = ({
   audit,
   outputDirectory,
   evidenceQueue,
+  evidenceCoverageAudit,
 }: BuildPrepOutputArtifactsOptions): PrepOutputArtifact[] => {
   const files = [
     {
@@ -372,6 +378,16 @@ export const buildPrepOutputArtifacts = ({
       filename: "player-evidence-queue.csv",
       content: `${playerEvidenceQueueCsv(evidenceQueue)}\n`,
     }] : []),
+    ...(evidenceCoverageAudit ? [
+      {
+        filename: "player-evidence-coverage.json",
+        content: jsonArtifact(evidenceCoverageAudit),
+      },
+      {
+        filename: "player-evidence-coverage-gates.csv",
+        content: `${playerEvidenceCoverageGatesCsv(evidenceCoverageAudit)}\n`,
+      },
+    ] : []),
     {
       filename: "mock-draft-board.csv",
       content: `${mockDraftBoardCsv(batch)}\n`,

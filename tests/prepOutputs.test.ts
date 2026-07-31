@@ -6,6 +6,7 @@ import { keepers } from "../config/keepers.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
 import { buildHistoricalCalibrationAudit } from "../src/modeling/calibrationAudit.js";
 import { runMockBatch } from "../src/modeling/mockBatch.js";
+import type { EvidenceCoverageAudit } from "../src/modeling/playerEvidenceCoverage.js";
 import type { PlayerEvidenceQueue } from "../src/modeling/playerEvidenceQueue.js";
 import { writePrepOutputArtifacts } from "../src/modeling/prepOutputs.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
@@ -42,6 +43,70 @@ const evidenceQueue = {
     },
   ],
 } satisfies PlayerEvidenceQueue;
+const evidenceCoverageAudit = {
+  summary: {
+    status: "fail",
+    playerCount: 1,
+    coveredPlayerCount: 0,
+    completeEvidenceCount: 0,
+    missingEvidenceCount: 1,
+    partialEvidenceCount: 0,
+    highPriorityMissingCount: 1,
+    coverageRate: 0,
+    completeEvidenceRate: 0,
+  },
+  gates: {
+    summary: {
+      status: "fail",
+      gateCount: 3,
+      passCount: 0,
+      warnCount: 0,
+      failCount: 3,
+    },
+    items: [
+      {
+        key: "high-priority-missing",
+        label: "High-priority missing evidence",
+        status: "fail",
+        target: 0,
+        actual: 1,
+        delta: 1,
+        warnThreshold: 1,
+        failThreshold: 1,
+      },
+      {
+        key: "evidence-coverage-rate",
+        label: "Evidence coverage rate",
+        status: "fail",
+        target: 0.8,
+        actual: 0,
+        delta: -0.8,
+        warnThreshold: 0.8,
+        failThreshold: 0.5,
+      },
+      {
+        key: "complete-evidence-rate",
+        label: "Complete evidence rate",
+        status: "fail",
+        target: 0.6,
+        actual: 0,
+        delta: -0.6,
+        warnThreshold: 0.6,
+        failThreshold: 0.25,
+      },
+    ],
+  },
+  missingPlayers: [
+    {
+      priority: "high",
+      rank: 11,
+      player: "Drake London",
+      position: "WR",
+      scenarioPrice: 56,
+      categories: ["opportunity", "defensiveAttention"],
+    },
+  ],
+} satisfies EvidenceCoverageAudit;
 
 describe("prep output artifacts", () => {
   it("writes batch summary, calibration, and CSV draft-prep artifacts", async () => {
@@ -59,7 +124,13 @@ describe("prep output artifacts", () => {
     const outputDirectory = await mkdtemp(join(tmpdir(), "mockd-prep-"));
 
     try {
-      const artifacts = await writePrepOutputArtifacts({ batch, audit, outputDirectory, evidenceQueue });
+      const artifacts = await writePrepOutputArtifacts({
+        batch,
+        audit,
+        outputDirectory,
+        evidenceQueue,
+        evidenceCoverageAudit,
+      });
       const filenames = artifacts.map(artifact => artifact.filename).sort();
 
       expect(filenames).toEqual([
@@ -70,6 +141,8 @@ describe("prep output artifacts", () => {
         "mock-draft-board.csv",
         "owner-player-exposure.csv",
         "owner-summaries.csv",
+        "player-evidence-coverage-gates.csv",
+        "player-evidence-coverage.json",
         "player-evidence-queue.csv",
         "player-sale-ranges.csv",
         "price-tier-calibration.csv",
@@ -85,6 +158,18 @@ describe("prep output artifacts", () => {
       const evidenceQueueCsv = await readFile(join(outputDirectory, "player-evidence-queue.csv"), "utf8");
       expect(evidenceQueueCsv.split("\n")[0]).toBe("priority,rank,player,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,current_evidence_count,evidence_status,flags,categories,research_prompts");
       expect(evidenceQueueCsv).toContain("high,11,Drake London,WR,56,62.67,6.67,0,missing");
+
+      const evidenceCoverageJson = JSON.parse(
+        await readFile(join(outputDirectory, "player-evidence-coverage.json"), "utf8"),
+      ) as EvidenceCoverageAudit;
+      expect(evidenceCoverageJson.summary.status).toBe("fail");
+
+      const evidenceCoverageGatesCsv = await readFile(
+        join(outputDirectory, "player-evidence-coverage-gates.csv"),
+        "utf8",
+      );
+      expect(evidenceCoverageGatesCsv.split("\n")[0]).toBe("key,label,status,target,actual,delta,warn_threshold,fail_threshold");
+      expect(evidenceCoverageGatesCsv).toContain("high-priority-missing,High-priority missing evidence,fail");
 
       const draftBoardCsv = await readFile(join(outputDirectory, "mock-draft-board.csv"), "utf8");
       const draftBoardLines = draftBoardCsv.trim().split("\n");

@@ -18,6 +18,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - deterministic owner-local auction simulation with scarcity pressure
 - repeatable smoke checks for roster validity, batch validity, and the first two nomination rounds
 - prioritized factual evidence queues for top-player pricing review
+- evidence coverage gates that fail loudly when high-priority players have no supporting facts
 - calibration gates that mark mock batches as pass, warn, or fail against explicit economic thresholds
 - replacement-depth pricing and budget pacing so owners do not strand themselves into unrealistic $1-only endgames
 - high-price volume gates for `$70+`, `$75+`, and `$80+` player counts against historical single-draft ceilings
@@ -48,6 +49,7 @@ npm run prices -- --player-evidence=data/raw/player-evidence.example.csv
 npm run audit -- --player="Drake London"
 npm run sanity -- --scenario=expected --limit=40 --runs=10
 npm run evidence:queue -- --scenario=expected --limit=40 --runs=10
+npm run evidence:coverage -- --scenario=expected --limit=40 --runs=10
 npm run scenarios
 npm run scenarios:custom
 npm run mock
@@ -140,6 +142,7 @@ npm run audit -- --player="Drake London" --scenario=expected --player-evidence=d
 npm run sanity -- --scenario=expected --limit=40 --runs=10
 npm run evidence:queue -- --scenario=expected --limit=40 --runs=10
 npm run evidence:queue -- --scenario=expected --limit=40 --runs=10 --format=csv
+npm run evidence:coverage -- --scenario=expected --limit=40 --runs=10
 ```
 
 The audit report includes the ESPN anchor, projection rank, ESPN rank, rank gap, league multipliers, context signals and evidence, pre-keeper base price, keeper-inflated scenario price, and the player's observed mock-sale range across the requested runs. If the scenario removes the player as a keeper, the report explains why instead of pretending they are still in the auction pool.
@@ -147,6 +150,8 @@ The audit report includes the ESPN anchor, projection rank, ESPN rank, rank gap,
 The sanity report scans the top auction-available players for review prompts: high mock-sale premiums, large projection lifts versus ESPN rank, expensive players with no factual evidence rows, context penalties, hard-ceiling pressure, and high-price volume against the 2023-2025 historical max counts. Treat those flags as the next evidence queue, not automatic price changes.
 
 `evidence:queue` converts those sanity flags into prioritized factual research rows. Each row lists the player, price context, existing evidence count, flags, evidence status, and the exact categories to research: opportunity, defensive attention, skill fit, environment, and risk. Use `--format=csv` when you want a fillable research queue.
+
+`evidence:coverage` turns that queue into pass/warn/fail gates for high-priority missing evidence, overall evidence coverage, and complete evidence coverage. A failing coverage audit means the pricing model is still allowed to run, but the affected top-player values should be treated as unaudited until sourced evidence rows are added.
 
 ## Auction Simulation
 
@@ -198,6 +203,8 @@ calibration-summary.csv
 calibration-gates.csv
 player-sale-ranges.csv
 player-evidence-queue.csv
+player-evidence-coverage.json
+player-evidence-coverage-gates.csv
 owner-summaries.csv
 owner-player-exposure.csv
 mock-draft-board.csv
@@ -222,6 +229,7 @@ npm run --silent smoke -- --scenario=expected --runs=2 > data/processed/mock-smo
 npm run --silent calibration -- --scenarios=expected --runs=50 > data/processed/historical-calibration-audit.json
 npm run --silent outputs -- --scenarios=expected --runs=50 --out=data/processed/mock-prep
 npm run --silent evidence:queue -- --scenario=expected --limit=40 --format=csv > data/processed/player-evidence-queue.csv
+npm run --silent evidence:coverage -- --scenario=expected --limit=40 > data/processed/player-evidence-coverage.json
 ```
 
 The context layer is deterministic and source-driven. Add only player facts you want the model to believe; unsupported contract, coaching, schedule, opportunity, defensive-attention, skill-fit, environment, or risk assumptions should stay empty until you enter or import them from a trusted source.
