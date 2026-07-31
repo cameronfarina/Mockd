@@ -18,6 +18,7 @@ import {
   defaultHistoricalWeights,
 } from "./modeling/ownerProfiles.js";
 import { runMock, runMockBatch } from "./modeling/mockBatch.js";
+import { buildMockSmokeReport } from "./modeling/mockSmoke.js";
 import { writePrepOutputArtifacts } from "./modeling/prepOutputs.js";
 import { buildProjectionRankings } from "./modeling/projectionRankings.js";
 import { loadEspnWeeksOneToFour } from "./projections.js";
@@ -244,6 +245,27 @@ const main = async (): Promise<void> => {
     return;
   }
 
+  if (command === "smoke") {
+    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const scenarioKey = scenarioOptionValue();
+    const seed = optionValue("--seed") ?? "smoke";
+    const batch = runMockBatch({
+      projections: players,
+      historicalRecords,
+      keepers,
+      scenarioKeys: [scenarioKey],
+      runsPerScenario: numericOptionValue("--runs", 2),
+      seedPrefix: seed,
+      pricingConfig,
+    });
+    const run = batch.runs[0];
+    if (!run) throw new Error("Smoke command did not produce a mock run.");
+
+    console.log(JSON.stringify(buildMockSmokeReport({ run, batch, rounds: 2 }), null, 2));
+    return;
+  }
+
   if (command === "calibration") {
     const players = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
@@ -294,7 +316,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights] | npm run scenarios [-- --custom-weights] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd] | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep]");
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights] | npm run scenarios [-- --custom-weights] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd] | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep]");
 };
 
 main().catch(error => {
