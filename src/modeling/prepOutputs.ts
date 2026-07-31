@@ -2,6 +2,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { HistoricalCalibrationAudit } from "./calibrationAudit.js";
 import type { MockBatch } from "./mockBatch.js";
+import {
+  playerEvidenceQueueCsv,
+  type PlayerEvidenceQueue,
+} from "./playerEvidenceQueue.js";
 
 export interface PrepOutputArtifact {
   filename: string;
@@ -13,6 +17,7 @@ export interface BuildPrepOutputArtifactsOptions {
   batch: MockBatch;
   audit: HistoricalCalibrationAudit;
   outputDirectory: string;
+  evidenceQueue?: PlayerEvidenceQueue;
 }
 
 type CsvValue = string | number | boolean | undefined;
@@ -332,6 +337,7 @@ export const buildPrepOutputArtifacts = ({
   batch,
   audit,
   outputDirectory,
+  evidenceQueue,
 }: BuildPrepOutputArtifactsOptions): PrepOutputArtifact[] => {
   const files = [
     {
@@ -362,6 +368,10 @@ export const buildPrepOutputArtifacts = ({
       filename: "owner-player-exposure.csv",
       content: `${ownerPlayerExposureCsv(batch)}\n`,
     },
+    ...(evidenceQueue ? [{
+      filename: "player-evidence-queue.csv",
+      content: `${playerEvidenceQueueCsv(evidenceQueue)}\n`,
+    }] : []),
     {
       filename: "mock-draft-board.csv",
       content: `${mockDraftBoardCsv(batch)}\n`,

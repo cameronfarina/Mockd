@@ -31,6 +31,7 @@ export interface BuildTopPlayerSanityReportOptions {
   runs?: number;
   seedPrefix?: string;
   pricingConfig?: PricingConfig;
+  mockBatch?: MockBatch;
 }
 
 export interface SanityFlag {
@@ -125,10 +126,10 @@ const max = (values: readonly number[]): number =>
   values.length === 0 ? 0 : Math.max(...values);
 
 const saleSummaryFor = (
-  batch: MockBatch,
+  runs: readonly MockRun[],
   player: ScenarioAdjustedPrice,
 ): MockSaleSummary => {
-  const picks = batch.runs.flatMap(run =>
+  const picks = runs.flatMap(run =>
     run.picks.filter(pick => normalizePlayerName(pick.player) === player.normalizedName),
   );
   const salePrices = picks.map(pick => pick.price);
@@ -136,7 +137,7 @@ const saleSummaryFor = (
 
   return {
     draftedCount: picks.length,
-    draftedRate: roundToTwo(picks.length / Math.max(1, batch.runs.length)),
+    draftedRate: roundToTwo(picks.length / Math.max(1, runs.length)),
     averageSalePrice,
     saleVsScenarioPrice: roundToTwo(averageSalePrice - player.scenarioPrice),
     minSalePrice: salePrices.length > 0 ? Math.min(...salePrices) : 0,
@@ -258,13 +259,14 @@ export const buildTopPlayerSanityReport = ({
   runs = defaultRuns,
   seedPrefix = defaultSeedPrefix,
   pricingConfig = defaultPricingConfig,
+  mockBatch,
 }: BuildTopPlayerSanityReportOptions): TopPlayerSanityReport => {
   const prices = buildBasePrices(projections, historicalRecords, pricingConfig);
   const scenario = buildKeeperScenarios(keepers).find(candidate => candidate.key === scenarioKey);
   if (!scenario) throw new Error(`Unknown keeper scenario "${scenarioKey}".`);
 
   const appliedScenario = applyKeeperScenarioToPrices(prices, scenario, keepers);
-  const batch = runMockBatch({
+  const batch = mockBatch ?? runMockBatch({
     projections,
     historicalRecords,
     keepers,
@@ -273,8 +275,11 @@ export const buildTopPlayerSanityReport = ({
     seedPrefix,
     pricingConfig,
   });
+  const scenarioRuns = batch.runs.filter(run => run.keeperScenario.key === scenarioKey);
+  if (scenarioRuns.length === 0) throw new Error(`No mock runs found for scenario "${scenarioKey}".`);
+
   const players = appliedScenario.availablePrices.slice(0, limit).map((player, index) => {
-    const saleSummary = saleSummaryFor(batch, player);
+    const saleSummary = saleSummaryFor(scenarioRuns, player);
 
     return {
       rank: index + 1,
@@ -303,7 +308,7 @@ export const buildTopPlayerSanityReport = ({
     config: {
       scenarioKey,
       limit,
-      runs,
+      runs: scenarioRuns.length,
       seedPrefix,
     },
     scenario: {
@@ -315,7 +320,7 @@ export const buildTopPlayerSanityReport = ({
       reviewedCount: players.length,
       flaggedPlayerCount: flaggedPlayers.length,
       flagCounts: flagCountsFor(players),
-      highPriceVolume: highPriceVolumeFor(historicalRecords, appliedScenario.availablePrices, batch.runs),
+      highPriceVolume: highPriceVolumeFor(historicalRecords, appliedScenario.availablePrices, scenarioRuns),
     },
     players,
     flaggedPlayers,

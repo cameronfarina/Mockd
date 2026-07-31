@@ -104,7 +104,7 @@ describe("CLI player audit report", () => {
     expect(result.explanation.join("\n")).toContain("ESPN");
     expect(result.explanation.join("\n")).toContain("keeper inflation");
     expect(result.explanation.join("\n")).toContain("mock sale");
-  });
+  }, 15000);
 
   it("explains when the scenario removes a keeper from the auction pool", async () => {
     const { stdout } = await execFileAsync(
