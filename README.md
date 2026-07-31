@@ -49,6 +49,7 @@ npm run prices -- --player-evidence=data/raw/player-evidence.example.csv
 npm run audit -- --player="Drake London"
 npm run sanity -- --scenario=expected --limit=40 --runs=10
 npm run evidence:queue -- --scenario=expected --limit=40 --runs=10
+npm run evidence:template -- --scenario=expected --limit=40 --runs=10
 npm run evidence:coverage -- --scenario=expected --limit=40 --runs=10
 npm run scenarios
 npm run scenarios:custom
@@ -142,6 +143,7 @@ npm run audit -- --player="Drake London" --scenario=expected --player-evidence=d
 npm run sanity -- --scenario=expected --limit=40 --runs=10
 npm run evidence:queue -- --scenario=expected --limit=40 --runs=10
 npm run evidence:queue -- --scenario=expected --limit=40 --runs=10 --format=csv
+npm run evidence:template -- --scenario=expected --limit=40 --runs=10
 npm run evidence:coverage -- --scenario=expected --limit=40 --runs=10
 ```
 
@@ -150,6 +152,8 @@ The audit report includes the ESPN anchor, projection rank, ESPN rank, rank gap,
 The sanity report scans the top auction-available players for review prompts: high mock-sale premiums, large projection lifts versus ESPN rank, expensive players with no factual evidence rows, context penalties, hard-ceiling pressure, and high-price volume against the 2023-2025 historical max counts. Treat those flags as the next evidence queue, not automatic price changes.
 
 `evidence:queue` converts those sanity flags into prioritized factual research rows. Each row lists the player, price context, existing evidence count, flags, evidence status, and the exact categories to research: opportunity, defensive attention, skill fit, environment, and risk. Use `--format=csv` when you want a fillable research queue.
+
+`evidence:template` writes a fillable `player,category,score,confidence,source,note` evidence CSV with extra context columns from the queue. Leave rows blank until researched; once `score`, `source`, and `note` are filled, the same file can be passed back through `--player-evidence`.
 
 `evidence:coverage` turns that queue into pass/warn/fail gates for high-priority missing evidence, overall evidence coverage, and complete evidence coverage. A failing coverage audit means the pricing model is still allowed to run, but the affected top-player values should be treated as unaudited until sourced evidence rows are added.
 
@@ -203,6 +207,7 @@ calibration-summary.csv
 calibration-gates.csv
 player-sale-ranges.csv
 player-evidence-queue.csv
+player-evidence-template.csv
 player-evidence-coverage.json
 player-evidence-coverage-gates.csv
 owner-summaries.csv
@@ -229,6 +234,7 @@ npm run --silent smoke -- --scenario=expected --runs=2 > data/processed/mock-smo
 npm run --silent calibration -- --scenarios=expected --runs=50 > data/processed/historical-calibration-audit.json
 npm run --silent outputs -- --scenarios=expected --runs=50 --out=data/processed/mock-prep
 npm run --silent evidence:queue -- --scenario=expected --limit=40 --format=csv > data/processed/player-evidence-queue.csv
+npm run --silent evidence:template -- --scenario=expected --limit=40 > data/processed/player-evidence-template.csv
 npm run --silent evidence:coverage -- --scenario=expected --limit=40 > data/processed/player-evidence-coverage.json
 ```
 

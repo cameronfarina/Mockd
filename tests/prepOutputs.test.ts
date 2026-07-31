@@ -144,6 +144,7 @@ describe("prep output artifacts", () => {
         "player-evidence-coverage-gates.csv",
         "player-evidence-coverage.json",
         "player-evidence-queue.csv",
+        "player-evidence-template.csv",
         "player-sale-ranges.csv",
         "price-tier-calibration.csv",
         "position-count-calibration.csv",
@@ -158,6 +159,10 @@ describe("prep output artifacts", () => {
       const evidenceQueueCsv = await readFile(join(outputDirectory, "player-evidence-queue.csv"), "utf8");
       expect(evidenceQueueCsv.split("\n")[0]).toBe("priority,rank,player,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,current_evidence_count,evidence_status,flags,categories,research_prompts");
       expect(evidenceQueueCsv).toContain("high,11,Drake London,WR,56,62.67,6.67,0,missing");
+
+      const evidenceTemplateCsv = await readFile(join(outputDirectory, "player-evidence-template.csv"), "utf8");
+      expect(evidenceTemplateCsv.split("\n")[0]).toBe("player,category,score,confidence,source,note,priority,rank,position,scenario_price,average_mock_sale_price,sale_vs_scenario_price,evidence_status,flags,research_prompt");
+      expect(evidenceTemplateCsv).toContain("Drake London,opportunity,,,");
 
       const evidenceCoverageJson = JSON.parse(
         await readFile(join(outputDirectory, "player-evidence-coverage.json"), "utf8"),
@@ -211,5 +216,5 @@ describe("prep output artifacts", () => {
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 });

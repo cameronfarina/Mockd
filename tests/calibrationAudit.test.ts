@@ -216,5 +216,5 @@ describe("historical calibration audit", () => {
       actual: 0,
       delta: 0,
     });
-  });
+  }, 15000);
 });

@@ -10,6 +10,7 @@ import {
   playerEvidenceQueueCsv,
   type PlayerEvidenceQueue,
 } from "./playerEvidenceQueue.js";
+import { playerEvidenceTemplateCsv } from "./playerEvidenceTemplate.js";
 
 export interface PrepOutputArtifact {
   filename: string;
@@ -377,6 +378,9 @@ export const buildPrepOutputArtifacts = ({
     ...(evidenceQueue ? [{
       filename: "player-evidence-queue.csv",
       content: `${playerEvidenceQueueCsv(evidenceQueue)}\n`,
+    }, {
+      filename: "player-evidence-template.csv",
+      content: `${playerEvidenceTemplateCsv(evidenceQueue)}\n`,
     }] : []),
     ...(evidenceCoverageAudit ? [
       {
