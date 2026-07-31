@@ -72,11 +72,15 @@ describe("prep output artifacts", () => {
       expect(positionCountCsv.split("\n")[0]).toBe("position,historical_average_count,mock_average_count,delta");
       expect(positionCountCsv).toContain("QB,22.33,");
 
+      const positionSpendCsv = await readFile(join(outputDirectory, "position-spend-calibration.csv"), "utf8");
+      expect(positionSpendCsv.split("\n")[0]).toBe("position,historical_average_spend,scenario_average_spend_target,mock_average_spend,historical_delta,scenario_delta");
+
       const calibrationJson = JSON.parse(
         await readFile(join(outputDirectory, "historical-calibration-audit.json"), "utf8"),
-      ) as { runCount: number; gates: { summary: { status: string } } };
+      ) as { runCount: number; gates: { summary: { status: string; credible: boolean } } };
       expect(calibrationJson.runCount).toBe(2);
-      expect(["warn", "fail"]).toContain(calibrationJson.gates.summary.status);
+      expect(["pass", "warn", "fail"]).toContain(calibrationJson.gates.summary.status);
+      expect(calibrationJson.gates.summary.credible).toBe(true);
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
     }

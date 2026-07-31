@@ -25,8 +25,10 @@ export interface PriceTierCalibration {
 export interface PositionSpendCalibration {
   position: Position;
   historicalAverageSpend: number;
+  scenarioAverageSpendTarget: number;
   mockAverageSpend: number;
   delta: number;
+  scenarioSpendDelta: number;
 }
 
 export interface PositionCountCalibration {
@@ -364,18 +366,28 @@ const summarizePositionSpend = (
   records: readonly HistoricalAuctionRecord[],
   runs: readonly MockRun[],
   seasons: readonly number[],
-): PositionSpendCalibration[] =>
-  positions.map(position => {
+): PositionSpendCalibration[] => {
+  const historicalAverageAuctionSpend = totalHistoricalAuctionSpend(records, seasons);
+  const scenarioAverageOpenAuctionDollars = scenarioOpenAuctionDollars(runs);
+  const scenarioSpendScale = historicalAverageAuctionSpend === 0
+    ? 1
+    : scenarioAverageOpenAuctionDollars / historicalAverageAuctionSpend;
+
+  return positions.map(position => {
     const historicalAverageSpend = roundToTwo(historicalPositionSpend(records, seasons, position));
+    const scenarioAverageSpendTarget = roundToTwo(historicalAverageSpend * scenarioSpendScale);
     const mockAverageSpend = roundToTwo(mockPositionSpend(runs, position));
 
     return {
       position,
       historicalAverageSpend,
+      scenarioAverageSpendTarget,
       mockAverageSpend,
       delta: roundToTwo(mockAverageSpend - historicalAverageSpend),
+      scenarioSpendDelta: roundToTwo(mockAverageSpend - scenarioAverageSpendTarget),
     };
   });
+};
 
 const topTwoSpend = (prices: readonly number[]): number =>
   [...prices]
@@ -575,9 +587,9 @@ const summarizeCalibration = (
     positionSpendCalibration.map(position => ({
       key: position.position,
       label: position.position,
-      target: position.historicalAverageSpend,
+      target: position.scenarioAverageSpendTarget,
       actual: position.mockAverageSpend,
-      delta: position.delta,
+      delta: position.scenarioSpendDelta,
     })),
     3,
   ),
@@ -743,7 +755,7 @@ const summarizeGates = (
         key: `position-spend:${position.position}`,
         category: "position_spend",
         label: `${position.position} spend`,
-        target: position.historicalAverageSpend,
+        target: position.scenarioAverageSpendTarget,
         actual: position.mockAverageSpend,
         warnThreshold: thresholds.warn,
         failThreshold: thresholds.fail,

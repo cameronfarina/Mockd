@@ -80,6 +80,24 @@ describe("historical calibration audit", () => {
     const rbSpend = audit.positionSpend.find(position => position.position === "RB");
     expect(rbSpend).toBeDefined();
     expect(Number.isFinite(rbSpend?.delta ?? Number.NaN)).toBe(true);
+    const rbScenarioSpendTarget = roundToTwo(
+      (rbSpend?.historicalAverageSpend ?? 0) *
+      audit.overall.scenarioAverageOpenAuctionDollars /
+      audit.overall.historicalAverageAuctionSpend,
+    );
+    expect(rbSpend).toMatchObject({
+      scenarioAverageSpendTarget: rbScenarioSpendTarget,
+      scenarioSpendDelta: roundToTwo((rbSpend?.mockAverageSpend ?? 0) - rbScenarioSpendTarget),
+    });
+
+    const rbSpendGate = audit.gates.items.find(gate => gate.key === "position-spend:RB");
+    expect(rbSpendGate).toMatchObject({
+      category: "position_spend",
+      label: "RB spend",
+      target: rbSpend?.scenarioAverageSpendTarget,
+      actual: rbSpend?.mockAverageSpend,
+      delta: rbSpend?.scenarioSpendDelta,
+    });
 
     const qbCount = audit.positionCounts.find(position => position.position === "QB");
     expect(qbCount).toMatchObject({
@@ -127,6 +145,14 @@ describe("historical calibration audit", () => {
     expect(audit.summary.largestPositionCountDeltas).toHaveLength(3);
     expect(audit.summary.largestPositionSpendDeltas).toHaveLength(3);
     expect(audit.summary.largestOwnerSpendDeltas).toHaveLength(5);
+    for (const positionDelta of audit.summary.largestPositionSpendDeltas) {
+      const positionSpend = audit.positionSpend.find(position => position.position === positionDelta.key);
+      expect(positionDelta).toMatchObject({
+        target: positionSpend?.scenarioAverageSpendTarget,
+        actual: positionSpend?.mockAverageSpend,
+        delta: positionSpend?.scenarioSpendDelta,
+      });
+    }
     for (const ownerDelta of audit.summary.largestOwnerSpendDeltas) {
       const ownerSpend = audit.ownerSpend.find(owner => owner.owner === ownerDelta.key);
       expect(ownerDelta).toMatchObject({

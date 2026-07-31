@@ -219,12 +219,21 @@ const positionCountCalibrationCsv = (audit: HistoricalCalibrationAudit): string 
 
 const positionSpendCalibrationCsv = (audit: HistoricalCalibrationAudit): string =>
   toCsv(
-    ["position", "historical_average_spend", "mock_average_spend", "delta"],
+    [
+      "position",
+      "historical_average_spend",
+      "scenario_average_spend_target",
+      "mock_average_spend",
+      "historical_delta",
+      "scenario_delta",
+    ],
     audit.positionSpend.map(position => [
       position.position,
       position.historicalAverageSpend,
+      position.scenarioAverageSpendTarget,
       position.mockAverageSpend,
       position.delta,
+      position.scenarioSpendDelta,
     ]),
   );
 
