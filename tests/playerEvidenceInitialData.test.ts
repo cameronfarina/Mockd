@@ -27,6 +27,15 @@ const requiredTopAuctionPlayers = [
   ...highPriorityPlayers,
   "Ashton Jeanty",
   "Omarion Hampton",
+  "Brock Bowers",
+  "Trey McBride",
+  "Josh Allen",
+  "Kyren Williams",
+  "Cam Skattebo",
+  "Travis Etienne Jr.",
+  "Quinshon Judkins",
+  "Davante Adams",
+  "Ladd McConkey",
 ] as const;
 
 describe("initial 2026 player evidence data", () => {
