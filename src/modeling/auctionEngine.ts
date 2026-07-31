@@ -274,6 +274,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   ownerRosterMaximums: {},
   positionOverbidDamping: {
     QB: 0.75,
+    WR: 0.08,
     TE: 0.65,
   },
   scarcity: {

@@ -141,6 +141,8 @@ QB spend has its own controls because this league historically drafts only about
 
 TE spend uses the same shape with lighter defaults: elite TE overbids are dampened, and backup-TE bids are discounted once an owner already has a starter. This keeps the model from drafting too many second tight ends at meaningful prices.
 
+WR spend uses a very light position overbid damper so owner preferences can still chase receivers, while the above-anchor portion of those bids stays closer to the historical league spend mix.
+
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.
 
 `smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, and warnings such as owners leaving too much budget unused.

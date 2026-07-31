@@ -53,8 +53,9 @@ describe("historical calibration audit", () => {
     expect(audit.summary.runCount).toBe(2);
     expect(audit.summary.scenarioKeys).toEqual(["expected"]);
     expect(audit.summary.runsPerScenario).toBe(2);
-    expect(["warn", "fail"]).toContain(audit.gates.summary.status);
-    expect(audit.gates.summary.warnCount + audit.gates.summary.failCount).toBeGreaterThan(0);
+    expect(["pass", "warn", "fail"]).toContain(audit.gates.summary.status);
+    expect(audit.gates.summary.passCount + audit.gates.summary.warnCount + audit.gates.summary.failCount)
+      .toBe(audit.gates.summary.gateCount);
     expect(audit.gates.summary.credible).toBe(audit.gates.summary.failCount === 0);
     expect(audit.historicalSeasons).toEqual([2023, 2024, 2025]);
     expect(audit.priceTiers.map(tier => tier.key)).toEqual(["elite", "strong", "starter", "depth", "dollar"]);
