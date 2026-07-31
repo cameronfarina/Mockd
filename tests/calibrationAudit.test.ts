@@ -36,6 +36,18 @@ describe("historical calibration audit", () => {
     expect(audit.ownerSpend).toHaveLength(ownerOrder.length);
     expect(audit.overall.mockAverageAuctionSpend).toBeGreaterThan(0);
     expect(audit.overall.historicalAverageAuctionSpend).toBeGreaterThan(0);
+    expect(audit.overall.scenarioAverageOpenAuctionDollars).toBeGreaterThan(
+      audit.overall.historicalAverageAuctionSpend,
+    );
+
+    const auctionSpendGate = audit.gates.items.find(gate => gate.key === "auction-spend");
+    expect(auctionSpendGate).toMatchObject({
+      category: "auction_spend",
+      status: "pass",
+      target: audit.overall.scenarioAverageOpenAuctionDollars,
+      actual: audit.overall.mockAverageAuctionSpend,
+      delta: audit.overall.scenarioAuctionSpendDelta,
+    });
 
     const rbSpend = audit.positionSpend.find(position => position.position === "RB");
     expect(rbSpend).toBeDefined();

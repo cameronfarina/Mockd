@@ -41,8 +41,10 @@ export interface OwnerSpendCalibration {
 
 export interface OverallCalibration {
   historicalAverageAuctionSpend: number;
+  scenarioAverageOpenAuctionDollars: number;
   mockAverageAuctionSpend: number;
   auctionSpendDelta: number;
+  scenarioAuctionSpendDelta: number;
   historicalAverageDollarPlayers: number;
   mockAverageDollarPlayers: number;
   dollarPlayerDelta: number;
@@ -400,6 +402,9 @@ const totalHistoricalAuctionSpend = (
 const totalMockAuctionSpend = (runs: readonly MockRun[]): number =>
   average(runs.map(run => run.picks.reduce((total, pick) => total + pick.price, 0)));
 
+const scenarioOpenAuctionDollars = (runs: readonly MockRun[]): number =>
+  average(runs.map(run => run.keeperScenario.openAuctionDollars));
+
 const dollarPlayersPerHistoricalSeason = (
   records: readonly HistoricalAuctionRecord[],
   seasons: readonly number[],
@@ -417,14 +422,17 @@ const summarizeOverall = (
   seasons: readonly number[],
 ): OverallCalibration => {
   const historicalAverageAuctionSpend = roundToTwo(totalHistoricalAuctionSpend(records, seasons));
+  const scenarioAverageOpenAuctionDollars = roundToTwo(scenarioOpenAuctionDollars(runs));
   const mockAverageAuctionSpend = roundToTwo(totalMockAuctionSpend(runs));
   const historicalAverageDollarPlayers = roundToTwo(dollarPlayersPerHistoricalSeason(records, seasons));
   const mockAverageDollarPlayers = roundToTwo(dollarPlayersPerMockRun(runs));
 
   return {
     historicalAverageAuctionSpend,
+    scenarioAverageOpenAuctionDollars,
     mockAverageAuctionSpend,
     auctionSpendDelta: roundToTwo(mockAverageAuctionSpend - historicalAverageAuctionSpend),
+    scenarioAuctionSpendDelta: roundToTwo(mockAverageAuctionSpend - scenarioAverageOpenAuctionDollars),
     historicalAverageDollarPlayers,
     mockAverageDollarPlayers,
     dollarPlayerDelta: roundToTwo(mockAverageDollarPlayers - historicalAverageDollarPlayers),
@@ -596,8 +604,8 @@ const summarizeGates = (
     calibrationGate({
       key: "auction-spend",
       category: "auction_spend",
-      label: "Total auction spend",
-      target: overall.historicalAverageAuctionSpend,
+      label: "Scenario open auction spend",
+      target: overall.scenarioAverageOpenAuctionDollars,
       actual: overall.mockAverageAuctionSpend,
       warnThreshold: 50,
       failThreshold: 100,
