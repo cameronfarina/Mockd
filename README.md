@@ -44,6 +44,7 @@ npm run prices
 npm run prices:custom
 npm run prices -- --player-context=data/raw/player-context.example.csv
 npm run prices -- --player-evidence=data/raw/player-evidence.example.csv
+npm run audit -- --player="Drake London"
 npm run scenarios
 npm run scenarios:custom
 npm run mock
@@ -127,6 +128,15 @@ player,category,score,confidence,source,note
 `scenarios` removes known keepers from the priced auction pool and applies confirmed-only, expected, and high-retention inflation factors. Scenario counts and average keeper costs are config-driven so unannounced keepers are not assigned to owners.
 
 `scenarios:custom` applies the same keeper scenario logic after custom player-context weights are turned on.
+
+Use `audit` when a player number looks weird and you want the bridge in one place:
+
+```bash
+npm run audit -- --player="Drake London" --scenario=expected --runs=10
+npm run audit -- --player="Drake London" --scenario=expected --player-evidence=data/raw/player-evidence.example.csv
+```
+
+The audit report includes the ESPN anchor, projection rank, ESPN rank, rank gap, league multipliers, context signals and evidence, pre-keeper base price, keeper-inflated scenario price, and the player's observed mock-sale range across the requested runs. If the scenario removes the player as a keeper, the report explains why instead of pretending they are still in the auction pool.
 
 ## Auction Simulation
 

@@ -28,6 +28,7 @@ import {
 } from "./modeling/ownerProfiles.js";
 import { runMock, runMockBatch } from "./modeling/mockBatch.js";
 import { buildMockSmokeReport } from "./modeling/mockSmoke.js";
+import { buildPlayerPriceAudit } from "./modeling/playerPriceAudit.js";
 import { writePrepOutputArtifacts } from "./modeling/prepOutputs.js";
 import { buildProjectionRankings } from "./modeling/projectionRankings.js";
 import { loadEspnWeeksOneToFour } from "./projections.js";
@@ -86,6 +87,12 @@ const numericOptionValue = (name: string, fallback: number): number => {
   }
 
   return parsed;
+};
+
+const requiredOptionValue = (name: string): string => {
+  const value = optionValue(name);
+  if (!value) throw new Error(`${name} is required.`);
+  return value;
 };
 
 const scenarioOptionValue = (name = "--scenario"): (typeof scenarioKeys)[number] => {
@@ -197,6 +204,24 @@ const main = async (): Promise<void> => {
     console.log(`Loaded ${players.length} projection records.`);
     console.log(`Loaded ${historicalRecords.length} historical roster records.`);
     console.log(`Visible draft records by season: ${JSON.stringify(countBySeason(visibleDraftRecords))}.`);
+    return;
+  }
+
+  if (command === "audit") {
+    const pricingConfig = await pricingConfigFromOptions();
+    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+
+    console.log(JSON.stringify(buildPlayerPriceAudit({
+      playerName: requiredOptionValue("--player"),
+      projections: players,
+      historicalRecords,
+      keepers,
+      scenarioKey: scenarioOptionValue(),
+      runs: numericOptionValue("--runs", 10),
+      seedPrefix: optionValue("--seed-prefix") ?? "player-audit",
+      pricingConfig,
+    }), null, 2));
     return;
   }
 
@@ -353,7 +378,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --player-context=path.csv --player-evidence=path.csv]");
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --player-context=path.csv --player-evidence=path.csv]");
 };
 
 main().catch(error => {
