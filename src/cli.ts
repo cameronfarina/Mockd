@@ -202,6 +202,7 @@ const main = async (): Promise<void> => {
       },
       pickCount: result.pickCount,
       firstPicks: result.picks.slice(0, 30),
+      draftBoard: result.picks,
       rosters: result.rosters.map(roster => ({
         owner: roster.owner,
         spend: roster.spend,

@@ -131,12 +131,16 @@ The auction engine does not globally discount the pool after a few expensive buy
 ```text
 mock-batch-summary.json
 historical-calibration-audit.json
+calibration-summary.csv
 player-sale-ranges.csv
 owner-summaries.csv
 owner-player-exposure.csv
+mock-draft-board.csv
 price-tier-calibration.csv
 position-spend-calibration.csv
 ```
+
+`mock-draft-board.csv` is the full pick-by-pick board across every run, including seed, scenario, nominator, winning owner, player, position, anchor price, sale price, post-pick budget, and the top three bids.
 
 When redirecting command output into JSON artifacts, use npm's silent mode:
 
