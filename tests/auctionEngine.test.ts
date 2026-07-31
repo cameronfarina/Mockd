@@ -687,6 +687,48 @@ describe("auction engine economics", () => {
     expect(deepRosterTopBid?.uncappedAmount).toBeGreaterThan(thinDepthTopBid?.uncappedAmount ?? 0);
   });
 
+  it("downweights legal backup bidders in scarcity pressure", () => {
+    const owners: Owner[] = ["Beaton", "Hoody", "PJ", "Seth"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums: {
+        ...positionAmounts(0),
+        QB: 1,
+      },
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      scarcity: {
+        comparablePriceRatio: 0.8,
+        minimumComparablePrice: 5,
+        bidderDepthWeight: 0,
+        slope: 0.2,
+        maxMultiplier: 1.5,
+      },
+      rosterNeed: {
+        benchQuarterbackMultiplier: 0.5,
+      },
+      seed: "backup-qb-scarcity-depth",
+    });
+    const ownerStates = createAuctionOwnerStates({
+      config,
+      initialRostersByOwner: {
+        Beaton: [player("Beaton starter QB", "QB", 20)],
+        Hoody: [player("Hoody starter QB", "QB", 20)],
+        PJ: [player("PJ starter QB", "QB", 20)],
+        Seth: [player("Seth starter QB", "QB", 20)],
+      },
+    });
+    const sale = resolveAuctionSale(player("Backup QB", "QB", 18), ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected backup QB sale to resolve.");
+
+    expect(sale.bids[0]?.scarcityMultiplier).toBeLessThan(1.3);
+  });
+
   it("discounts bids that would strand too little budget for remaining roster slots", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({

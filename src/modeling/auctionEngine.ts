@@ -650,12 +650,14 @@ const tierDemandSlotsFor = (
 
 const weightedBidderDemandFor = (
   state: AuctionOwnerState,
-  position: Position,
+  player: Player,
   comparablePrice: number,
   config: AuctionEngineConfig,
 ): number => {
-  const demandSlots = tierDemandSlotsFor(state, position, comparablePrice, config);
-  return 1 + Math.max(0, demandSlots - 1) * Math.max(0, config.scarcity.bidderDepthWeight);
+  const demandSlots = tierDemandSlotsFor(state, player.position, comparablePrice, config);
+  const depthDemand = 1 + Math.max(0, demandSlots - 1) * Math.max(0, config.scarcity.bidderDepthWeight);
+  const needWeight = clamp(rosterNeedMultiplierFor(state, player.position, config), 0, 1.25);
+  return depthDemand * needWeight;
 };
 
 const defaultOwnerAuctionBehavior: CompleteOwnerAuctionBehavior = {
@@ -725,7 +727,7 @@ const scarcityMultiplierFor = (
     .filter(state => ownerCanBidOnPlayer(state, player, ownerStates, remainingPlayers, config))
     .filter(state => state.maxBid >= comparablePrice)
   const weightedBidderDemand = activeBidders.reduce(
-    (total, state) => total + weightedBidderDemandFor(state, player.position, comparablePrice, config),
+    (total, state) => total + weightedBidderDemandFor(state, player, comparablePrice, config),
     0,
   );
   const pressure = weightedBidderDemand / Math.max(1, comparablePlayersRemaining);
