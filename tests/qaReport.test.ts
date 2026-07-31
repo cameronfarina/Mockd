@@ -131,4 +131,40 @@ describe("QA report", () => {
       status: "fail",
     });
   });
+
+  it("fails hard when any smoke batch run has invalid rosters", () => {
+    const report = buildQaReport({
+      options: {
+        scenarioKeys: ["expected"],
+        runsPerScenario: 2,
+        seedPrefix: "qa-report-test",
+      },
+      smoke: {
+        invalidRosterCount: 0,
+        firstTwoRoundSummary: {
+          pickCount: 28,
+        },
+        batch: {
+          invalidRosterCount: 1,
+        },
+        warnings: ["1 invalid roster(s) in smoke batch."],
+      },
+      calibration: {
+        gates: {
+          summary: passingGateSummary,
+          items: [],
+        },
+      },
+      backtest: {
+        summary: passingGateSummary,
+      },
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.recommendedExitCode).toBe(1);
+    expect(report.checks.find(check => check.key === "smoke")).toMatchObject({
+      status: "fail",
+      severity: "hard",
+    });
+  });
 });

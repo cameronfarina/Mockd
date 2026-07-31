@@ -641,6 +641,9 @@ describe("auction engine economics", () => {
       roomPressure: {
         startRosterSlotsRemaining: 0,
       },
+      rosterNeed: {
+        lastPositionSlotMultiplier: 1,
+      },
       seed: "scarcity-bidder-depth",
     });
     const target = player("Scarce RB", "RB", 32);
@@ -685,6 +688,47 @@ describe("auction engine economics", () => {
       thinDepthTopBid?.scarcityMultiplier ?? 0,
     );
     expect(deepRosterTopBid?.uncappedAmount).toBeGreaterThan(thinDepthTopBid?.uncappedAmount ?? 0);
+  });
+
+  it("does not count same-position depth that would strand required starters", () => {
+    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums: {
+        ...positionAmounts(0),
+        RB: 1,
+        WR: 1,
+      },
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      positionOverbidDamping: {},
+      scarcity: {
+        comparablePriceRatio: 0.8,
+        minimumComparablePrice: 20,
+        bidderDepthWeight: 1,
+        maxDemandSlotsPerOwner: 2,
+        slope: 0.2,
+        maxMultiplier: 1.5,
+      },
+      rosterNeed: {
+        missingStarterMultiplier: 1,
+        lastPositionSlotMultiplier: 1,
+      },
+      seed: "scarcity-required-starter-slots",
+    });
+    const target = player("Starter RB", "RB", 30);
+    const sale = resolveAuctionSale(target, createAuctionOwnerStates({ config }), [
+      player("Comparable RB 1", "RB", 30),
+      player("Comparable RB 2", "RB", 30),
+    ], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected required-starter sale to resolve.");
+
+    expect(sale.bids[0]?.scarcityMultiplier).toBe(1);
   });
 
   it("downweights legal backup bidders in scarcity pressure", () => {

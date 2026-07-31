@@ -26,6 +26,9 @@ export interface QaGateItemInput {
 
 export interface QaSmokeInput {
   invalidRosterCount: number;
+  batch?: {
+    invalidRosterCount: number;
+  };
   firstTwoRoundSummary: {
     pickCount: number;
   };
@@ -98,7 +101,13 @@ const statusFromGateSummary = (summary: QaGateSummaryInput): QaStatus => {
 };
 
 const smokeCheckStatus = (smoke: QaSmokeInput): QaStatus => {
-  if (smoke.invalidRosterCount > 0 || smoke.firstTwoRoundSummary.pickCount <= 0) return "fail";
+  if (
+    smoke.invalidRosterCount > 0 ||
+    (smoke.batch?.invalidRosterCount ?? 0) > 0 ||
+    smoke.firstTwoRoundSummary.pickCount <= 0
+  ) {
+    return "fail";
+  }
   if (smoke.warnings.length > 0) return "warn";
   return "pass";
 };

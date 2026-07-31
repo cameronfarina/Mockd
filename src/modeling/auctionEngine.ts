@@ -581,20 +581,29 @@ const futurePicksNeededForLegalRoster = (
   return missingDirect + extraFlexShortage;
 };
 
+const canOwnerCompleteRosterAfterAddingPositionSlots = (
+  state: AuctionOwnerState,
+  position: Position,
+  slotCount: number,
+  config: AuctionEngineConfig,
+): boolean => {
+  if (slotCount <= 0) return true;
+  if (state.rosterSlotsRemaining < slotCount) return false;
+
+  const counts = countPositions(state.roster);
+  if (counts[position] + slotCount > rosterMaximumFor(state.owner, position, config)) return false;
+
+  counts[position] += slotCount;
+  const slotsAfterPick = state.rosterSlotsRemaining - slotCount;
+  return futurePicksNeededForLegalRoster(counts, config) <= slotsAfterPick;
+};
+
 const canOwnerCompleteRosterAfterAdding = (
   state: AuctionOwnerState,
   player: Player,
   config: AuctionEngineConfig,
-): boolean => {
-  if (state.rosterSlotsRemaining <= 0) return false;
-
-  const counts = countPositions(state.roster);
-  if (counts[player.position] >= rosterMaximumFor(state.owner, player.position, config)) return false;
-
-  counts[player.position] += 1;
-  const slotsAfterPick = state.rosterSlotsRemaining - 1;
-  return futurePicksNeededForLegalRoster(counts, config) <= slotsAfterPick;
-};
+): boolean =>
+  canOwnerCompleteRosterAfterAddingPositionSlots(state, player.position, 1, config);
 
 const remainingPlayersAtPosition = (
   remainingPlayers: readonly Player[],
@@ -661,10 +670,18 @@ const positionCapacityFor = (
   config: AuctionEngineConfig,
 ): number => {
   const counts = countPositions(state.roster);
-  return Math.min(
+  const maximumLegalSlots = Math.min(
     state.rosterSlotsRemaining,
     Math.max(0, rosterMaximumFor(state.owner, position, config) - counts[position]),
   );
+  let capacity = 0;
+
+  for (let slotCount = 1; slotCount <= maximumLegalSlots; slotCount += 1) {
+    if (!canOwnerCompleteRosterAfterAddingPositionSlots(state, position, slotCount, config)) break;
+    capacity = slotCount;
+  }
+
+  return capacity;
 };
 
 const tierDemandSlotsFor = (
@@ -674,8 +691,11 @@ const tierDemandSlotsFor = (
   config: AuctionEngineConfig,
 ): number => {
   const affordableComparableSlots = Math.floor(state.maxBid / comparablePrice);
+  const demandSlots = Math.min(positionCapacityFor(state, position, config), affordableComparableSlots);
+  if (demandSlots <= 0) return 0;
+
   return clamp(
-    Math.min(positionCapacityFor(state, position, config), affordableComparableSlots),
+    demandSlots,
     1,
     Math.max(1, config.scarcity.maxDemandSlotsPerOwner),
   );
