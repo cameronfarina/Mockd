@@ -49,6 +49,16 @@ export interface EndgameSpendConfig {
   maxMultiplier: number;
 }
 
+export interface RoomPressureConfig {
+  startRosterSlotsRemaining: number;
+  minRosterSlotsRemainingExclusive: number;
+  targetBudgetPerSlot: number;
+  slope: number;
+  maxMultiplier: number;
+  minimumPlayerPrice: number;
+  maximumPlayerPrice: number;
+}
+
 export interface BudgetPacingConfig {
   targetBudgetPerSlotAfterPurchase: number;
   slope: number;
@@ -110,6 +120,7 @@ export interface AuctionEngineConfig {
   rosterNeed: RosterNeedConfig;
   nomination: NominationConfig;
   endgameSpend: EndgameSpendConfig;
+  roomPressure: RoomPressureConfig;
   budgetPacing: BudgetPacingConfig;
   lateOpeningBid: LateOpeningBidConfig;
   topEndOverbidDamping: TopEndOverbidDampingConfig;
@@ -119,7 +130,7 @@ export interface AuctionEngineConfig {
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "budgetPacing" | "lateOpeningBid" | "topEndOverbidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "roomPressure" | "budgetPacing" | "lateOpeningBid" | "topEndOverbidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
     ownerRosterMaximums?: OwnerRosterMaximums;
@@ -128,6 +139,7 @@ export type AuctionEngineConfigOverrides =
     rosterNeed?: Partial<RosterNeedConfig>;
     nomination?: Partial<NominationConfig>;
     endgameSpend?: Partial<EndgameSpendConfig>;
+    roomPressure?: Partial<RoomPressureConfig>;
     budgetPacing?: Partial<BudgetPacingConfig>;
     lateOpeningBid?: Partial<LateOpeningBidConfig>;
     topEndOverbidDamping?: Partial<TopEndOverbidDampingConfig>;
@@ -158,6 +170,7 @@ export interface AuctionBid {
   buildStyleMultiplier: number;
   replacementPatienceMultiplier: number;
   endgamePressureMultiplier: number;
+  roomPressureMultiplier: number;
   budgetPacingMultiplier: number;
   topEndDampingMultiplier: number;
   positionOverbidDampingMultiplier: number;
@@ -318,6 +331,15 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     slope: 0.18,
     maxMultiplier: 1.25,
   },
+  roomPressure: {
+    startRosterSlotsRemaining: 14,
+    minRosterSlotsRemainingExclusive: 4,
+    targetBudgetPerSlot: 12,
+    slope: 0.35,
+    maxMultiplier: 1.1,
+    minimumPlayerPrice: 30,
+    maximumPlayerPrice: 60,
+  },
   budgetPacing: {
     targetBudgetPerSlotAfterPurchase: 4,
     slope: 0.85,
@@ -397,6 +419,10 @@ export const buildAuctionConfig = (
   endgameSpend: {
     ...defaultAuctionEngineConfig.endgameSpend,
     ...overrides.endgameSpend,
+  },
+  roomPressure: {
+    ...defaultAuctionEngineConfig.roomPressure,
+    ...overrides.roomPressure,
   },
   budgetPacing: {
     ...defaultAuctionEngineConfig.budgetPacing,
@@ -689,6 +715,35 @@ const endgamePressureMultiplierFor = (
   );
 };
 
+const roomPressureMultiplierFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  config: AuctionEngineConfig,
+): number => {
+  const pressure = config.roomPressure;
+  if (state.rosterSlotsRemaining <= pressure.minRosterSlotsRemainingExclusive) return 1;
+  if (state.rosterSlotsRemaining > pressure.startRosterSlotsRemaining) return 1;
+  if (player.price < pressure.minimumPlayerPrice || player.price > pressure.maximumPlayerPrice) return 1;
+  if (state.rosterSlotsRemaining <= 0 || pressure.targetBudgetPerSlot <= 0) return 1;
+
+  const budgetPerSlot = state.budgetRemaining / state.rosterSlotsRemaining;
+  if (budgetPerSlot <= pressure.targetBudgetPerSlot) return 1;
+
+  const phaseSpan = Math.max(1, pressure.startRosterSlotsRemaining - pressure.minRosterSlotsRemainingExclusive);
+  const phase = clamp(
+    (pressure.startRosterSlotsRemaining - state.rosterSlotsRemaining + 1) / phaseSpan,
+    0,
+    1,
+  );
+  const excessBudgetRatio = (budgetPerSlot - pressure.targetBudgetPerSlot) / pressure.targetBudgetPerSlot;
+
+  return clamp(
+    1 + excessBudgetRatio * phase * pressure.slope,
+    1,
+    pressure.maxMultiplier,
+  );
+};
+
 const budgetPacingMultiplierFor = (
   state: AuctionOwnerState,
   player: Player,
@@ -819,6 +874,7 @@ const bidForOwner = (
     ? ownerBehavior.replacementPatience
     : 1;
   const endgamePressureMultiplier = endgamePressureMultiplierFor(state, config);
+  const roomPressureMultiplier = roomPressureMultiplierFor(state, player, config);
   const budgetPacingMultiplier = budgetPacingMultiplierFor(state, player, config);
   const rawBidMultiplier =
     ownerDemandMultiplier *
@@ -828,6 +884,7 @@ const bidForOwner = (
     buildStyleMultiplier *
     replacementPatienceMultiplier *
     endgamePressureMultiplier *
+    roomPressureMultiplier *
     budgetPacingMultiplier;
   const topEndDampingMultiplier = topEndDampingMultiplierFor(player, rawBidMultiplier, config);
   const topEndAdjustedBidMultiplier = rawBidMultiplier * topEndDampingMultiplier;
@@ -864,6 +921,7 @@ const bidForOwner = (
     buildStyleMultiplier,
     replacementPatienceMultiplier,
     endgamePressureMultiplier,
+    roomPressureMultiplier,
     budgetPacingMultiplier,
     topEndDampingMultiplier,
     positionOverbidDampingMultiplier,

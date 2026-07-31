@@ -508,6 +508,69 @@ describe("auction engine economics", () => {
     expect(beatonBid?.uncappedAmount).toBeGreaterThan(target.price);
   });
 
+  it("raises mid-auction bids for cash-heavy owners while depleted owners stay constrained", () => {
+    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 5,
+      rosterMaximums: positionAmounts(5),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      scarcity: {
+        maxMultiplier: 1,
+      },
+      endgameSpend: {
+        startRosterSlotsRemaining: 2,
+      },
+      budgetPacing: {
+        targetBudgetPerSlotAfterPurchase: 10,
+        slope: 1,
+        maxDiscount: 0.5,
+        minimumPlayerPrice: 10,
+      },
+      roomPressure: {
+        startRosterSlotsRemaining: 5,
+        minRosterSlotsRemainingExclusive: 2,
+        targetBudgetPerSlot: 10,
+        slope: 0.6,
+        maxMultiplier: 1.2,
+        minimumPlayerPrice: 30,
+        maximumPlayerPrice: 55,
+      },
+      seed: "mid-auction-pressure",
+    });
+    const ownerStates = createAuctionOwnerStates({
+      config,
+      initialRostersByOwner: {
+        Beaton: [player("Beaton early elite", "RB", 75)],
+        Hoody: [player("Hoody early elite", "WR", 74)],
+      },
+    });
+    const target = player("Good scarce RB", "RB", 45);
+    const sale = resolveAuctionSale(target, ownerStates, [player("Fallback RB", "RB", 1)], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    const pjBid = sale.bids.find(bid => bid.owner === "PJ");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const hoodyBid = sale.bids.find(bid => bid.owner === "Hoody");
+    expect(pjBid).toBeDefined();
+    expect(beatonBid).toBeDefined();
+    expect(hoodyBid).toBeDefined();
+    expect(pjBid?.roomPressureMultiplier).toBeGreaterThan(1);
+    expect(pjBid?.endgamePressureMultiplier).toBe(1);
+    expect(pjBid?.uncappedAmount).toBeGreaterThan(target.price);
+    expect(beatonBid?.roomPressureMultiplier).toBe(1);
+    expect(beatonBid?.budgetPacingMultiplier).toBeLessThan(1);
+    expect(beatonBid?.amount).toBeLessThan(target.price);
+    expect(hoodyBid?.roomPressureMultiplier).toBe(1);
+    expect(hoodyBid?.budgetPacingMultiplier).toBeLessThan(1);
+    expect(hoodyBid?.amount).toBeLessThan(target.price);
+  });
+
   it("discounts bids that would strand too little budget for remaining roster slots", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({
