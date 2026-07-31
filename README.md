@@ -17,7 +17,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - confirmed-only, expected, and high-retention keeper inflation scenarios
 - deterministic owner-local auction simulation with scarcity pressure
 - repeatable smoke checks for roster validity, batch validity, and the first two nomination rounds
-- structured player price waterfalls from public anchor through mock-sale outcome
+- structured player price waterfalls from effective public anchor through mock-sale outcome
 - prioritized outlier review queues for top-player values that need human attention
 - prioritized factual evidence queues for top-player pricing review
 - evidence coverage gates that fail loudly when high-priority players have no supporting facts
@@ -161,7 +161,7 @@ npm run evidence:adapt -- --input=data/raw/player-evidence-template.csv
 npm run evidence:coverage -- --scenario=expected --limit=40 --runs=10
 ```
 
-The audit report includes the ESPN anchor, projection rank, ESPN rank, rank gap, league multipliers, context signals and evidence, pre-keeper base price, keeper-inflated scenario price, and the player's observed mock-sale range across the requested runs. It also includes a structured waterfall that walks from ESPN anchor through position multiplier, rank gap, market pressure, projection floor, sustainability, factual context, spend reconciliation, keeper inflation, and mock-sale average. If the scenario removes the player as a keeper, the report explains why instead of pretending they are still in the auction pool.
+The audit report includes the effective ESPN anchor, projection rank, ESPN rank, rank gap, league multipliers, context signals and evidence, pre-keeper base price, keeper-inflated scenario price, and the player's observed mock-sale range across the requested runs. Raw ESPN auction values below `$1` are shown separately and floored to a `$1` effective model anchor. The report also includes a structured waterfall that walks from effective ESPN anchor through position multiplier, rank gap, market pressure, projection floor, sustainability, factual context, spend reconciliation, keeper inflation or keeper removal, and mock-sale average when the player is drafted. If the scenario removes the player as a keeper, the report explains why instead of pretending they are still in the auction pool.
 
 The sanity report scans the top auction-available players for review prompts: high mock-sale premiums, large projection lifts versus ESPN rank, expensive players with no factual evidence rows, context penalties, hard-ceiling pressure, and high-price volume against the 2023-2025 historical max counts. Treat those flags as the next evidence queue, not automatic price changes.
 

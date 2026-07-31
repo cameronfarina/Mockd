@@ -6,6 +6,8 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
+const roundToTwo = (value: number): number =>
+  Math.round((value + Number.EPSILON) * 100) / 100;
 
 describe("CLI player audit report", () => {
   it("explains one player's price bridge from anchor through mock sale behavior", async () => {
@@ -42,6 +44,7 @@ describe("CLI player audit report", () => {
         position: string;
       };
       pricing: {
+        rawPublicAnchorValue: number | null;
         publicAnchorValue: number;
         projectionRank: number;
         espnRank: number;
@@ -79,9 +82,9 @@ describe("CLI player audit report", () => {
         steps: {
           key: string;
           label: string;
-          inputAmount: number;
-          outputAmount: number;
-          delta: number;
+          inputAmount: number | null;
+          outputAmount: number | null;
+          delta: number | null;
           factor?: number;
           note: string;
         }[];
@@ -94,6 +97,7 @@ describe("CLI player audit report", () => {
       position: "WR",
     });
     expect(result.pricing.publicAnchorValue).toBeGreaterThan(0);
+    expect(result.pricing.rawPublicAnchorValue).toBe(result.pricing.publicAnchorValue);
     expect(result.pricing.projectionRank).toBeGreaterThan(0);
     expect(result.pricing.espnRank).toBeGreaterThan(0);
     expect(Number.isFinite(result.pricing.rankGap)).toBe(true);
@@ -155,6 +159,10 @@ describe("CLI player audit report", () => {
       outputAmount: result.mockSale.averageSalePrice,
       delta: result.mockSale.averageSaleVsScenarioPrice,
     });
+    for (const step of result.waterfall.steps) {
+      if (step.inputAmount === null || step.outputAmount === null || step.delta === null) continue;
+      expect(step.delta, step.key).toBe(roundToTwo(step.outputAmount - step.inputAmount));
+    }
     expect(result.explanation.join("\n")).toContain("ESPN");
     expect(result.explanation.join("\n")).toContain("keeper inflation");
     expect(result.explanation.join("\n")).toContain("mock sale");
@@ -187,6 +195,16 @@ describe("CLI player audit report", () => {
       mockSale: {
         draftedCount: number;
       };
+      waterfall: {
+        steps: {
+          key: string;
+          inputAmount: number | null;
+          outputAmount: number | null;
+          delta: number | null;
+          factor?: number;
+          note: string;
+        }[];
+      };
       explanation: string[];
     };
 
@@ -196,6 +214,122 @@ describe("CLI player audit report", () => {
       unavailableReason: "Seth assumed keeper at $42",
     });
     expect(result.mockSale.draftedCount).toBe(0);
+    expect(result.waterfall.steps.map(step => step.key)).toContain("keeper-removal");
+    expect(result.waterfall.steps.map(step => step.key)).not.toContain("keeper-inflation");
+    const keeperRemovalStep = result.waterfall.steps.find(step => step.key === "keeper-removal");
+    expect(keeperRemovalStep).toMatchObject({
+      outputAmount: null,
+      delta: null,
+    });
+    expect(keeperRemovalStep?.factor).toBeUndefined();
+    for (const step of result.waterfall.steps) {
+      if (step.inputAmount === null || step.outputAmount === null || step.delta === null) continue;
+      expect(step.delta, step.key).toBe(roundToTwo(step.outputAmount - step.inputAmount));
+    }
     expect(result.explanation.join("\n")).toContain("removed from the auction pool");
   });
+
+  it("does not report available undrafted players as zero-dollar mock sales", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "audit",
+        "--",
+        "--player=C.J. Stroud",
+        "--scenario=expected",
+        "--runs=1",
+        "--seed-prefix=undrafted-audit-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 20 * 1024 * 1024,
+      },
+    );
+    const result = JSON.parse(stdout) as {
+      scenario: {
+        available: boolean;
+        scenarioPrice: number;
+      };
+      mockSale: {
+        draftedCount: number;
+        averageSalePrice: number | null;
+        averageSaleVsScenarioPrice: number | null;
+        minSalePrice: number | null;
+        maxSalePrice: number | null;
+      };
+      waterfall: {
+        summary: {
+          averageMockSalePrice: number | null;
+          saleVsScenarioPrice: number | null;
+        };
+        steps: {
+          key: string;
+          outputAmount: number | null;
+          delta: number | null;
+          note: string;
+        }[];
+      };
+    };
+
+    expect(result.scenario.available).toBe(true);
+    expect(result.mockSale.draftedCount).toBe(0);
+    expect(result.mockSale.averageSalePrice).toBeNull();
+    expect(result.mockSale.averageSaleVsScenarioPrice).toBeNull();
+    expect(result.mockSale.minSalePrice).toBeNull();
+    expect(result.mockSale.maxSalePrice).toBeNull();
+    expect(result.waterfall.summary.averageMockSalePrice).toBeNull();
+    expect(result.waterfall.summary.saleVsScenarioPrice).toBeNull();
+    expect(result.waterfall.steps.find(step => step.key === "mock-sale-average")).toMatchObject({
+      outputAmount: null,
+      delta: null,
+      note: "Not drafted in 1 mock run(s).",
+    });
+  }, 15000);
+
+  it("distinguishes raw zero ESPN values from the effective model anchor", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "audit",
+        "--",
+        "--player=Brandon Aubrey",
+        "--scenario=expected",
+        "--runs=1",
+        "--seed-prefix=anchor-floor-audit-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 20 * 1024 * 1024,
+      },
+    );
+    const result = JSON.parse(stdout) as {
+      pricing: {
+        rawPublicAnchorValue: number | null;
+        publicAnchorValue: number;
+      };
+      waterfall: {
+        steps: {
+          key: string;
+          label: string;
+          note: string;
+        }[];
+      };
+      explanation: string[];
+    };
+    const anchorStep = result.waterfall.steps.find(step => step.key === "espn-anchor");
+
+    expect(result.pricing.rawPublicAnchorValue).toBe(0);
+    expect(result.pricing.publicAnchorValue).toBe(1);
+    expect(anchorStep).toMatchObject({
+      label: "Effective ESPN auction anchor",
+      note: "Raw ESPN auction value $0 is floored to the model minimum anchor of $1.",
+    });
+    expect(result.explanation.join("\n")).toContain(
+      "Raw ESPN anchor $0 is floored to effective anchor $1",
+    );
+  }, 15000);
 });

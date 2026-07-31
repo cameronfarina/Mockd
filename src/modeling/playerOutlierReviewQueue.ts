@@ -79,6 +79,18 @@ const priorityScore = {
   medium: 2,
   low: 1,
 } as const satisfies Record<PlayerOutlierPriority, number>;
+const primaryReasonScore = {
+  highMockPremium: 100,
+  mockSaleDiscount: 95,
+  thinMockDemand: 90,
+  eliteTierContributor: 85,
+  largeProjectionRankLift: 80,
+  missingFactualEvidence: 75,
+  hardCeilingPressure: 70,
+  mockSaleRange: 60,
+  anchorToScenarioJump: 50,
+  contextPenalty: 10,
+} as const satisfies Record<PlayerOutlierReasonKey, number>;
 
 const roundToTwo = (value: number): number =>
   Math.round((value + Number.EPSILON) * 100) / 100;
@@ -125,7 +137,11 @@ const reviewedEliteThresholdsFor = (
 ): HighPriceVolumeSanity[] =>
   volumes.filter(volume =>
     volume.status === "review" &&
-    (player.scenarioPrice >= volume.threshold || player.averageMockSalePrice >= volume.threshold),
+    (
+      player.scenarioPrice >= volume.threshold ||
+      player.averageMockSalePrice >= volume.threshold ||
+      player.maxMockSalePrice >= volume.threshold
+    ),
   );
 
 const additionalReasonsFor = (
@@ -188,7 +204,7 @@ const additionalReasonsFor = (
       severity: "review",
       message: "Player contributes to a reviewed elite-price volume threshold.",
       threshold: eliteThresholds.map(volume => `$${volume.threshold}+`).join(", "),
-      actual: `scenario $${player.scenarioPrice}, mock average $${player.averageMockSalePrice}`,
+      actual: `scenario $${player.scenarioPrice}, mock average $${player.averageMockSalePrice}, mock max $${player.maxMockSalePrice}`,
     });
   }
 
@@ -228,6 +244,14 @@ const auditCommandFor = (
 ): string =>
   `npm run audit -- --player="${player.name.replaceAll("\"", "\\\"")}" --scenario=${scenarioKey}`;
 
+const primaryReasonFor = (
+  reasons: readonly PlayerOutlierReason[],
+): PlayerOutlierReasonKey =>
+  [...reasons].sort((left, right) =>
+    primaryReasonScore[right.key] - primaryReasonScore[left.key] ||
+    left.key.localeCompare(right.key),
+  )[0]?.key ?? "highMockPremium";
+
 const rowFor = (
   player: TopPlayerSanityRow,
   report: TopPlayerSanityReport,
@@ -259,7 +283,7 @@ const rowFor = (
     rankGap: player.rankGap,
     contextAdjustmentPercent: player.contextAdjustmentPercent,
     currentEvidenceCount: player.contextEvidenceCount,
-    primaryReason: outlierReasons[0]?.key ?? "highMockPremium",
+    primaryReason: primaryReasonFor(outlierReasons),
     outlierReasons,
     thresholds,
     auditCommand: auditCommandFor(player, report.config.scenarioKey),

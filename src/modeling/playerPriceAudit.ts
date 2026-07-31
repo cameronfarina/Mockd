@@ -38,6 +38,7 @@ export interface PlayerAuditIdentity {
 }
 
 export interface PlayerAuditPricing {
+  rawPublicAnchorValue: number | null;
   publicAnchorValue: number;
   projectionRank: number;
   espnRank: number | null;
@@ -88,11 +89,11 @@ export interface PlayerAuditMockSale {
   runCount: number;
   draftedCount: number;
   draftedRate: number;
-  averageMarketPrice: number;
-  averageSalePrice: number;
-  averageSaleVsScenarioPrice: number;
-  minSalePrice: number;
-  maxSalePrice: number;
+  averageMarketPrice: number | null;
+  averageSalePrice: number | null;
+  averageSaleVsScenarioPrice: number | null;
+  minSalePrice: number | null;
+  maxSalePrice: number | null;
   picks: readonly PlayerAuditMockPick[];
 }
 
@@ -106,14 +107,15 @@ export type PlayerPriceWaterfallStepKey =
   | "factual-context"
   | "spend-reconciliation"
   | "keeper-inflation"
+  | "keeper-removal"
   | "mock-sale-average";
 
 export interface PlayerPriceWaterfallStep {
   key: PlayerPriceWaterfallStepKey;
   label: string;
-  inputAmount: number;
-  outputAmount: number;
-  delta: number;
+  inputAmount: number | null;
+  outputAmount: number | null;
+  delta: number | null;
   factor?: number;
   note: string;
 }
@@ -122,8 +124,8 @@ export interface PlayerPriceWaterfallSummary {
   anchorPrice: number;
   basePrice: number;
   scenarioPrice: number;
-  averageMockSalePrice: number;
-  saleVsScenarioPrice: number;
+  averageMockSalePrice: number | null;
+  saleVsScenarioPrice: number | null;
 }
 
 export interface PlayerPriceWaterfall {
@@ -146,6 +148,9 @@ const defaultSeedPrefix = "player-audit";
 
 const roundToTwo = (value: number): number =>
   Math.round((value + Number.EPSILON) * 100) / 100;
+
+const roundNullableToTwo = (value: number | null): number | null =>
+  value === null ? null : roundToTwo(value);
 
 const average = (values: readonly number[]): number =>
   values.length === 0 ? 0 : values.reduce((total, value) => total + value, 0) / values.length;
@@ -204,17 +209,19 @@ const mockSaleFor = (
 ): PlayerAuditMockSale => {
   const salePrices = picks.map(pick => pick.salePrice);
   const marketPrices = picks.map(pick => pick.marketPrice);
-  const averageSalePrice = roundToTwo(average(salePrices));
+  const averageSalePrice = salePrices.length > 0 ? roundToTwo(average(salePrices)) : null;
 
   return {
     runCount: runs.length,
     draftedCount: picks.length,
     draftedRate: roundToTwo(picks.length / Math.max(1, runs.length)),
-    averageMarketPrice: roundToTwo(average(marketPrices)),
+    averageMarketPrice: marketPrices.length > 0 ? roundToTwo(average(marketPrices)) : null,
     averageSalePrice,
-    averageSaleVsScenarioPrice: roundToTwo(averageSalePrice - scenarioPrice),
-    minSalePrice: salePrices.length > 0 ? Math.min(...salePrices) : 0,
-    maxSalePrice: salePrices.length > 0 ? Math.max(...salePrices) : 0,
+    averageSaleVsScenarioPrice: averageSalePrice === null
+      ? null
+      : roundToTwo(averageSalePrice - scenarioPrice),
+    minSalePrice: salePrices.length > 0 ? Math.min(...salePrices) : null,
+    maxSalePrice: salePrices.length > 0 ? Math.max(...salePrices) : null,
     picks,
   };
 };
@@ -224,8 +231,12 @@ const explanationFor = (
   scenario: PlayerAuditScenario,
   mockSale: PlayerAuditMockSale,
 ): string[] => {
+  const rawAnchorValue = basePrice.espnAuctionValue ?? null;
+  const anchorDescription = rawAnchorValue !== null && rawAnchorValue < basePrice.publicAnchorValue
+    ? `Raw ESPN anchor $${rawAnchorValue} is floored to effective anchor $${basePrice.publicAnchorValue}`
+    : `ESPN anchor $${basePrice.publicAnchorValue}`;
   const baseExplanation =
-    `ESPN anchor $${basePrice.publicAnchorValue} becomes a $${basePrice.price} base price after rank gap, league multipliers, context, and spend reconciliation.`;
+    `${anchorDescription} becomes a $${basePrice.price} base price after rank gap, league multipliers, context, and spend reconciliation.`;
 
   if (!scenario.available) {
     const reason = scenario.unavailableReason ? `: ${scenario.unavailableReason}` : ".";
@@ -239,11 +250,14 @@ const explanationFor = (
   return [
     baseExplanation,
     `${scenario.label} keeper inflation applies a ${roundToTwo(scenario.scenarioFactor)}x ${basePrice.position} factor, moving the auction-pool anchor to $${scenario.scenarioPrice}.`,
-    `Across ${mockSale.runCount} mock run(s), the player was drafted ${mockSale.draftedCount} time(s) at an average mock sale price of $${mockSale.averageSalePrice}.`,
+    mockSale.averageSalePrice === null
+      ? `Across ${mockSale.runCount} mock run(s), the player was not drafted.`
+      : `Across ${mockSale.runCount} mock run(s), the player was drafted ${mockSale.draftedCount} time(s) at an average mock sale price of $${mockSale.averageSalePrice}.`,
   ];
 };
 
 const auditPricingFor = (basePrice: BasePrice): PlayerAuditPricing => ({
+  rawPublicAnchorValue: basePrice.espnAuctionValue ?? null,
   publicAnchorValue: basePrice.publicAnchorValue,
   projectionRank: basePrice.projectionRank,
   espnRank: basePrice.espnRank ?? null,
@@ -269,16 +283,18 @@ const auditPricingFor = (basePrice: BasePrice): PlayerAuditPricing => ({
 const waterfallStep = (
   key: PlayerPriceWaterfallStepKey,
   label: string,
-  inputAmount: number,
-  outputAmount: number,
+  inputAmount: number | null,
+  outputAmount: number | null,
   note: string,
   factor?: number,
 ): PlayerPriceWaterfallStep => ({
   key,
   label,
-  inputAmount: roundToTwo(inputAmount),
-  outputAmount: roundToTwo(outputAmount),
-  delta: roundToTwo(outputAmount - inputAmount),
+  inputAmount: roundNullableToTwo(inputAmount),
+  outputAmount: roundNullableToTwo(outputAmount),
+  delta: inputAmount === null || outputAmount === null
+    ? null
+    : roundToTwo(roundToTwo(outputAmount) - roundToTwo(inputAmount)),
   ...(factor === undefined ? {} : { factor: roundToTwo(factor) }),
   note,
 });
@@ -293,9 +309,34 @@ const buildWaterfall = (
   const afterMarketPressure = afterRankGapAdjustment * basePrice.marketPressure;
   const afterProjectionFloor = basePrice.preSustainabilityPrice;
   const afterSustainability = afterProjectionFloor * basePrice.sustainabilityFactor;
-  const scenarioNote = scenario.available
-    ? `${scenario.label} keeper inflation uses a ${roundToTwo(scenario.scenarioFactor)}x ${basePrice.position} factor.`
-    : `Removed from the ${scenario.label} auction pool${scenario.unavailableReason ? `: ${scenario.unavailableReason}` : "."}`;
+  const rawAnchorValue = basePrice.espnAuctionValue ?? null;
+  const anchorNote = rawAnchorValue !== null && rawAnchorValue < basePrice.publicAnchorValue
+    ? `Raw ESPN auction value $${rawAnchorValue} is floored to the model minimum anchor of $${basePrice.publicAnchorValue}.`
+    : "Public ESPN auction value used as the external starting point.";
+  const keeperInflationStep = waterfallStep(
+    "keeper-inflation",
+    "Keeper inflation",
+    basePrice.price,
+    scenario.scenarioPrice,
+    `${scenario.label} keeper inflation uses a ${roundToTwo(scenario.scenarioFactor)}x ${basePrice.position} factor.`,
+    scenario.scenarioFactor,
+  );
+  const keeperRemovalStep = waterfallStep(
+    "keeper-removal",
+    "Keeper removal",
+    basePrice.price,
+    null,
+    `Removed from the ${scenario.label} auction pool${scenario.unavailableReason ? `: ${scenario.unavailableReason}` : "."}`,
+  );
+  const mockSaleStep = waterfallStep(
+    "mock-sale-average",
+    "Mock sale average",
+    scenario.scenarioPrice,
+    mockSale.averageSalePrice,
+    mockSale.averageSalePrice === null
+      ? `Not drafted in ${mockSale.runCount} mock run(s).`
+      : `Observed simulation outcome: drafted ${mockSale.draftedCount} time(s) across ${mockSale.runCount} mock run(s).`,
+  );
 
   return {
     summary: {
@@ -308,10 +349,10 @@ const buildWaterfall = (
     steps: [
       waterfallStep(
         "espn-anchor",
-        "ESPN auction anchor",
+        "Effective ESPN auction anchor",
         0,
         basePrice.publicAnchorValue,
-        "Public ESPN auction value used as the external starting point.",
+        anchorNote,
       ),
       waterfallStep(
         "position-multiplier",
@@ -371,21 +412,7 @@ const buildWaterfall = (
         basePrice.price,
         `Reconciles into historical ${basePrice.position} spend while respecting price ceilings and rounding.`,
       ),
-      waterfallStep(
-        "keeper-inflation",
-        "Keeper inflation",
-        basePrice.price,
-        scenario.scenarioPrice,
-        scenarioNote,
-        scenario.scenarioFactor,
-      ),
-      waterfallStep(
-        "mock-sale-average",
-        "Mock sale average",
-        scenario.scenarioPrice,
-        mockSale.averageSalePrice,
-        `Observed simulation outcome: drafted ${mockSale.draftedCount} time(s) across ${mockSale.runCount} mock run(s).`,
-      ),
+      ...(scenario.available ? [keeperInflationStep, mockSaleStep] : [keeperRemovalStep]),
     ],
   };
 };

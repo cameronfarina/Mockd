@@ -111,9 +111,15 @@ const sanityReport = {
       saleVsScenarioPrice: -7,
       minMockSalePrice: 21,
       maxMockSalePrice: 31,
-      contextAdjustmentPercent: 0,
+      contextAdjustmentPercent: -0.04,
       contextEvidenceCount: 0,
-      flags: [],
+      flags: [
+        {
+          key: "contextPenalty",
+          severity: "info",
+          message: "Context adjustment trims price by 4%.",
+        },
+      ],
     },
     {
       rank: 30,
@@ -135,6 +141,26 @@ const sanityReport = {
       contextEvidenceCount: 5,
       flags: [],
     },
+    {
+      rank: 31,
+      name: "Max Only Elite RB",
+      position: "RB",
+      publicAnchorValue: 56,
+      projectionRank: 26,
+      espnRank: 26,
+      rankGap: 0,
+      basePrice: 63,
+      scenarioPrice: 65,
+      draftedCount: 10,
+      draftedRate: 1,
+      averageMockSalePrice: 69,
+      saleVsScenarioPrice: 4,
+      minMockSalePrice: 66,
+      maxMockSalePrice: 72,
+      contextAdjustmentPercent: 0,
+      contextEvidenceCount: 5,
+      flags: [],
+    },
   ],
   flaggedPlayers: [],
 } satisfies TopPlayerSanityReport;
@@ -144,13 +170,14 @@ describe("player outlier review queue", () => {
     const queue = buildPlayerOutlierReviewQueue(sanityReport);
 
     expect(queue.summary).toMatchObject({
-      playerCount: 4,
-      highPriorityCount: 3,
+      playerCount: 5,
+      highPriorityCount: 4,
       mediumPriorityCount: 1,
       lowPriorityCount: 0,
     });
     expect(queue.rows.map(row => row.player)).toEqual([
       "Elite RB",
+      "Max Only Elite RB",
       "Drake London",
       "Thin Demand WR",
       "Expensive Anchor Jump WR",
@@ -177,11 +204,16 @@ describe("player outlier review queue", () => {
     expect(elite?.thresholds).toContain("$70 volume exceeds historical max 5");
 
     const thinDemand = queue.rows.find(row => row.player === "Thin Demand WR");
+    expect(thinDemand?.primaryReason).toBe("mockSaleDiscount");
     expect(thinDemand?.outlierReasons.map(reason => reason.key)).toEqual([
+      "contextPenalty",
       "mockSaleDiscount",
       "mockSaleRange",
       "thinMockDemand",
     ]);
+
+    const maxOnly = queue.rows.find(row => row.player === "Max Only Elite RB");
+    expect(maxOnly?.outlierReasons.map(reason => reason.key)).toEqual(["eliteTierContributor"]);
 
     const anchorJump = queue.rows.find(row => row.player === "Expensive Anchor Jump WR");
     expect(anchorJump).toMatchObject({
