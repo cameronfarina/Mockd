@@ -211,9 +211,10 @@ describe("prep output artifacts", () => {
       expect(calibrationSummaryCsv).toContain("owner_spend");
 
       const calibrationGatesCsv = await readFile(join(outputDirectory, "calibration-gates.csv"), "utf8");
-      expect(calibrationGatesCsv.split("\n")[0]).toBe("key,category,label,status,target,actual,delta,warn_threshold,fail_threshold");
-      expect(calibrationGatesCsv).toContain("high-price-volume:80-plus,high_price_volume,$80+ player count,pass");
-      expect(calibrationGatesCsv).toContain("price-tier-count:dollar,price_tier_count,$1 player count,pass");
+      expect(calibrationGatesCsv.split("\n")[0]).toBe("key,category,label,status,mode,target,actual,delta,warn_threshold,fail_threshold");
+      expect(calibrationGatesCsv).toContain("high-price-volume:80-plus,high_price_volume,$80+ player count,pass,maximum");
+      expect(calibrationGatesCsv).toContain("high-price-volume-floor:80-plus,high_price_volume,$80+ player count floor,pass,minimum");
+      expect(calibrationGatesCsv).toContain("price-tier-count:dollar,price_tier_count,$1 player count,pass,absolute");
 
       const highPriceVolumeCsv = await readFile(join(outputDirectory, "high-price-volume-calibration.csv"), "utf8");
       expect(highPriceVolumeCsv.split("\n")[0]).toBe("threshold,historical_average_count,historical_max_count,mock_average_count,mock_max_count,average_count_delta,max_count_delta");

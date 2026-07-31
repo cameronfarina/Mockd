@@ -114,12 +114,14 @@ export type CalibrationGateCategory =
   | "budget_remaining";
 
 export type CalibrationGateStatus = "pass" | "warn" | "fail";
+type CalibrationGateMode = "absolute" | "maximum" | "minimum";
 
 export interface CalibrationGate {
   key: string;
   category: CalibrationGateCategory;
   label: string;
   status: CalibrationGateStatus;
+  mode: CalibrationGateMode;
   target: number;
   actual: number;
   delta: number;
@@ -135,8 +137,6 @@ export interface CalibrationGateSummary {
   warnCount: number;
   failCount: number;
 }
-
-type CalibrationGateMode = "absolute" | "maximum";
 
 export interface CalibrationGates {
   summary: CalibrationGateSummary;
@@ -658,7 +658,10 @@ const gateStatus = (
   failThreshold: number,
   mode: CalibrationGateMode = "absolute",
 ): CalibrationGateStatus => {
-  const magnitude = mode === "maximum" ? Math.max(0, delta) : Math.abs(delta);
+  const magnitude =
+    mode === "maximum" ? Math.max(0, delta) :
+      mode === "minimum" ? Math.max(0, -delta) :
+        Math.abs(delta);
   if (magnitude >= failThreshold) return "fail";
   if (magnitude >= warnThreshold) return "warn";
   return "pass";
@@ -673,7 +676,7 @@ const calibrationGate = ({
   warnThreshold,
   failThreshold,
   mode = "absolute",
-}: Omit<CalibrationGate, "delta" | "status"> & { mode?: CalibrationGateMode }): CalibrationGate => {
+}: Omit<CalibrationGate, "delta" | "status" | "mode"> & { mode?: CalibrationGateMode }): CalibrationGate => {
   const delta = roundToTwo(actual - target);
 
   return {
@@ -681,6 +684,7 @@ const calibrationGate = ({
     category,
     label,
     status: gateStatus(delta, warnThreshold, failThreshold, mode),
+    mode,
     target,
     actual,
     delta,
@@ -766,6 +770,18 @@ const summarizeGates = (
         warnThreshold: 1,
         failThreshold: 3,
         mode: "maximum",
+      }),
+    ),
+    ...highPriceVolumes.map(volume =>
+      calibrationGate({
+        key: `high-price-volume-floor:${volume.threshold}-plus`,
+        category: "high_price_volume",
+        label: `${highPriceVolumeGateLabel(volume)} floor`,
+        target: volume.historicalAverageCount,
+        actual: volume.mockAverageCount,
+        warnThreshold: 2,
+        failThreshold: 4,
+        mode: "minimum",
       }),
     ),
     ...priceTierCalibration.map(tier => {

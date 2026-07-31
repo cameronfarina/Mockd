@@ -391,12 +391,13 @@ const calibrationSummaryCsv = (audit: HistoricalCalibrationAudit): string =>
 
 const calibrationGatesCsv = (audit: HistoricalCalibrationAudit): string =>
   toCsv(
-    ["key", "category", "label", "status", "target", "actual", "delta", "warn_threshold", "fail_threshold"],
+    ["key", "category", "label", "status", "mode", "target", "actual", "delta", "warn_threshold", "fail_threshold"],
     audit.gates.items.map(gate => [
       gate.key,
       gate.category,
       gate.label,
       gate.status,
+      gate.mode,
       gate.target,
       gate.actual,
       gate.delta,

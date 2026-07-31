@@ -203,6 +203,7 @@ describe("historical calibration audit", () => {
       category: "high_price_volume",
       label: "$80+ player count",
       status: "pass",
+      mode: "maximum",
       target: eightyPlusVolume?.historicalMaxCount,
       actual: eightyPlusVolume?.mockMaxCount,
       delta: eightyPlusVolume?.maxCountDelta,
@@ -215,6 +216,44 @@ describe("historical calibration audit", () => {
       target: 0,
       actual: 0,
       delta: 0,
+    });
+
+    const timidBatch = {
+      ...batch,
+      runs: batch.runs.map(run => ({
+        ...run,
+        picks: run.picks.map(pick => ({
+          ...pick,
+          price: Math.min(pick.price, 69),
+        })),
+      })),
+    };
+    const timidAudit = buildHistoricalCalibrationAudit({ historicalRecords, batch: timidBatch });
+
+    const seventyPlusFloorGate = timidAudit.gates.items.find(
+      gate => gate.key === "high-price-volume-floor:70-plus",
+    );
+    expect(seventyPlusFloorGate).toMatchObject({
+      category: "high_price_volume",
+      label: "$70+ player count floor",
+      status: "fail",
+      mode: "minimum",
+      target: 4.33,
+      actual: 0,
+      delta: -4.33,
+    });
+
+    const seventyFivePlusFloorGate = timidAudit.gates.items.find(
+      gate => gate.key === "high-price-volume-floor:75-plus",
+    );
+    expect(seventyFivePlusFloorGate).toMatchObject({
+      category: "high_price_volume",
+      label: "$75+ player count floor",
+      status: "warn",
+      mode: "minimum",
+      target: 2.33,
+      actual: 0,
+      delta: -2.33,
     });
   }, 15000);
 });
