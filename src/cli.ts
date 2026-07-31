@@ -7,6 +7,7 @@ import {
   loadPlayerContextOverrides,
   mergePlayerContextOverrides,
 } from "./data/playerContextImports.js";
+import { loadPlayerContextEvidenceOverrides } from "./data/playerContextEvidenceImports.js";
 import {
   buildOwnerAuctionBehaviors,
   buildOwnerDemandMultipliers,
@@ -35,12 +36,13 @@ const command = process.argv[2];
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
 const scenarioKeys = ["confirmedOnly", "expected", "highRetention"] as const;
 
-const playerContextSummary = (config: PricingConfig, importPath?: string) => ({
+const playerContextSummary = (config: PricingConfig, importPath?: string, evidencePath?: string) => ({
   enabled: config.playerContext.enabled,
   weights: config.playerContext.weights,
   maxAdjustment: config.playerContext.maxAdjustment,
   overrideCount: config.playerContext.overrides.length,
   ...(importPath ? { importPath } : {}),
+  ...(evidencePath ? { evidencePath } : {}),
 });
 
 const countBySeason = (records: { season: number }[]): Record<number, number> =>
@@ -56,15 +58,20 @@ const optionValue = (name: string): string | undefined => {
 
 const pricingConfigFromOptions = async (): Promise<PricingConfig> => {
   const importPath = optionValue("--player-context");
-  if (!process.argv.includes("--custom-weights") && !importPath) return defaultPricingConfig;
+  const evidencePath = optionValue("--player-evidence");
+  if (!process.argv.includes("--custom-weights") && !importPath && !evidencePath) return defaultPricingConfig;
 
   const importedOverrides = importPath ? await loadPlayerContextOverrides(importPath) : [];
+  const evidenceOverrides = evidencePath ? await loadPlayerContextEvidenceOverrides(evidencePath) : [];
 
   return {
     ...defaultPricingConfig,
     playerContext: {
       ...customWeightsPlayerContextConfig,
-      overrides: mergePlayerContextOverrides(customWeightsPlayerContextConfig.overrides, importedOverrides),
+      overrides: mergePlayerContextOverrides(
+        customWeightsPlayerContextConfig.overrides,
+        [...importedOverrides, ...evidenceOverrides],
+      ),
     },
   };
 };
@@ -105,6 +112,7 @@ const scenarioListOptionValue = (): (typeof scenarioKeys)[number][] => {
 
 const main = async (): Promise<void> => {
   const playerContextImportPath = optionValue("--player-context");
+  const playerContextEvidencePath = optionValue("--player-evidence");
 
   if (command === "keepers") {
     console.log(JSON.stringify(keeperSummary(), null, 2));
@@ -157,7 +165,7 @@ const main = async (): Promise<void> => {
         rankGapAdjustmentCap: pricingConfig.rankGapAdjustmentCap,
         marketPressureByPosition: pricingConfig.marketPressureByPosition,
         hardPriceCeilings: pricingConfig.hardPriceCeilings,
-        playerContext: playerContextSummary(pricingConfig, playerContextImportPath),
+        playerContext: playerContextSummary(pricingConfig, playerContextImportPath, playerContextEvidencePath),
       },
       summary: summarizePricePool(prices),
       prices,
@@ -174,7 +182,7 @@ const main = async (): Promise<void> => {
 
     console.log(JSON.stringify({
       config: {
-        playerContext: playerContextSummary(pricingConfig, playerContextImportPath),
+        playerContext: playerContextSummary(pricingConfig, playerContextImportPath, playerContextEvidencePath),
       },
       scenarios: scenarios.map(scenario => applyKeeperScenarioToPrices(prices, scenario, keepers)),
     }, null, 2));
@@ -345,7 +353,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv] | npm run scenarios [-- --custom-weights --player-context=path.csv] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv] | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --player-context=path.csv]");
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --player-context=path.csv --player-evidence=path.csv]");
 };
 
 main().catch(error => {

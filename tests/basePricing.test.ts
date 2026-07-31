@@ -118,4 +118,15 @@ describe("audited base pricing", () => {
     expect(london.rawPrice).toBeLessThan(60);
     expect(london.price).toBeLessThanOrEqual(56);
   });
+
+  it("preserves a realistic one-dollar shelf after integer rounding", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const prices = buildBasePrices(projections, historicalRecords);
+
+    const oneDollarCount = prices.filter(price => price.price === 1).length;
+
+    expect(oneDollarCount).toBeGreaterThanOrEqual(70);
+    expect(oneDollarCount).toBeLessThanOrEqual(75);
+  });
 });

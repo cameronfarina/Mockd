@@ -9,7 +9,7 @@ import {
 } from "../../config/playerContext.js";
 import { normalizePlayerName } from "./normalizePlayerName.js";
 
-type CsvRow = Record<string, string>;
+export type CsvRow = Record<string, string>;
 
 const categorySet = new Set<string>(playerContextCategories);
 
@@ -63,7 +63,7 @@ const parseCsvRows = (content: string): string[][] => {
   return rows;
 };
 
-const csvRecords = (content: string): CsvRow[] => {
+export const parseCsvRecords = (content: string): CsvRow[] => {
   const rows = parseCsvRows(content);
   const headers = rows[0]?.map(header => header.trim());
   if (!headers || headers.length === 0) return [];
@@ -112,7 +112,7 @@ const csvOverrideForRow = (row: CsvRow): PlayerContextOverride => {
 };
 
 export const parsePlayerContextCsv = (content: string): PlayerContextOverride[] =>
-  csvRecords(content).map(csvOverrideForRow);
+  parseCsvRecords(content).map(csvOverrideForRow);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -200,6 +200,10 @@ export const mergePlayerContextOverrides = (
       ...existing?.notes,
       ...override.notes,
     };
+    const evidence = [
+      ...(existing?.evidence ?? []),
+      ...(override.evidence ?? []),
+    ];
     const mergedOverride = {
       player: override.player,
       signals: {
@@ -207,6 +211,7 @@ export const mergePlayerContextOverrides = (
         ...override.signals,
       },
       ...(Object.keys(notes).length > 0 ? { notes } : {}),
+      ...(evidence.length > 0 ? { evidence } : {}),
     };
 
     byName.set(key, mergedOverride);

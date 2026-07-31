@@ -87,6 +87,20 @@ describe("auction engine economics", () => {
     expect(replacementPrices).toEqual([6, 6, 3, 3, 1, 1]);
   });
 
+  it("defaults replacement-pool players to one-dollar fallback prices", () => {
+    const pool = buildAuctionPlayerPool({
+      pricedPlayers: [],
+      projections: [
+        projection(1, "Replacement RB", "RB", 80),
+        projection(2, "Replacement WR", "WR", 70),
+        projection(3, "Replacement TE", "TE", 60),
+      ],
+      targetCount: 3,
+    });
+
+    expect(pool.map(poolPlayer => poolPlayer.price)).toEqual([1, 1, 1]);
+  });
+
   it("keeps replacement kickers and defenses at the fallback price", () => {
     const pool = buildAuctionPlayerPool({
       pricedPlayers: [],
@@ -241,6 +255,56 @@ describe("auction engine economics", () => {
     expect(goodPlayer.price).toBe(50);
     expect(Math.max(...sale.bids.filter(bid => ["Beaton", "Hoody"].includes(bid.owner)).map(bid => bid.amount)))
       .toBeLessThan(goodPlayer.price);
+  });
+
+  it("keeps replacement-level player bids at the minimum bid without a late opening bump", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 10,
+      rosterSize: 1,
+      rosterMaximums: positionAmounts(1),
+      starterMinimums: {
+        ...positionAmounts(0),
+        WR: 1,
+      },
+      flexMinimum: 0,
+      ownerDemandMultipliers: {
+        Beaton: { WR: 1.4 },
+        Hoody: { WR: 1.4 },
+      },
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1.3,
+          scarcityChase: 1.2,
+          replacementPatience: 1.05,
+        },
+        Hoody: {
+          priceAggression: 1.3,
+          scarcityChase: 1.2,
+          replacementPatience: 1.05,
+        },
+      },
+      scarcity: {
+        maxMultiplier: 1.15,
+      },
+      lateOpeningBid: {
+        startRosterSlotsRemaining: 0,
+      },
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+    const sale = resolveAuctionSale(
+      player("Endgame WR", "WR", 1),
+      ownerStates,
+      [player("Other Endgame WR", "WR", 1)],
+      config,
+    );
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected replacement-level sale to resolve.");
+
+    expect(Math.max(...sale.bids.map(bid => bid.amount))).toBe(1);
+    expect(sale.price).toBe(1);
   });
 
   it("lets owner behavior tune aggression and patience separately from market anchor", () => {

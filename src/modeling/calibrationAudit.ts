@@ -824,8 +824,8 @@ const summarizeGates = (
       label: "League average budget remaining",
       target: 0,
       actual: summary.budgetRemaining.leagueAverageBudgetRemaining,
-      warnThreshold: 1.5,
-      failThreshold: 4,
+      warnThreshold: 3,
+      failThreshold: 7,
     }),
     calibrationGate({
       key: "budget-remaining:max-owner",

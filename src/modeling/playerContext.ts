@@ -1,6 +1,7 @@
 import {
   playerContextCategories,
   type PlayerContextConfig,
+  type PlayerContextEvidence,
   type PlayerContextNotes,
   type PlayerContextSignals,
   type PlayerContextWeights,
@@ -15,6 +16,7 @@ export interface PlayerContextAdjustment {
   signals: PlayerContextSignals;
   weights: PlayerContextWeights;
   notes?: PlayerContextNotes;
+  evidence?: readonly PlayerContextEvidence[];
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -54,5 +56,6 @@ export const calculatePlayerContextAdjustment = (
     signals: config.enabled ? signals : {},
     weights: config.weights,
     ...(config.enabled && override?.notes ? { notes: override.notes } : {}),
+    ...(config.enabled && override?.evidence ? { evidence: override.evidence } : {}),
   };
 };

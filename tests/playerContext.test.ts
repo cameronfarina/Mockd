@@ -12,6 +12,11 @@ const contextConfig: PlayerContextConfig = {
     coaching: 0.04,
     schedule: 0.03,
     bye: 0.02,
+    opportunity: 0.06,
+    defensiveAttention: 0.05,
+    skillFit: 0.04,
+    environment: 0.04,
+    risk: 0.05,
   },
   overrides: [
     {
@@ -66,11 +71,58 @@ describe("player context custom weights", () => {
         coaching: 0.5,
         schedule: 0.5,
         bye: 0.5,
+        opportunity: 0.5,
+        defensiveAttention: 0.5,
+        skillFit: 0.5,
+        environment: 0.5,
+        risk: 0.5,
       },
     });
 
     expect(adjustment.uncappedAdjustment).toBeLessThan(-0.1);
     expect(adjustment.cappedAdjustment).toBe(-0.1);
     expect(adjustment.factor).toBe(0.9);
+  });
+
+  it("includes factual evidence dimensions in the adjustment audit", () => {
+    const adjustment = calculatePlayerContextAdjustment("Example Player", {
+      ...contextConfig,
+      overrides: [
+        {
+          player: "Example Player",
+          signals: {
+            opportunity: 1,
+            defensiveAttention: -0.8,
+            skillFit: -0.5,
+            environment: 0.25,
+          },
+          evidence: [
+            {
+              player: "Example Player",
+              category: "defensiveAttention",
+              score: -1,
+              confidence: 0.8,
+              adjustedSignal: -0.8,
+              source: "coverage",
+              note: "Moves into WR1 coverage.",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(adjustment.uncappedAdjustment).toBeCloseTo(0.01);
+    expect(adjustment.factor).toBeCloseTo(1.01);
+    expect(adjustment.evidence).toEqual([
+      {
+        player: "Example Player",
+        category: "defensiveAttention",
+        score: -1,
+        confidence: 0.8,
+        adjustedSignal: -0.8,
+        source: "coverage",
+        note: "Moves into WR1 coverage.",
+      },
+    ]);
   });
 });

@@ -5,17 +5,41 @@ export const playerContextCategories = [
   "coaching",
   "schedule",
   "bye",
+  "opportunity",
+  "defensiveAttention",
+  "skillFit",
+  "environment",
+  "risk",
 ] as const;
 
 export type PlayerContextCategory = (typeof playerContextCategories)[number];
+export const factualPlayerContextCategories = [
+  "opportunity",
+  "defensiveAttention",
+  "skillFit",
+  "environment",
+  "risk",
+] as const satisfies readonly PlayerContextCategory[];
+export type FactualPlayerContextCategory = (typeof factualPlayerContextCategories)[number];
 export type PlayerContextSignals = Partial<Record<PlayerContextCategory, number>>;
 export type PlayerContextNotes = Partial<Record<PlayerContextCategory, string>>;
 export type PlayerContextWeights = Record<PlayerContextCategory, number>;
+
+export interface PlayerContextEvidence {
+  player: string;
+  category: FactualPlayerContextCategory;
+  score: number;
+  confidence: number;
+  adjustedSignal: number;
+  source?: string;
+  note?: string;
+}
 
 export interface PlayerContextOverride {
   player: string;
   signals: PlayerContextSignals;
   notes?: PlayerContextNotes;
+  evidence?: readonly PlayerContextEvidence[];
 }
 
 export interface PlayerContextConfig {
@@ -32,6 +56,11 @@ export const defaultPlayerContextWeights: PlayerContextWeights = {
   coaching: 0.04,
   schedule: 0.03,
   bye: 0.02,
+  opportunity: 0.06,
+  defensiveAttention: 0.05,
+  skillFit: 0.04,
+  environment: 0.04,
+  risk: 0.05,
 };
 
 const playerContextOverrides = [

@@ -238,13 +238,7 @@ const depthBuildPriceThreshold = 19;
 const targetAnchorRosterCount = 2;
 const onePlayerRosterCountThreshold = 1.4;
 const defaultReplacementPrice = 1;
-const defaultReplacementPriceLadder: readonly ReplacementPriceTier[] = [
-  { count: 8, price: 8 },
-  { count: 14, price: 6 },
-  { count: 20, price: 4 },
-  { count: 28, price: 3 },
-  { count: 32, price: 2 },
-];
+const defaultReplacementPriceLadder: readonly ReplacementPriceTier[] = [];
 
 const emptyPositionAmounts = (): PositionAmounts => ({
   QB: 0,
@@ -838,10 +832,16 @@ const bidForOwner = (
     topEndAdjustedBidMultiplier,
     config,
   );
-  const pricedBidAmount = Math.max(
-    config.minimumBid,
-    Math.round(
-      player.price * topEndAdjustedBidMultiplier * positionOverbidDampingMultiplier,
+  const replacementLevelBidCap = player.price <= config.minimumBid
+    ? config.minimumBid
+    : Number.POSITIVE_INFINITY;
+  const pricedBidAmount = Math.min(
+    replacementLevelBidCap,
+    Math.max(
+      config.minimumBid,
+      Math.round(
+        player.price * topEndAdjustedBidMultiplier * positionOverbidDampingMultiplier,
+      ),
     ),
   );
   const uncappedAmount = Math.max(pricedBidAmount, openingBid);

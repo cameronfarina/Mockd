@@ -2,6 +2,7 @@ import { positions, type Position } from "../../config/league.js";
 import {
   defaultPlayerContextConfig,
   type PlayerContextConfig,
+  type PlayerContextEvidence,
   type PlayerContextNotes,
   type PlayerContextSignals,
 } from "../../config/playerContext.js";
@@ -62,6 +63,7 @@ export interface BasePrice extends ProjectionRanking {
   contextAdjustmentPercent: number;
   contextSignals: PlayerContextSignals;
   contextNotes?: PlayerContextNotes;
+  contextEvidence?: readonly PlayerContextEvidence[];
   rawPrice: number;
   minimumPrice: number;
   hardCeiling: number;
@@ -294,6 +296,7 @@ const candidateForRanking = (
     contextAdjustmentPercent: contextAdjustment.cappedAdjustment,
     contextSignals: contextAdjustment.signals,
     ...(contextAdjustment.notes ? { contextNotes: contextAdjustment.notes } : {}),
+    ...(contextAdjustment.evidence ? { contextEvidence: contextAdjustment.evidence } : {}),
     rawPrice,
     allocationWeight: Math.max(0.01, rawPrice),
     minimumPrice,
@@ -369,6 +372,7 @@ const allocateIntegerPrices = (
     .filter(entry => entry.price < entry.candidate.hardCeiling)
     .sort(
       (left, right) =>
+        Number(right.price > 1) - Number(left.price > 1) ||
         (right.fractionalPrice - Math.floor(right.fractionalPrice)) -
         (left.fractionalPrice - Math.floor(left.fractionalPrice)) ||
         right.candidate.rawPrice - left.candidate.rawPrice,

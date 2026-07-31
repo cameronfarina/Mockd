@@ -1,0 +1,6 @@
+player,category,score,confidence,source,note
+Example WR,opportunity,1,0.8,uploaded target-share data,Projected role or target-share gain
+Example WR,defensiveAttention,-1,0.7,coverage chart,Expected increase in primary coverage attention
+Example WR,skillFit,-0.75,0.75,separation chart,Separation profile may not fully support the larger role
+Example WR,environment,0.5,0.8,"team pace and pass rate",New offense improves volume environment
+Example WR,risk,-0.25,1,availability file,Minor availability or contract uncertainty

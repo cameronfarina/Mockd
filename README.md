@@ -13,7 +13,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - current keeper declarations and assumptions
 - projection rank anchors, ESPN ranks, auction values, and rank gaps
 - audited pre-keeper prices reconciled to historical open-auction spend
-- optional custom player-context weights for role, injury, contract, coaching, schedule, and bye-week adjustments
+- optional custom player-context weights for role, injury, contract, coaching, schedule, bye-week, opportunity, defensive-attention, skill-fit, environment, and risk adjustments
 - confirmed-only, expected, and high-retention keeper inflation scenarios
 - deterministic owner-local auction simulation with scarcity pressure
 - repeatable smoke checks for roster validity, batch validity, and the first two nomination rounds
@@ -43,6 +43,7 @@ npm run rankings
 npm run prices
 npm run prices:custom
 npm run prices -- --player-context=data/raw/player-context.example.csv
+npm run prices -- --player-evidence=data/raw/player-evidence.example.csv
 npm run scenarios
 npm run scenarios:custom
 npm run mock
@@ -105,7 +106,7 @@ npm run scenarios
 
 `prices` builds pre-keeper prices from uploaded/imported inputs: public auction value anchors, league-calibrated position multipliers, capped rank-gap adjustments, role-sustainability overrides, historical spend reconciliation, and hard position ceilings. The current defaults reproduce this league's audited drafted-pool counts and spend targets, but the engine accepts new historical records and config for future leagues.
 
-`prices:custom` turns on editable player-context weights from `config/playerContext.ts`. Those weights can move prices for manually configured role, injury, contract, coaching, schedule, and bye-week signals while still reconciling the final pool back to historical positional spend. The default `prices` command leaves that layer off, preserving the audited baseline.
+`prices:custom` turns on editable player-context weights from `config/playerContext.ts`. Those weights can move prices for manually configured role, injury, contract, coaching, schedule, bye-week, opportunity, defensive-attention, skill-fit, environment, and risk signals while still reconciling the final pool back to historical positional spend. The default `prices` command leaves that layer off, preserving the audited baseline.
 
 Player-context imports can be layered on with `--player-context=path/to/file.csv` or `--player-context=path/to/file.json`. Passing an import path turns the context layer on, merges the imported rows with the manual overrides, and lets imported category values win for matching normalized player names. CSV imports use this shape:
 
@@ -114,6 +115,14 @@ player,role,injury,contract,coaching,schedule,bye,role_note,injury_note,contract
 ```
 
 Each category value is a signed signal multiplied by the configured category weight; notes are optional. JSON imports can be either an array of `{ player, signals, notes }` overrides or an object with an `overrides` array.
+
+Factual player-context evidence can be layered on with `--player-evidence=path/to/file.csv`. Evidence imports are meant for sourced inputs such as target-share deltas, depth-chart changes, coverage difficulty, separation fit, team environment, injury risk, and contract risk. The CSV shape is:
+
+```text
+player,category,score,confidence,source,note
+```
+
+`category` must be one of `opportunity`, `defensiveAttention`, `skillFit`, `environment`, or `risk`. `score` is the signed evidence signal, `confidence` is optional from `0` to `1`, and the model applies `score * confidence` before category and total caps. `source` and `note` are preserved in each player's pricing audit so factual inputs can be inspected instead of hidden as assumptions.
 
 `scenarios` removes known keepers from the priced auction pool and applies confirmed-only, expected, and high-retention inflation factors. Scenario counts and average keeper costs are config-driven so unannounced keepers are not assigned to owners.
 
@@ -127,6 +136,7 @@ Run:
 npm run mock
 npm run mock -- --scenario=expected --seed=economic-regression
 npm run mock -- --scenario=expected --player-context=data/raw/player-context.example.csv
+npm run mock -- --scenario=expected --player-evidence=data/raw/player-evidence.example.csv
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run smoke -- --scenario=expected --runs=2 --seed=smoke
 npm run calibration -- --scenarios=expected --runs=50 --seed-prefix=prep
@@ -192,11 +202,11 @@ npm run --silent calibration -- --scenarios=expected --runs=50 > data/processed/
 npm run --silent outputs -- --scenarios=expected --runs=50 --out=data/processed/mock-prep
 ```
 
-The context layer is intentionally manual for now. Add only player facts you want the model to believe; unsupported contract, coaching, schedule, or bye assumptions should stay empty until you enter or import them from a trusted source.
+The context layer is deterministic and source-driven. Add only player facts you want the model to believe; unsupported contract, coaching, schedule, opportunity, defensive-attention, skill-fit, environment, or risk assumptions should stay empty until you enter or import them from a trusted source.
 
 ## Next implementation work
 
-1. Add import paths for richer player-context data sources.
+1. Add source adapters for richer player evidence providers.
 2. Add a web-app upload flow once the league-specific engine is trusted.
 
 ## Push to GitHub
