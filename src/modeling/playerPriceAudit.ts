@@ -96,11 +96,47 @@ export interface PlayerAuditMockSale {
   picks: readonly PlayerAuditMockPick[];
 }
 
+export type PlayerPriceWaterfallStepKey =
+  | "espn-anchor"
+  | "position-multiplier"
+  | "rank-gap-adjustment"
+  | "market-pressure"
+  | "projection-floor"
+  | "sustainability"
+  | "factual-context"
+  | "spend-reconciliation"
+  | "keeper-inflation"
+  | "mock-sale-average";
+
+export interface PlayerPriceWaterfallStep {
+  key: PlayerPriceWaterfallStepKey;
+  label: string;
+  inputAmount: number;
+  outputAmount: number;
+  delta: number;
+  factor?: number;
+  note: string;
+}
+
+export interface PlayerPriceWaterfallSummary {
+  anchorPrice: number;
+  basePrice: number;
+  scenarioPrice: number;
+  averageMockSalePrice: number;
+  saleVsScenarioPrice: number;
+}
+
+export interface PlayerPriceWaterfall {
+  summary: PlayerPriceWaterfallSummary;
+  steps: readonly PlayerPriceWaterfallStep[];
+}
+
 export interface PlayerPriceAudit {
   player: PlayerAuditIdentity;
   pricing: PlayerAuditPricing;
   scenario: PlayerAuditScenario;
   mockSale: PlayerAuditMockSale;
+  waterfall: PlayerPriceWaterfall;
   explanation: string[];
 }
 
@@ -230,6 +266,130 @@ const auditPricingFor = (basePrice: BasePrice): PlayerAuditPricing => ({
   basePrice: basePrice.price,
 });
 
+const waterfallStep = (
+  key: PlayerPriceWaterfallStepKey,
+  label: string,
+  inputAmount: number,
+  outputAmount: number,
+  note: string,
+  factor?: number,
+): PlayerPriceWaterfallStep => ({
+  key,
+  label,
+  inputAmount: roundToTwo(inputAmount),
+  outputAmount: roundToTwo(outputAmount),
+  delta: roundToTwo(outputAmount - inputAmount),
+  ...(factor === undefined ? {} : { factor: roundToTwo(factor) }),
+  note,
+});
+
+const buildWaterfall = (
+  basePrice: BasePrice,
+  scenario: PlayerAuditScenario,
+  mockSale: PlayerAuditMockSale,
+): PlayerPriceWaterfall => {
+  const afterPositionMultiplier = basePrice.publicAnchorValue * basePrice.positionMultiplier;
+  const afterRankGapAdjustment = afterPositionMultiplier * basePrice.rankGapAdjustment;
+  const afterMarketPressure = afterRankGapAdjustment * basePrice.marketPressure;
+  const afterProjectionFloor = basePrice.preSustainabilityPrice;
+  const afterSustainability = afterProjectionFloor * basePrice.sustainabilityFactor;
+  const scenarioNote = scenario.available
+    ? `${scenario.label} keeper inflation uses a ${roundToTwo(scenario.scenarioFactor)}x ${basePrice.position} factor.`
+    : `Removed from the ${scenario.label} auction pool${scenario.unavailableReason ? `: ${scenario.unavailableReason}` : "."}`;
+
+  return {
+    summary: {
+      anchorPrice: basePrice.publicAnchorValue,
+      basePrice: basePrice.price,
+      scenarioPrice: scenario.scenarioPrice,
+      averageMockSalePrice: mockSale.averageSalePrice,
+      saleVsScenarioPrice: mockSale.averageSaleVsScenarioPrice,
+    },
+    steps: [
+      waterfallStep(
+        "espn-anchor",
+        "ESPN auction anchor",
+        0,
+        basePrice.publicAnchorValue,
+        "Public ESPN auction value used as the external starting point.",
+      ),
+      waterfallStep(
+        "position-multiplier",
+        "League positional multiplier",
+        basePrice.publicAnchorValue,
+        afterPositionMultiplier,
+        `${basePrice.position} prices are scaled to this league's historical open-auction market.`,
+        basePrice.positionMultiplier,
+      ),
+      waterfallStep(
+        "rank-gap-adjustment",
+        "Projection rank gap",
+        afterPositionMultiplier,
+        afterRankGapAdjustment,
+        basePrice.rankGap === undefined
+          ? "No ESPN positional rank gap was available, so no rank-gap movement was applied."
+          : `Model positional rank is ${basePrice.rankGap} spot(s) away from the ESPN rank.`,
+        basePrice.rankGapAdjustment,
+      ),
+      waterfallStep(
+        "market-pressure",
+        "League market pressure",
+        afterRankGapAdjustment,
+        afterMarketPressure,
+        "Applies position-level auction pressure before player-specific overrides.",
+        basePrice.marketPressure,
+      ),
+      waterfallStep(
+        "projection-floor",
+        "Projection floor",
+        afterMarketPressure,
+        afterProjectionFloor,
+        basePrice.projectionFloorPrice > afterMarketPressure
+          ? "Projection rank floor lifted the player above the anchored price."
+          : "Projection rank floor did not lift this player above the anchored price.",
+      ),
+      waterfallStep(
+        "sustainability",
+        "Role sustainability",
+        afterProjectionFloor,
+        afterSustainability,
+        basePrice.sustainabilityNote ?? "No manual role-sustainability override applied.",
+        basePrice.sustainabilityFactor,
+      ),
+      waterfallStep(
+        "factual-context",
+        "Factual context",
+        afterSustainability,
+        basePrice.rawPrice,
+        `${basePrice.contextEvidence?.length ?? 0} sourced evidence row(s) contributed to the context adjustment.`,
+        basePrice.contextAdjustmentFactor,
+      ),
+      waterfallStep(
+        "spend-reconciliation",
+        "Spend reconciliation and ceiling",
+        basePrice.rawPrice,
+        basePrice.price,
+        `Reconciles into historical ${basePrice.position} spend while respecting price ceilings and rounding.`,
+      ),
+      waterfallStep(
+        "keeper-inflation",
+        "Keeper inflation",
+        basePrice.price,
+        scenario.scenarioPrice,
+        scenarioNote,
+        scenario.scenarioFactor,
+      ),
+      waterfallStep(
+        "mock-sale-average",
+        "Mock sale average",
+        scenario.scenarioPrice,
+        mockSale.averageSalePrice,
+        `Observed simulation outcome: drafted ${mockSale.draftedCount} time(s) across ${mockSale.runCount} mock run(s).`,
+      ),
+    ],
+  };
+};
+
 export const buildPlayerPriceAudit = ({
   playerName,
   projections,
@@ -286,6 +446,7 @@ export const buildPlayerPriceAudit = ({
     pricing: auditPricingFor(basePrice),
     scenario: auditScenario,
     mockSale,
+    waterfall: buildWaterfall(basePrice, auditScenario, mockSale),
     explanation: explanationFor(basePrice, auditScenario, mockSale),
   };
 };

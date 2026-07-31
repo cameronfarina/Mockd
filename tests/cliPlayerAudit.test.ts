@@ -47,6 +47,7 @@ describe("CLI player audit report", () => {
         espnRank: number;
         rankGap: number;
         rankGapAdjustment: number;
+        rawPrice: number;
         basePrice: number;
         contextAdjustmentPercent: number;
         contextSignals: Record<string, number>;
@@ -66,6 +67,24 @@ describe("CLI player audit report", () => {
         averageSaleVsScenarioPrice: number;
         minSalePrice: number;
         maxSalePrice: number;
+      };
+      waterfall: {
+        summary: {
+          anchorPrice: number;
+          basePrice: number;
+          scenarioPrice: number;
+          averageMockSalePrice: number;
+          saleVsScenarioPrice: number;
+        };
+        steps: {
+          key: string;
+          label: string;
+          inputAmount: number;
+          outputAmount: number;
+          delta: number;
+          factor?: number;
+          note: string;
+        }[];
       };
       explanation: string[];
     };
@@ -101,6 +120,41 @@ describe("CLI player audit report", () => {
       result.mockSale.averageSalePrice - result.scenario.scenarioPrice,
     );
     expect(result.mockSale.minSalePrice).toBeLessThanOrEqual(result.mockSale.maxSalePrice);
+    expect(result.waterfall.summary).toMatchObject({
+      anchorPrice: result.pricing.publicAnchorValue,
+      basePrice: result.pricing.basePrice,
+      scenarioPrice: result.scenario.scenarioPrice,
+      averageMockSalePrice: result.mockSale.averageSalePrice,
+      saleVsScenarioPrice: result.mockSale.averageSaleVsScenarioPrice,
+    });
+    expect(result.waterfall.steps.map(step => step.key)).toEqual([
+      "espn-anchor",
+      "position-multiplier",
+      "rank-gap-adjustment",
+      "market-pressure",
+      "projection-floor",
+      "sustainability",
+      "factual-context",
+      "spend-reconciliation",
+      "keeper-inflation",
+      "mock-sale-average",
+    ]);
+    expect(result.waterfall.steps[0]).toMatchObject({
+      key: "espn-anchor",
+      inputAmount: 0,
+      outputAmount: result.pricing.publicAnchorValue,
+      delta: result.pricing.publicAnchorValue,
+    });
+    expect(result.waterfall.steps.find(step => step.key === "factual-context")).toMatchObject({
+      outputAmount: result.pricing.rawPrice,
+    });
+    expect(result.waterfall.steps.find(step => step.key === "keeper-inflation")).toMatchObject({
+      outputAmount: result.scenario.scenarioPrice,
+    });
+    expect(result.waterfall.steps.find(step => step.key === "mock-sale-average")).toMatchObject({
+      outputAmount: result.mockSale.averageSalePrice,
+      delta: result.mockSale.averageSaleVsScenarioPrice,
+    });
     expect(result.explanation.join("\n")).toContain("ESPN");
     expect(result.explanation.join("\n")).toContain("keeper inflation");
     expect(result.explanation.join("\n")).toContain("mock sale");
