@@ -482,6 +482,84 @@ describe("auction engine economics", () => {
     expect(beatonBid?.uncappedAmount).toBeLessThan(target.price);
   });
 
+  it("damps tight end overbids without changing the TE anchor", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1.2,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+        Hoody: {
+          priceAggression: 1.2,
+          scarcityChase: 1,
+          replacementPatience: 1,
+        },
+      },
+      positionOverbidDamping: {
+        TE: 0.75,
+      },
+      seed: "te-overbid-damping",
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+    const target = player("Elite TE", "TE", 39);
+    const sale = resolveAuctionSale(target, ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    const bid = sale.bids[0];
+    expect(bid).toBeDefined();
+    expect(bid?.positionOverbidDampingMultiplier).toBeLessThan(1);
+    expect(bid?.uncappedAmount).toBeGreaterThanOrEqual(target.price);
+    expect(bid?.uncappedAmount).toBeLessThan(47);
+    expect(sale.marketPrice).toBe(39);
+  });
+
+  it("discounts backup tight end bids after an owner has a starter", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 100,
+      rosterSize: 3,
+      rosterMaximums: positionAmounts(3),
+      starterMinimums: {
+        ...positionAmounts(0),
+        TE: 1,
+      },
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      rosterNeed: {
+        benchTightEndMultiplier: 0.6,
+      },
+      seed: "backup-te-discount",
+    });
+    const ownerStates = createAuctionOwnerStates({
+      config,
+      initialRostersByOwner: {
+        Beaton: [player("Kept TE", "TE", 20)],
+      },
+    });
+    const target = player("Backup TE", "TE", 18);
+    const sale = resolveAuctionSale(target, ownerStates, [player("Fallback TE", "TE", 1)], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    expect(beatonBid).toBeDefined();
+    expect(beatonBid?.rosterNeedMultiplier).toBe(0.6);
+    expect(beatonBid?.uncappedAmount).toBeLessThan(target.price);
+  });
+
   it("keeps sub-threshold anchors from crossing the high-price sale boundary", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({

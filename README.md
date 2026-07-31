@@ -134,6 +134,8 @@ Historical live-auction ceilings from the 2023-2025 boards are now explicit cali
 
 QB spend has its own controls because this league historically drafts only about 20-24 QBs and does not chase backup quarterbacks at starter prices. The engine dampens QB overbids and discounts backup-QB bids once an owner already has a starter.
 
+TE spend uses the same shape with lighter defaults: elite TE overbids are dampened, and backup-TE bids are discounted once an owner already has a starter. This keeps the model from drafting too many second tight ends at meaningful prices.
+
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.
 
 `smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, and warnings such as owners leaving too much budget unused.

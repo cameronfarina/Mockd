@@ -24,6 +24,7 @@ export interface RosterNeedConfig {
   missingFlexMultiplier: number;
   emptyPremiumPositionMultiplier: number;
   benchQuarterbackMultiplier: number;
+  benchTightEndMultiplier: number;
   specialTeamsBenchMultiplier: number;
   lastPositionSlotMultiplier: number;
 }
@@ -251,6 +252,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   ownerBehaviors: {},
   positionOverbidDamping: {
     QB: 0.75,
+    TE: 0.65,
   },
   scarcity: {
     comparablePriceRatio: 0.8,
@@ -263,6 +265,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     missingFlexMultiplier: 1.015,
     emptyPremiumPositionMultiplier: 1,
     benchQuarterbackMultiplier: 0.55,
+    benchTightEndMultiplier: 0.65,
     specialTeamsBenchMultiplier: 0.85,
     lastPositionSlotMultiplier: 0.97,
   },
@@ -552,6 +555,9 @@ const rosterNeedMultiplierFor = (
   }
   if (position === "QB" && config.starterMinimums.QB > 0 && counts.QB >= config.starterMinimums.QB) {
     multiplier *= config.rosterNeed.benchQuarterbackMultiplier;
+  }
+  if (position === "TE" && config.starterMinimums.TE > 0 && counts.TE >= config.starterMinimums.TE) {
+    multiplier *= config.rosterNeed.benchTightEndMultiplier;
   }
   if ((position === "K" || position === "DST") && counts[position] >= 1) {
     multiplier *= config.rosterNeed.specialTeamsBenchMultiplier;
