@@ -119,6 +119,35 @@ describe("auction engine economics", () => {
     expect(pool.find(poolPlayer => poolPlayer.name === "Replacement DST")?.price).toBe(1);
   });
 
+  it("carries context adjustment metadata from priced players into the auction pool", () => {
+    const pool = buildAuctionPlayerPool({
+      pricedPlayers: [
+        {
+          id: 1,
+          name: "Context WR",
+          position: "WR",
+          price: 50,
+          scenarioPrice: 52,
+          weeks1To4: 80,
+          contextAdjustmentPercent: -0.105,
+          contextEvidence: [
+            { category: "risk" },
+            { category: "environment" },
+          ],
+        },
+      ],
+      projections: [],
+      targetCount: 1,
+    });
+
+    expect(pool[0]).toMatchObject({
+      name: "Context WR",
+      price: 52,
+      contextAdjustmentPercent: -0.105,
+      contextEvidenceCount: 2,
+    });
+  });
+
   it("records the rotating nominator while elite market names come off early", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({
@@ -1332,6 +1361,97 @@ describe("auction engine economics", () => {
     expect(sale.price).toBeGreaterThan(sale.marketPrice);
     expect(sale.price).toBeLessThan(60);
     expect(sale.price).toBeLessThanOrEqual(58);
+  });
+
+  it("dampens over-anchor bids when sourced context evidence already penalizes the player", () => {
+    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 200,
+      rosterSize: 16,
+      rosterMaximums: positionAmounts(16),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {
+        Beaton: { WR: 1.08 },
+        Hoody: { WR: 1.08 },
+        PJ: { WR: 1.08 },
+      },
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1.12,
+          scarcityChase: 1.1,
+          replacementPatience: 1,
+        },
+        Hoody: {
+          priceAggression: 1.12,
+          scarcityChase: 1.1,
+          replacementPatience: 1,
+        },
+        PJ: {
+          priceAggression: 1.12,
+          scarcityChase: 1.1,
+          replacementPatience: 1,
+        },
+      },
+      scarcity: {
+        comparablePriceRatio: 0.8,
+        minimumComparablePrice: 5,
+        slope: 0.12,
+        maxMultiplier: 1.15,
+      },
+      roomPressure: {
+        startRosterSlotsRemaining: 16,
+        minRosterSlotsRemainingExclusive: 4,
+        targetBudgetPerSlot: 12,
+        slope: 0.35,
+        maxMultiplier: 1.1,
+        minimumPlayerPrice: 30,
+        maximumPlayerPrice: 60,
+      },
+      seed: "context-penalty-bid-damping",
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+    const rawTarget = player("Raw Strong WR", "WR", 51);
+    const penalizedTarget = {
+      ...player("Penalized Strong WR", "WR", 51),
+      contextAdjustmentPercent: -0.105,
+      contextEvidenceCount: 5,
+    };
+    const lightlyPenalizedTarget = {
+      ...player("Lightly Penalized Strong WR", "WR", 51),
+      contextAdjustmentPercent: -0.045,
+      contextEvidenceCount: 5,
+    };
+    const rawSale = resolveAuctionSale(rawTarget, ownerStates, [], config);
+    const penalizedSale = resolveAuctionSale(penalizedTarget, ownerStates, [], config);
+    const lightlyPenalizedSale = resolveAuctionSale(lightlyPenalizedTarget, ownerStates, [], config);
+
+    expect(rawSale).toBeDefined();
+    expect(penalizedSale).toBeDefined();
+    expect(lightlyPenalizedSale).toBeDefined();
+    if (!rawSale) throw new Error("Expected raw sale to resolve.");
+    if (!penalizedSale) throw new Error("Expected penalized sale to resolve.");
+    if (!lightlyPenalizedSale) throw new Error("Expected lightly penalized sale to resolve.");
+
+    expect(rawSale.price).toBeGreaterThan(55);
+    expect(penalizedSale.bids[0]?.contextPenaltyDampingMultiplier).toBeLessThan(1);
+    expect(penalizedSale.price).toBeLessThan(rawSale.price);
+    expect(penalizedSale.price).toBeGreaterThanOrEqual(penalizedTarget.price);
+    expect(penalizedSale.price).toBeLessThanOrEqual(55);
+    expect(penalizedSale.diagnostics.topBids[0]?.drivers).toContainEqual(
+      expect.objectContaining({
+        key: "context_penalty_damping",
+        direction: "down",
+      }),
+    );
+    expect(lightlyPenalizedSale.bids[0]?.contextPenaltyDampingMultiplier).toBeLessThan(1);
+    expect(lightlyPenalizedSale.diagnostics.topBids[0]?.drivers).toContainEqual(
+      expect.objectContaining({
+        key: "context_penalty_damping",
+        direction: "down",
+      }),
+    );
   });
 
   it("keeps near-elite anchors from adding extra $75-plus sales", () => {

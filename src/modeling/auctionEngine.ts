@@ -82,6 +82,13 @@ export interface TopEndOverbidDampingConfig {
   maxOverbidDiscount: number;
 }
 
+export interface ContextPenaltyBidDampingConfig {
+  minimumPlayerPrice: number;
+  startPenalty: number;
+  fullEffectPenalty: number;
+  maxOverbidDiscount: number;
+}
+
 export interface TopEndSaleGuardConfig {
   threshold: number;
   capBelowThresholdAt: number;
@@ -131,13 +138,14 @@ export interface AuctionEngineConfig {
   budgetPacing: BudgetPacingConfig;
   lateOpeningBid: LateOpeningBidConfig;
   topEndOverbidDamping: TopEndOverbidDampingConfig;
+  contextPenaltyBidDamping: ContextPenaltyBidDampingConfig;
   topEndSaleGuard: TopEndSaleGuardConfig;
   tierSaleGuard: TierSaleGuardConfig;
   seed: string;
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "roomPressure" | "budgetPacing" | "lateOpeningBid" | "topEndOverbidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "roomPressure" | "budgetPacing" | "lateOpeningBid" | "topEndOverbidDamping" | "contextPenaltyBidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
     ownerRosterMaximums?: OwnerRosterMaximums;
@@ -150,6 +158,7 @@ export type AuctionEngineConfigOverrides =
     budgetPacing?: Partial<BudgetPacingConfig>;
     lateOpeningBid?: Partial<LateOpeningBidConfig>;
     topEndOverbidDamping?: Partial<TopEndOverbidDampingConfig>;
+    contextPenaltyBidDamping?: Partial<ContextPenaltyBidDampingConfig>;
     topEndSaleGuard?: Partial<TopEndSaleGuardConfig>;
     tierSaleGuard?: Partial<TierSaleGuardConfig>;
   };
@@ -181,6 +190,7 @@ export interface AuctionBid {
   budgetPacingMultiplier: number;
   topEndDampingMultiplier: number;
   positionOverbidDampingMultiplier: number;
+  contextPenaltyDampingMultiplier: number;
   tieBreak: number;
 }
 
@@ -337,6 +347,9 @@ export interface AuctionPricedPlayer {
   week1?: number;
   weeks?: Record<number, number>;
   weeks1To4: number;
+  contextAdjustmentPercent?: number;
+  contextEvidence?: readonly unknown[];
+  contextEvidenceCount?: number;
 }
 
 export interface ReplacementPriceTier {
@@ -470,6 +483,12 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     fullEffectPrice: 75,
     maxOverbidDiscount: 0.75,
   },
+  contextPenaltyBidDamping: {
+    minimumPlayerPrice: 30,
+    startPenalty: 0.04,
+    fullEffectPenalty: 0.1,
+    maxOverbidDiscount: 0.75,
+  },
   topEndSaleGuard: {
     threshold: 70,
     capBelowThresholdAt: 69,
@@ -555,6 +574,10 @@ export const buildAuctionConfig = (
   topEndOverbidDamping: {
     ...defaultAuctionEngineConfig.topEndOverbidDamping,
     ...overrides.topEndOverbidDamping,
+  },
+  contextPenaltyBidDamping: {
+    ...defaultAuctionEngineConfig.contextPenaltyBidDamping,
+    ...overrides.contextPenaltyBidDamping,
   },
   topEndSaleGuard: {
     ...defaultAuctionEngineConfig.topEndSaleGuard,
@@ -1017,6 +1040,26 @@ const positionOverbidDampingMultiplierFor = (
   return adjustedBidMultiplier / bidMultiplier;
 };
 
+const contextPenaltyDampingMultiplierFor = (
+  player: Player,
+  bidMultiplier: number,
+  config: AuctionEngineConfig,
+): number => {
+  if (bidMultiplier <= 1) return 1;
+  if (player.price < config.contextPenaltyBidDamping.minimumPlayerPrice) return 1;
+
+  const penalty = -(player.contextAdjustmentPercent ?? 0);
+  const { startPenalty, fullEffectPenalty, maxOverbidDiscount } = config.contextPenaltyBidDamping;
+  if (penalty < startPenalty || maxOverbidDiscount <= 0) return 1;
+
+  const penaltyRange = Math.max(0.001, fullEffectPenalty - startPenalty);
+  const penaltyScale = clamp((penalty - startPenalty) / penaltyRange, 0, 1);
+  const overbidDiscount = clamp(penaltyScale * maxOverbidDiscount, 0, maxOverbidDiscount);
+  const adjustedBidMultiplier = 1 + (bidMultiplier - 1) * (1 - overbidDiscount);
+
+  return adjustedBidMultiplier / bidMultiplier;
+};
+
 const anchorRosterCount = (roster: readonly Player[]): number =>
   roster.filter(player => player.price >= anchorBuildPriceThreshold).length;
 
@@ -1074,6 +1117,11 @@ const bidForOwner = (
     topEndAdjustedBidMultiplier,
     config,
   );
+  const contextPenaltyDampingMultiplier = contextPenaltyDampingMultiplierFor(
+    player,
+    topEndAdjustedBidMultiplier * positionOverbidDampingMultiplier,
+    config,
+  );
   const replacementLevelBidCap = player.price <= config.minimumBid
     ? config.minimumBid
     : Number.POSITIVE_INFINITY;
@@ -1082,7 +1130,10 @@ const bidForOwner = (
     Math.max(
       config.minimumBid,
       Math.round(
-        player.price * topEndAdjustedBidMultiplier * positionOverbidDampingMultiplier,
+        player.price *
+          topEndAdjustedBidMultiplier *
+          positionOverbidDampingMultiplier *
+          contextPenaltyDampingMultiplier,
       ),
     ),
   );
@@ -1106,6 +1157,7 @@ const bidForOwner = (
     budgetPacingMultiplier,
     topEndDampingMultiplier,
     positionOverbidDampingMultiplier,
+    contextPenaltyDampingMultiplier,
     tieBreak: deterministicTieBreak(config.seed, state.owner, player.name),
   };
 };
@@ -1134,6 +1186,7 @@ const bidDriversFor = (bid: AuctionBid): AuctionBidDriver[] => {
     { key: "budget_pacing", multiplier: bid.budgetPacingMultiplier },
     { key: "top_end_damping", multiplier: bid.topEndDampingMultiplier },
     { key: "position_overbid_damping", multiplier: bid.positionOverbidDampingMultiplier },
+    { key: "context_penalty_damping", multiplier: bid.contextPenaltyDampingMultiplier },
   ] satisfies readonly { key: string; multiplier: number }[];
 
   return multipliers
@@ -1151,10 +1204,25 @@ const bidDriversFor = (bid: AuctionBid): AuctionBidDriver[] => {
     );
 };
 
+const retainedBidDriversFor = (bid: AuctionBid): AuctionBidDriver[] => {
+  const drivers = bidDriversFor(bid);
+  const retainedDrivers = drivers.slice(0, 3);
+  const contextPenaltyDriver = drivers.find(driver => driver.key === "context_penalty_damping");
+
+  if (
+    !contextPenaltyDriver ||
+    retainedDrivers.some(driver => driver.key === contextPenaltyDriver.key)
+  ) {
+    return retainedDrivers;
+  }
+
+  return [...retainedDrivers.slice(0, 2), contextPenaltyDriver];
+};
+
 const bidDiagnosticsFor = (bid: AuctionBid): AuctionBidDiagnostics => ({
   owner: bid.owner,
   cappedByMaxBid: bid.amount < bid.uncappedAmount,
-  drivers: bidDriversFor(bid).slice(0, 3),
+  drivers: retainedBidDriversFor(bid),
 });
 
 const budgetPerRosterSlotFor = (state: AuctionOwnerState): number | null =>
@@ -1833,6 +1901,10 @@ export const buildInitialRostersFromKeepers = (
 
 const playerFromPricedRecord = (record: AuctionPricedPlayer): Player => {
   const id = record.id === undefined ? {} : { id: record.id };
+  const contextAdjustment = record.contextAdjustmentPercent === undefined
+    ? {}
+    : { contextAdjustmentPercent: record.contextAdjustmentPercent };
+  const contextEvidenceCount = record.contextEvidenceCount ?? record.contextEvidence?.length;
   return {
     ...id,
     name: record.name,
@@ -1840,6 +1912,8 @@ const playerFromPricedRecord = (record: AuctionPricedPlayer): Player => {
     price: record.scenarioPrice ?? record.price,
     week1: record.week1 ?? record.weeks?.[1] ?? 0,
     weeks1To4: record.weeks1To4,
+    ...contextAdjustment,
+    ...(contextEvidenceCount === undefined ? {} : { contextEvidenceCount }),
   };
 };
 

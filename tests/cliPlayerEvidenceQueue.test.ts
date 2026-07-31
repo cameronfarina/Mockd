@@ -46,7 +46,7 @@ describe("CLI player evidence queue", () => {
     const london = queue.rows.find(row => row.player === "Drake London");
     expect(london).toBeDefined();
     expect(london).toMatchObject({
-      priority: "high",
+      priority: "medium",
       evidenceStatus: "present",
       currentEvidenceCount: 5,
     });

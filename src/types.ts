@@ -7,6 +7,8 @@ export interface Player {
   price: number;
   week1: number;
   weeks1To4: number;
+  contextAdjustmentPercent?: number;
+  contextEvidenceCount?: number;
 }
 
 export type StarterSlot = "QB" | "RB1" | "RB2" | "WR1" | "WR2" | "TE" | "FLEX" | "K" | "DST";
