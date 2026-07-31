@@ -56,6 +56,13 @@ export interface BudgetPacingConfig {
   minimumPlayerPrice: number;
 }
 
+export interface LateOpeningBidConfig {
+  startRosterSlotsRemaining: number;
+  targetBudgetPerSlot: number;
+  maxPlayerPrice: number;
+  maxExtraBid: number;
+}
+
 export interface TopEndOverbidDampingConfig {
   startPrice: number;
   fullEffectPrice: number;
@@ -102,6 +109,7 @@ export interface AuctionEngineConfig {
   nomination: NominationConfig;
   endgameSpend: EndgameSpendConfig;
   budgetPacing: BudgetPacingConfig;
+  lateOpeningBid: LateOpeningBidConfig;
   topEndOverbidDamping: TopEndOverbidDampingConfig;
   topEndSaleGuard: TopEndSaleGuardConfig;
   tierSaleGuard: TierSaleGuardConfig;
@@ -109,7 +117,7 @@ export interface AuctionEngineConfig {
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "budgetPacing" | "topEndOverbidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "budgetPacing" | "lateOpeningBid" | "topEndOverbidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
     ownerRosterMaximums?: OwnerRosterMaximums;
@@ -119,6 +127,7 @@ export type AuctionEngineConfigOverrides =
     nomination?: Partial<NominationConfig>;
     endgameSpend?: Partial<EndgameSpendConfig>;
     budgetPacing?: Partial<BudgetPacingConfig>;
+    lateOpeningBid?: Partial<LateOpeningBidConfig>;
     topEndOverbidDamping?: Partial<TopEndOverbidDampingConfig>;
     topEndSaleGuard?: Partial<TopEndSaleGuardConfig>;
     tierSaleGuard?: Partial<TierSaleGuardConfig>;
@@ -159,6 +168,10 @@ export interface AuctionSale {
   price: number;
   marketPrice: number;
   bids: AuctionBid[];
+}
+
+export interface ResolveAuctionSaleOptions {
+  nominator?: Owner;
 }
 
 export interface AuctionPick {
@@ -315,6 +328,12 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     maxDiscount: 0.28,
     minimumPlayerPrice: 8,
   },
+  lateOpeningBid: {
+    startRosterSlotsRemaining: 2,
+    targetBudgetPerSlot: 1,
+    maxPlayerPrice: 15,
+    maxExtraBid: 6,
+  },
   topEndOverbidDamping: {
     startPrice: 50,
     fullEffectPrice: 75,
@@ -384,6 +403,10 @@ export const buildAuctionConfig = (
   budgetPacing: {
     ...defaultAuctionEngineConfig.budgetPacing,
     ...overrides.budgetPacing,
+  },
+  lateOpeningBid: {
+    ...defaultAuctionEngineConfig.lateOpeningBid,
+    ...overrides.lateOpeningBid,
   },
   topEndOverbidDamping: {
     ...defaultAuctionEngineConfig.topEndOverbidDamping,
@@ -689,6 +712,45 @@ const budgetPacingMultiplierFor = (
   return 1 - discount;
 };
 
+const lateOpeningBidFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  config: AuctionEngineConfig,
+): number => {
+  const openingBid = config.lateOpeningBid;
+  if (state.rosterSlotsRemaining <= 0) return 0;
+  if (state.rosterSlotsRemaining > openingBid.startRosterSlotsRemaining) return 0;
+  if (player.price > openingBid.maxPlayerPrice) return 0;
+
+  const targetBudget = state.rosterSlotsRemaining * openingBid.targetBudgetPerSlot;
+  const excessBudget = state.budgetRemaining - targetBudget;
+  if (excessBudget <= 0) return 0;
+
+  const urgency = (
+    openingBid.startRosterSlotsRemaining - state.rosterSlotsRemaining + 1
+  ) / openingBid.startRosterSlotsRemaining;
+  const extraBid = Math.floor(Math.min(openingBid.maxExtraBid, excessBudget * urgency));
+  if (extraBid <= 0) return 0;
+
+  return clamp(player.price + extraBid, config.minimumBid, state.maxBid);
+};
+
+const lateOpeningBidForNominator = (
+  nominator: Owner | undefined,
+  player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): number => {
+  if (!nominator) return 0;
+
+  const nominatorState = ownerStates.find(state => state.owner === nominator);
+  if (!nominatorState) return 0;
+  if (!ownerCanBidOnPlayer(nominatorState, player, ownerStates, remainingPlayers, config)) return 0;
+
+  return lateOpeningBidFor(nominatorState, player, config);
+};
+
 const topEndDampingMultiplierFor = (
   player: Player,
   rawBidMultiplier: number,
@@ -748,6 +810,7 @@ const bidForOwner = (
   player: Player,
   scarcityMultiplier: number,
   config: AuctionEngineConfig,
+  openingBid = 0,
 ): AuctionBid => {
   const ownerDemandMultiplier = ownerDemandMultiplierFor(state.owner, player.position, config);
   const rosterNeedMultiplier = rosterNeedMultiplierFor(state, player.position, config);
@@ -775,12 +838,13 @@ const bidForOwner = (
     topEndAdjustedBidMultiplier,
     config,
   );
-  const uncappedAmount = Math.max(
+  const pricedBidAmount = Math.max(
     config.minimumBid,
     Math.round(
       player.price * topEndAdjustedBidMultiplier * positionOverbidDampingMultiplier,
     ),
   );
+  const uncappedAmount = Math.max(pricedBidAmount, openingBid);
 
   return {
     owner: state.owner,
@@ -851,11 +915,25 @@ export const resolveAuctionSale = (
   ownerStates: readonly AuctionOwnerState[],
   remainingPlayers: readonly Player[],
   config: AuctionEngineConfig = defaultAuctionEngineConfig,
+  options: ResolveAuctionSaleOptions = {},
 ): AuctionSale | undefined => {
   const scarcityMultiplier = scarcityMultiplierFor(player, ownerStates, remainingPlayers, config);
+  const nominatorOpeningBid = lateOpeningBidForNominator(
+    options.nominator,
+    player,
+    ownerStates,
+    remainingPlayers,
+    config,
+  );
   const bids = ownerStates
     .filter(state => ownerCanBidOnPlayer(state, player, ownerStates, remainingPlayers, config))
-    .map(state => bidForOwner(state, player, scarcityMultiplier, config))
+    .map(state => bidForOwner(
+      state,
+      player,
+      scarcityMultiplier,
+      config,
+      state.owner === options.nominator ? nominatorOpeningBid : 0,
+    ))
     .filter(bid => bid.amount >= config.minimumBid)
     .sort(compareBids(config));
 
@@ -866,7 +944,7 @@ export const resolveAuctionSale = (
   const reservePrice = Math.max(config.minimumBid, Math.round(player.price * config.reservePriceRatio));
   const uncappedSalePrice = Math.min(
     winningBid.amount,
-    Math.max(config.minimumBid, secondBidAmount + config.minimumBid, reservePrice),
+    Math.max(config.minimumBid, secondBidAmount + config.minimumBid, reservePrice, nominatorOpeningBid),
   );
   const topEndGuardedPrice = topEndSaleGuardPriceFor(player, uncappedSalePrice, config);
   const price = tierSaleGuardPriceFor(player, topEndGuardedPrice, config);
@@ -1145,7 +1223,7 @@ export const simulateAuction = ({
     const nominatedPlayer = nominatedPlayers[0];
     if (!nominatedPlayer) throw new Error("Unable to remove nominated player from auction pool.");
 
-    const sale = resolveAuctionSale(nominatedPlayer, ownerStates, availablePlayers, config);
+    const sale = resolveAuctionSale(nominatedPlayer, ownerStates, availablePlayers, config, { nominator });
     nominationCursor = nominationTurn.nextCursor;
     if (!sale) {
       passedPlayers.push(nominatedPlayer);

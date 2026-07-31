@@ -481,6 +481,38 @@ describe("auction engine economics", () => {
     expect(beatonBid?.uncappedAmount).toBeLessThan(target.price);
   });
 
+  it("lets cash-heavy nominators open late depth players above anchor", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 20,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      seed: "late-opening-bid",
+    });
+    const ownerStates = createAuctionOwnerStates({
+      config,
+      initialRostersByOwner: {
+        Beaton: [player("Beaton anchor", "RB", 14)],
+        Hoody: [player("Hoody anchor", "WR", 18)],
+      },
+    });
+    const target = player("Late depth WR", "WR", 3);
+    const sale = resolveAuctionSale(target, ownerStates, [], config, { nominator: "Beaton" });
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    expect(beatonBid).toBeDefined();
+    expect(sale.winner).toBe("Beaton");
+    expect(beatonBid?.uncappedAmount).toBe(6);
+    expect(sale.price).toBe(6);
+  });
+
   it("damps only the over-anchor portion of elite bids", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({
