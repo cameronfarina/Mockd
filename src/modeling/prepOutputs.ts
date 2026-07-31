@@ -237,6 +237,34 @@ const positionSpendCalibrationCsv = (audit: HistoricalCalibrationAudit): string 
     ]),
   );
 
+const scenarioCalibrationCsv = (audit: HistoricalCalibrationAudit): string =>
+  toCsv(
+    [
+      "scenario",
+      "label",
+      "run_count",
+      "invalid_roster_count",
+      "average_pick_count",
+      "scenario_open_auction_dollars",
+      "mock_auction_spend",
+      "scenario_spend_delta",
+      "league_average_budget_remaining",
+      "max_owner_average_budget_remaining",
+    ],
+    audit.scenarios.map(scenario => [
+      scenario.key,
+      scenario.label,
+      scenario.runCount,
+      scenario.invalidRosterCount,
+      scenario.averagePickCount,
+      scenario.scenarioAverageOpenAuctionDollars,
+      scenario.mockAverageAuctionSpend,
+      scenario.scenarioAuctionSpendDelta,
+      scenario.leagueAverageBudgetRemaining,
+      scenario.maxOwnerAverageBudgetRemaining,
+    ]),
+  );
+
 const calibrationSummaryCsv = (audit: HistoricalCalibrationAudit): string =>
   toCsv(
     ["category", "key", "label", "target", "actual", "delta"],
@@ -353,6 +381,10 @@ export const buildPrepOutputArtifacts = ({
     {
       filename: "position-spend-calibration.csv",
       content: `${positionSpendCalibrationCsv(audit)}\n`,
+    },
+    {
+      filename: "scenario-calibration.csv",
+      content: `${scenarioCalibrationCsv(audit)}\n`,
     },
   ];
 

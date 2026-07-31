@@ -164,6 +164,7 @@ price-tier-calibration.csv
 high-price-volume-calibration.csv
 position-count-calibration.csv
 position-spend-calibration.csv
+scenario-calibration.csv
 ```
 
 `mock-draft-board.csv` is the full pick-by-pick board across every run, including seed, scenario, nominator, winning owner, player, position, anchor price, sale price, post-pick budget, and the top three bids.

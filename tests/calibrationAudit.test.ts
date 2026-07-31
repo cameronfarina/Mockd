@@ -63,6 +63,19 @@ describe("historical calibration audit", () => {
     expect(audit.positionCounts.map(position => position.position)).toEqual([...positions]);
     expect(audit.positionSpend.map(position => position.position)).toEqual([...positions]);
     expect(audit.ownerSpend).toHaveLength(ownerOrder.length);
+    expect(audit.scenarios).toHaveLength(1);
+    expect(audit.scenarios[0]).toMatchObject({
+      key: "expected",
+      label: "Expected",
+      runCount: 2,
+      invalidRosterCount: 0,
+      scenarioAverageOpenAuctionDollars: audit.overall.scenarioAverageOpenAuctionDollars,
+    });
+    expect(audit.scenarios[0]?.mockAverageAuctionSpend).toBeGreaterThan(0);
+    expect(audit.scenarios[0]?.leagueAverageBudgetRemaining).toBeGreaterThanOrEqual(0);
+    expect(audit.scenarios[0]?.maxOwnerAverageBudgetRemaining).toBeGreaterThanOrEqual(
+      audit.scenarios[0]?.leagueAverageBudgetRemaining ?? 0,
+    );
     expect(audit.overall.mockAverageAuctionSpend).toBeGreaterThan(0);
     expect(audit.overall.historicalAverageAuctionSpend).toBeGreaterThan(0);
     expect(audit.overall.scenarioAverageOpenAuctionDollars).toBeGreaterThan(

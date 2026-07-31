@@ -61,6 +61,19 @@ export interface OverallCalibration {
   dollarPlayerDelta: number;
 }
 
+export interface ScenarioCalibration {
+  key: MockRun["keeperScenario"]["key"];
+  label: string;
+  runCount: number;
+  invalidRosterCount: number;
+  averagePickCount: number;
+  scenarioAverageOpenAuctionDollars: number;
+  mockAverageAuctionSpend: number;
+  scenarioAuctionSpendDelta: number;
+  leagueAverageBudgetRemaining: number;
+  maxOwnerAverageBudgetRemaining: number;
+}
+
 export interface HighPriceVolumeCalibration {
   threshold: number;
   label: string;
@@ -150,6 +163,7 @@ export interface HistoricalCalibrationAudit {
   positionCounts: PositionCountCalibration[];
   positionSpend: PositionSpendCalibration[];
   ownerSpend: OwnerSpendCalibration[];
+  scenarios: ScenarioCalibration[];
   overall: OverallCalibration;
   gates: CalibrationGates;
 }
@@ -527,6 +541,38 @@ const summarizeOverall = (
   };
 };
 
+const runAverageBudgetRemaining = (run: MockRun): number =>
+  average(run.rosters.map(roster => roster.budgetRemaining));
+
+const maxOwnerAverageBudgetRemainingForRuns = (runs: readonly MockRun[]): number =>
+  max(ownerOrder.map(owner =>
+    average(runs.flatMap(run =>
+      run.rosters
+        .filter(roster => roster.owner === owner)
+        .map(roster => roster.budgetRemaining),
+    )),
+  ));
+
+const summarizeScenarioCalibration = (batch: MockBatch): ScenarioCalibration[] =>
+  batch.summary.scenarios.map(scenario => {
+    const runs = batch.runs.filter(run => run.keeperScenario.key === scenario.key);
+    const scenarioAverageOpenAuctionDollars = roundToTwo(scenarioOpenAuctionDollars(runs));
+    const mockAverageAuctionSpend = roundToTwo(totalMockAuctionSpend(runs));
+
+    return {
+      key: scenario.key,
+      label: scenario.label,
+      runCount: scenario.runCount,
+      invalidRosterCount: scenario.invalidRosterCount,
+      averagePickCount: scenario.averagePickCount,
+      scenarioAverageOpenAuctionDollars,
+      mockAverageAuctionSpend,
+      scenarioAuctionSpendDelta: roundToTwo(mockAverageAuctionSpend - scenarioAverageOpenAuctionDollars),
+      leagueAverageBudgetRemaining: roundToTwo(average(runs.map(runAverageBudgetRemaining))),
+      maxOwnerAverageBudgetRemaining: roundToTwo(maxOwnerAverageBudgetRemainingForRuns(runs)),
+    };
+  });
+
 const byAbsoluteDelta = (left: CalibrationDeltaSummary, right: CalibrationDeltaSummary): number =>
   Math.abs(right.delta) - Math.abs(left.delta) ||
   left.key.localeCompare(right.key);
@@ -810,6 +856,7 @@ export const buildHistoricalCalibrationAudit = ({
   const positionCountCalibration = summarizePositionCounts(historicalRecords, runs, seasons);
   const positionSpendCalibration = summarizePositionSpend(records, runs, seasons);
   const ownerSpendCalibration = summarizeOwnerSpend(records, runs, seasons);
+  const scenarioCalibration = summarizeScenarioCalibration(batch);
   const summary = summarizeCalibration(
     batch,
     priceTierCalibration,
@@ -828,6 +875,7 @@ export const buildHistoricalCalibrationAudit = ({
     positionCounts: positionCountCalibration,
     positionSpend: positionSpendCalibration,
     ownerSpend: ownerSpendCalibration,
+    scenarios: scenarioCalibration,
     overall,
     gates: summarizeGates(
       batch,

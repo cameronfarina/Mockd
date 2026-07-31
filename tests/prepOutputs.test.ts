@@ -42,6 +42,7 @@ describe("prep output artifacts", () => {
         "price-tier-calibration.csv",
         "position-count-calibration.csv",
         "position-spend-calibration.csv",
+        "scenario-calibration.csv",
         "mock-batch-summary.json",
       ].sort());
 
@@ -74,6 +75,10 @@ describe("prep output artifacts", () => {
 
       const positionSpendCsv = await readFile(join(outputDirectory, "position-spend-calibration.csv"), "utf8");
       expect(positionSpendCsv.split("\n")[0]).toBe("position,historical_average_spend,scenario_average_spend_target,mock_average_spend,historical_delta,scenario_delta");
+
+      const scenarioCsv = await readFile(join(outputDirectory, "scenario-calibration.csv"), "utf8");
+      expect(scenarioCsv.split("\n")[0]).toBe("scenario,label,run_count,invalid_roster_count,average_pick_count,scenario_open_auction_dollars,mock_auction_spend,scenario_spend_delta,league_average_budget_remaining,max_owner_average_budget_remaining");
+      expect(scenarioCsv).toContain("expected,Expected,2,0,");
 
       const calibrationJson = JSON.parse(
         await readFile(join(outputDirectory, "historical-calibration-audit.json"), "utf8"),
