@@ -53,6 +53,27 @@ describe("mock smoke report", () => {
       round: 1,
       nominator: "Beaton",
     });
+    expect(report.firstTwoRounds[0]?.nominationDiagnostics).toMatchObject({
+      selectedPlayer: report.firstTwoRounds[0]?.player,
+      candidateCount: expect.any(Number),
+    });
+    expect(report.firstTwoRounds[0]?.nominationDiagnostics.selectedScore).toBe(
+      report.firstTwoRounds[0]?.nominationDiagnostics.topCandidates[0]?.score,
+    );
+    expect(report.firstTwoRounds[0]?.nominationDiagnostics.topCandidates[0]).toEqual(
+      expect.objectContaining({
+        rank: 1,
+        player: report.firstTwoRounds[0]?.player,
+        score: expect.any(Number),
+        scoreComponents: expect.objectContaining({
+          marketPrice: expect.any(Number),
+          ownerNeed: expect.any(Number),
+        }),
+        weightedComponents: expect.objectContaining({
+          marketPrice: expect.any(Number),
+        }),
+      }),
+    );
     expect(report.firstTwoRounds[0]?.bidDiagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

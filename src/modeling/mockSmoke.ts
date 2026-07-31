@@ -1,5 +1,10 @@
 import { ownerOrder, type Owner, type Position } from "../../config/league.js";
-import type { AuctionBidDriver, AuctionBudgetTrajectoryRow, AuctionSalePriceBasis } from "./auctionEngine.js";
+import type {
+  AuctionBidDriver,
+  AuctionBudgetTrajectoryRow,
+  AuctionNominationDiagnostics,
+  AuctionSalePriceBasis,
+} from "./auctionEngine.js";
 import type { KeeperScenarioKey } from "./keeperInflation.js";
 import type { MockBatch, MockRun } from "./mockBatch.js";
 
@@ -34,6 +39,7 @@ export interface MockSmokePick {
   saleVsAnchor: number;
   budgetAfterPick: number;
   rosterSlotsAfterPick: number;
+  nominationDiagnostics: AuctionNominationDiagnostics;
   saleResolution: MockSmokeSaleResolution;
   bidDiagnostics: MockSmokeBidDiagnostic[];
 }
@@ -109,6 +115,7 @@ const firstRoundsFor = (run: MockRun, rounds: number): MockSmokePick[] => {
     saleVsAnchor: pick.price - pick.marketPrice,
     budgetAfterPick: pick.budgetAfterPick,
     rosterSlotsAfterPick: pick.rosterSlotsAfterPick,
+    nominationDiagnostics: pick.nominationDiagnostics,
     saleResolution: {
       secondBidAmount: pick.diagnostics.secondBidAmount,
       reservePrice: pick.diagnostics.reservePrice,

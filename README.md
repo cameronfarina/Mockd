@@ -17,6 +17,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - confirmed-only, expected, and high-retention keeper inflation scenarios
 - deterministic owner-local auction simulation with scarcity pressure
 - per-owner budget trajectory diagnostics after every sold pick
+- nomination decision diagnostics that show why each player was put up for auction
 - repeatable smoke checks for roster validity, batch validity, and the first two nomination rounds
 - structured player price waterfalls from effective public anchor through mock-sale outcome
 - prioritized outlier review queues for top-player values that need human attention
@@ -251,6 +252,7 @@ owner-summaries.csv
 owner-player-exposure.csv
 mock-draft-board.csv
 mock-bid-diagnostics.csv
+mock-nomination-diagnostics.csv
 owner-budget-trajectory.csv
 price-tier-calibration.csv
 high-price-volume-calibration.csv
@@ -262,6 +264,8 @@ scenario-calibration.csv
 `mock-draft-board.csv` is the full pick-by-pick board across every run, including seed, scenario, nominator, winning owner, player, position, anchor price, sale price, post-pick budget, and the top three bids.
 
 `mock-bid-diagnostics.csv` is the explainability companion for the draft board. It writes one row per retained top bid with bid rank, owner, amount, max-bid cap status, reserve/second-bid/nominator-opening sale resolution, sale-price basis, and the top multiplier drivers such as roster need, scarcity, room pressure, budget pacing, or damping.
+
+`mock-nomination-diagnostics.csv` is the nomination companion for the draft board. It writes the top three nomination candidates considered for each pick, with the selected player, candidate count, raw score components, and weighted contributions for market price, projection, nominator need, opponent need, affordability, scarcity, flush-money pressure, and deterministic tie-break.
 
 `owner-budget-trajectory.csv` is the budget-timeline companion for the draft board. It writes one row per owner at the initial state and after each sold pick, including the pick context, initial spend, open-auction spend, remaining budget, max bid, roster slots, budget per slot, roster size, and position counts.
 

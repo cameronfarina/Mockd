@@ -225,6 +225,7 @@ describe("prep output artifacts", () => {
         "mock-smoke.json",
         "mock-bid-diagnostics.csv",
         "mock-draft-board.csv",
+        "mock-nomination-diagnostics.csv",
         "owner-budget-trajectory.csv",
         "owner-player-exposure.csv",
         "owner-summaries.csv",
@@ -300,6 +301,23 @@ describe("prep output artifacts", () => {
         ) + 1,
       );
       expect(bidDiagnosticsLines[1]).toContain(",expected,1,");
+
+      const nominationDiagnosticsCsv = await readFile(
+        join(outputDirectory, "mock-nomination-diagnostics.csv"),
+        "utf8",
+      );
+      const nominationDiagnosticsLines = nominationDiagnosticsCsv.trim().split("\n");
+      expect(nominationDiagnosticsLines[0]).toBe("seed,scenario,pick,nominator,selected_player,selected_position,candidate_count,candidate_rank,candidate_player,candidate_position,market_price,projection_total,total_score,market_price_score,projection_score,owner_need_score,opponent_need_score,affordability_score,scarcity_score,flush_money_score,tie_break_score,market_price_contribution,projection_contribution,owner_need_contribution,opponent_need_contribution,affordability_contribution,scarcity_contribution,flush_money_contribution,tie_break_contribution");
+      expect(nominationDiagnosticsLines).toHaveLength(
+        batch.runs.reduce(
+          (count, run) => count + run.picks.reduce(
+            (pickCount, pick) => pickCount + pick.nominationDiagnostics.topCandidates.length,
+            0,
+          ),
+          0,
+        ) + 1,
+      );
+      expect(nominationDiagnosticsLines[1]).toContain(",expected,1,");
 
       const ownerBudgetTrajectoryCsv = await readFile(
         join(outputDirectory, "owner-budget-trajectory.csv"),
@@ -442,6 +460,8 @@ describe("prep output artifacts", () => {
 
     expect(filenames).toContain("mock-batch-summary.json");
     expect(filenames).toContain("historical-calibration-audit.json");
+    expect(filenames).toContain("mock-nomination-diagnostics.csv");
+    expect(filenames).toContain("owner-budget-trajectory.csv");
     expect(filenames).not.toContain("keeper-scenario-sensitivity.json");
     expect(filenames).not.toContain("keeper-scenario-sensitivity.csv");
     expect(filenames).not.toContain("mock-smoke.json");

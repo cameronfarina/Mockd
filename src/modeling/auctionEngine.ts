@@ -180,6 +180,36 @@ export interface AuctionBid {
   tieBreak: number;
 }
 
+export interface AuctionNominationScoreComponents {
+  marketPrice: number;
+  projection: number;
+  ownerNeed: number;
+  opponentNeed: number;
+  affordability: number;
+  scarcity: number;
+  flushMoney: number;
+  tieBreak: number;
+}
+
+export interface AuctionNominationCandidateDiagnostics {
+  rank: number;
+  player: string;
+  position: Position;
+  marketPrice: number;
+  projectionTotal: number;
+  score: number;
+  scoreComponents: AuctionNominationScoreComponents;
+  weightedComponents: AuctionNominationScoreComponents;
+}
+
+export interface AuctionNominationDiagnostics {
+  selectedPlayer: string;
+  selectedPosition: Position;
+  selectedScore: number;
+  candidateCount: number;
+  topCandidates: AuctionNominationCandidateDiagnostics[];
+}
+
 export type AuctionBidDriverDirection = "up" | "down";
 
 export interface AuctionBidDriver {
@@ -236,6 +266,7 @@ export interface AuctionPick {
   rosterSlotsAfterPick: number;
   topBids: AuctionBid[];
   diagnostics: AuctionPickDiagnostics;
+  nominationDiagnostics: AuctionNominationDiagnostics;
 }
 
 export type AuctionBudgetTrajectoryEvent = "initial" | "after_pick";
@@ -1227,12 +1258,16 @@ interface NominationSelection {
   index: number;
   player: Player;
   score: number;
+  diagnostics: AuctionNominationDiagnostics;
 }
 
 interface NominationTurn {
   owner: Owner;
   nextCursor: number;
 }
+
+type UnrankedNominationCandidateDiagnostics = Omit<AuctionNominationCandidateDiagnostics, "rank">;
+const nominationDiagnosticCandidateLimit = 3;
 
 const highestMarketPrice = (players: readonly Player[]): number =>
   players.reduce((highest, player) => Math.max(highest, player.price), 0);
@@ -1382,7 +1417,7 @@ const nominationScoreFor = ({
   topMarketPrice: number;
   topProjectionTotal: number;
   config: AuctionEngineConfig;
-}): number | undefined => {
+}): UnrankedNominationCandidateDiagnostics | undefined => {
   const remainingPlayers = playersAfterNomination(availablePlayers, index);
   const playerCanSell = ownerStates.some(state =>
     ownerCanBidOnPlayer(state, player, ownerStates, remainingPlayers, config),
@@ -1423,17 +1458,38 @@ const nominationScoreFor = ({
     ? config.nomination.earlyMarketPriceWeight
     : config.nomination.marketPriceWeight;
   const tieBreakScore = 1 - deterministicTieBreak(config.seed, nominator, player.name);
+  const scoreComponents = {
+    marketPrice: marketPriceScore,
+    projection: projectionScore,
+    ownerNeed: ownerNeedScore,
+    opponentNeed: opponentNeedScore,
+    affordability: affordabilityScore,
+    scarcity: scarcityScore,
+    flushMoney: flushMoneyScore,
+    tieBreak: tieBreakScore,
+  } satisfies AuctionNominationScoreComponents;
+  const weightedComponents = {
+    marketPrice: marketPriceScore * marketPriceWeight,
+    projection: projectionScore * config.nomination.projectionWeight,
+    ownerNeed: ownerNeedScore * config.nomination.ownerNeedWeight,
+    opponentNeed: opponentNeedScore * config.nomination.opponentNeedWeight,
+    affordability: affordabilityScore * config.nomination.affordabilityWeight,
+    scarcity: scarcityScore * config.nomination.scarcityWeight,
+    flushMoney: flushMoneyScore * config.nomination.flushMoneyWeight,
+    tieBreak: tieBreakScore * config.nomination.tieBreakWeight,
+  } satisfies AuctionNominationScoreComponents;
+  const score = Object.values(weightedComponents)
+    .reduce((total, contribution) => total + contribution, 0);
 
-  return (
-    marketPriceScore * marketPriceWeight +
-    projectionScore * config.nomination.projectionWeight +
-    ownerNeedScore * config.nomination.ownerNeedWeight +
-    opponentNeedScore * config.nomination.opponentNeedWeight +
-    affordabilityScore * config.nomination.affordabilityWeight +
-    scarcityScore * config.nomination.scarcityWeight +
-    flushMoneyScore * config.nomination.flushMoneyWeight +
-    tieBreakScore * config.nomination.tieBreakWeight
-  );
+  return {
+    player: player.name,
+    position: player.position,
+    marketPrice: player.price,
+    projectionTotal: player.weeks1To4,
+    score,
+    scoreComponents,
+    weightedComponents,
+  };
 };
 
 const selectNominatedPlayer = ({
@@ -1451,10 +1507,14 @@ const selectNominatedPlayer = ({
 }): NominationSelection | undefined => {
   const topMarketPrice = highestMarketPrice(availablePlayers);
   const topProjectionTotal = highestProjectionTotal(availablePlayers);
-  let selected: NominationSelection | undefined;
+  const candidates: {
+    index: number;
+    player: Player;
+    diagnostics: UnrankedNominationCandidateDiagnostics;
+  }[] = [];
 
   for (const [index, player] of availablePlayers.entries()) {
-    const score = nominationScoreFor({
+    const diagnostics = nominationScoreFor({
       player,
       index,
       availablePlayers,
@@ -1465,18 +1525,35 @@ const selectNominatedPlayer = ({
       topProjectionTotal,
       config,
     });
-    if (score === undefined) continue;
+    if (!diagnostics) continue;
 
-    if (
-      !selected ||
-      score > selected.score ||
-      (score === selected.score && compareAuctionPlayers(player, selected.player) < 0)
-    ) {
-      selected = { index, player, score };
-    }
+    candidates.push({ index, player, diagnostics });
   }
 
-  return selected;
+  const rankedCandidates = candidates.sort((left, right) =>
+    right.diagnostics.score - left.diagnostics.score ||
+    compareAuctionPlayers(left.player, right.player),
+  );
+  const selected = rankedCandidates[0];
+  if (!selected) return undefined;
+
+  return {
+    index: selected.index,
+    player: selected.player,
+    score: selected.diagnostics.score,
+    diagnostics: {
+      selectedPlayer: selected.player.name,
+      selectedPosition: selected.player.position,
+      selectedScore: selected.diagnostics.score,
+      candidateCount: rankedCandidates.length,
+      topCandidates: rankedCandidates
+        .slice(0, nominationDiagnosticCandidateLimit)
+        .map((candidate, index) => ({
+          rank: index + 1,
+          ...candidate.diagnostics,
+        })),
+    },
+  };
 };
 
 const applySaleToState = (
@@ -1586,6 +1663,7 @@ export const simulateAuction = ({
       rosterSlotsAfterPick: updatedWinnerState.rosterSlotsRemaining,
       topBids: sale.bids.slice(0, 3),
       diagnostics: sale.diagnostics,
+      nominationDiagnostics: nomination.diagnostics,
     });
     budgetTrajectory.push(
       ...budgetTrajectoryRowsFor(ownerStates, pickNumber, "after_pick", initialSpendByOwner, { nominator, sale }),

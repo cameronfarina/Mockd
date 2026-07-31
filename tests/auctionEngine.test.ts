@@ -144,6 +144,32 @@ describe("auction engine economics", () => {
       nominator: "Beaton",
       player: "Elite market RB",
     });
+    expect(result.picks[0]?.nominationDiagnostics).toMatchObject({
+      selectedPlayer: "Elite market RB",
+      candidateCount: 2,
+    });
+    const openingNomination = result.picks[0]?.nominationDiagnostics;
+    expect(openingNomination?.selectedScore).toBe(openingNomination?.topCandidates[0]?.score);
+    expect(openingNomination?.topCandidates.length ?? 0).toBeLessThanOrEqual(3);
+    expect(openingNomination?.topCandidates.every((candidate, index, candidates) =>
+      index === 0 || candidate.score <= candidates[index - 1]!.score,
+    )).toBe(true);
+    expect(result.picks[0]?.nominationDiagnostics.topCandidates[0]).toEqual(
+      expect.objectContaining({
+        rank: 1,
+        player: "Elite market RB",
+        position: "RB",
+        marketPrice: 70,
+        score: expect.any(Number),
+        scoreComponents: expect.objectContaining({
+          marketPrice: 1,
+          ownerNeed: 0.2,
+        }),
+        weightedComponents: expect.objectContaining({
+          marketPrice: expect.any(Number),
+        }),
+      }),
+    );
   });
 
   it("lets the current nominator target an affordable roster need instead of the next luxury player", () => {
@@ -181,6 +207,14 @@ describe("auction engine economics", () => {
       nominator: "Hoody",
       player: "Hoody reachable RB",
     });
+    expect(result.picks[1]?.nominationDiagnostics.topCandidates[0]).toMatchObject({
+      player: "Hoody reachable RB",
+      scoreComponents: expect.objectContaining({
+        ownerNeed: 1,
+        affordability: 1,
+      }),
+    });
+    expect(result.picks[1]?.player).toBe("Hoody reachable RB");
   });
 
   it("lets nominators attack scarce roster holes that opponents still need", () => {
