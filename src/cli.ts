@@ -62,6 +62,7 @@ import { loadEspnWeeksOneToFour } from "./projections.js";
 
 const command = process.argv[2];
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+const defaultPlayerEvidencePath = "data/raw/player-evidence-2026-initial.csv";
 const scenarioKeys = ["confirmedOnly", "expected", "highRetention"] as const;
 
 const playerContextSummary = (config: PricingConfig, importPath?: string, evidencePath?: string) => ({
@@ -86,9 +87,17 @@ const optionValue = (name: string): string | undefined => {
   return option?.slice(name.length + 1);
 };
 
+const playerEvidencePathFromOptions = (): string | undefined => {
+  const explicitEvidencePath = optionValue("--player-evidence");
+  if (explicitEvidencePath !== undefined) return explicitEvidencePath;
+  if (process.argv.includes("--no-default-evidence")) return undefined;
+
+  return defaultPlayerEvidencePath;
+};
+
 const pricingConfigFromOptions = async (): Promise<PricingConfig> => {
   const importPath = optionValue("--player-context");
-  const evidencePath = optionValue("--player-evidence");
+  const evidencePath = playerEvidencePathFromOptions();
   if (!process.argv.includes("--custom-weights") && !importPath && !evidencePath) return defaultPricingConfig;
 
   const importedOverrides = importPath ? await loadPlayerContextOverrides(importPath) : [];
@@ -197,7 +206,7 @@ const buildPlayerOutlierReviewQueueFromOptions = async (
 
 const main = async (): Promise<void> => {
   const playerContextImportPath = optionValue("--player-context");
-  const playerContextEvidencePath = optionValue("--player-evidence");
+  const playerContextEvidencePath = playerEvidencePathFromOptions();
 
   if (command === "keepers") {
     console.log(JSON.stringify(keeperSummary(), null, 2));
@@ -674,7 +683,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run scenarios:sensitivity [-- --limit=60 --format=json|csv --custom-weights --player-context=path.csv --player-evidence=path.csv] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv] | npm run sanity [-- --scenario=expected --limit=40 --runs=10 --seed-prefix=top-sanity --player-context=path.csv --player-evidence=path.csv] | npm run outliers:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run evidence:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run evidence:template [-- --scenario=expected --limit=40 --runs=10 --player-context=path.csv --player-evidence=path.csv] | npm run evidence:adapt -- --input=path.csv [--adapter=scored-local --format=csv|json] | npm run evidence:coverage [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv] | npm run qa [-- --scenarios=expected --runs=2 --seed-prefix=qa --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv] | npm run backtest | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv]");
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run scenarios:sensitivity [-- --limit=60 --format=json|csv --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run sanity [-- --scenario=expected --limit=40 --runs=10 --seed-prefix=top-sanity --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run outliers:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:template [-- --scenario=expected --limit=40 --runs=10 --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:adapt -- --input=path.csv [--adapter=scored-local --format=csv|json] | npm run evidence:coverage [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run qa [-- --scenarios=expected --runs=2 --seed-prefix=qa --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run backtest | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv --no-default-evidence]");
 };
 
 main().catch(error => {

@@ -247,6 +247,7 @@ describe("CLI player audit report", () => {
         "--scenario=expected",
         "--runs=1",
         "--seed-prefix=undrafted-audit-test",
+        "--no-default-evidence",
       ],
       {
         cwd: process.cwd(),

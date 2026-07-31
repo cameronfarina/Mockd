@@ -14,7 +14,7 @@ describe("CLI player evidence template", () => {
         "evidence:template",
         "--",
         "--scenario=expected",
-        "--limit=12",
+        "--limit=40",
         "--runs=2",
         "--seed-prefix=evidence-template-test",
       ],
@@ -29,6 +29,7 @@ describe("CLI player evidence template", () => {
     expect(lines.length).toBeGreaterThan(12);
     expect(lines.some(line => line.startsWith("Drake London,opportunity,,,"))).toBe(true);
     expect(lines.some(line => line.startsWith("Drake London,defensiveAttention,,,"))).toBe(true);
+    expect(lines.some(line => line.includes(",present,"))).toBe(true);
     expect(lines.some(line => line.includes("highMockPremium"))).toBe(true);
   }, 15000);
 });

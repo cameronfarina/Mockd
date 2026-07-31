@@ -16,7 +16,6 @@ describe("CLI QA", () => {
         "--scenarios=expected",
         "--runs=2",
         "--seed-prefix=qa-cli-test",
-        "--player-evidence=data/raw/player-evidence-2026-initial.csv",
       ],
       {
         cwd: process.cwd(),

@@ -50,6 +50,7 @@ npm run profiles
 npm run rankings
 npm run prices
 npm run prices:custom
+npm run prices -- --no-default-evidence
 npm run prices -- --player-context=data/raw/player-context.example.csv
 npm run prices -- --player-evidence=data/raw/player-evidence.example.csv
 npm run audit -- --player="Drake London"
@@ -125,7 +126,9 @@ npm run scenarios:sensitivity -- --limit=60
 
 `prices` builds pre-keeper prices from uploaded/imported inputs: public auction value anchors, league-calibrated position multipliers, capped rank-gap adjustments, role-sustainability overrides, historical spend reconciliation, and hard position ceilings. The current defaults reproduce this league's audited drafted-pool counts and spend targets, but the engine accepts new historical records and config for future leagues.
 
-`prices:custom` turns on editable player-context weights from `config/playerContext.ts`. Those weights can move prices for manually configured role, injury, contract, coaching, schedule, bye-week, opportunity, defensive-attention, skill-fit, environment, and risk signals while still reconciling the final pool back to historical positional spend. The default `prices` command leaves that layer off, preserving the audited baseline.
+By default, `prices` also loads the checked-in 2026 factual evidence file at `data/raw/player-evidence-2026-initial.csv`, applies those sourced opportunity, defensive-attention, skill-fit, environment, and risk signals, and still reconciles the final pool back to historical positional spend. Use `--no-default-evidence` when you need a raw economics-only baseline.
+
+`prices:custom` turns on editable player-context weights from `config/playerContext.ts`. Those weights can move prices for manually configured role, injury, contract, coaching, schedule, bye-week, opportunity, defensive-attention, skill-fit, environment, and risk signals while still reconciling the final pool back to historical positional spend. The default evidence file also loads for custom runs unless `--player-evidence` points at another file or `--no-default-evidence` is passed.
 
 Player-context imports can be layered on with `--player-context=path/to/file.csv` or `--player-context=path/to/file.json`. Passing an import path turns the context layer on, merges the imported rows with the manual overrides, and lets imported category values win for matching normalized player names. CSV imports use this shape:
 
@@ -135,7 +138,7 @@ player,role,injury,contract,coaching,schedule,bye,role_note,injury_note,contract
 
 Each category value is a signed signal multiplied by the configured category weight; notes are optional. JSON imports can be either an array of `{ player, signals, notes }` overrides or an object with an `overrides` array.
 
-Factual player-context evidence can be layered on with `--player-evidence=path/to/file.csv`. Evidence imports are meant for sourced inputs such as target-share deltas, depth-chart changes, coverage difficulty, separation fit, team environment, injury risk, and contract risk. The CSV shape is:
+Factual player-context evidence can be replaced with `--player-evidence=path/to/file.csv` or disabled with `--no-default-evidence`. Evidence imports are meant for sourced inputs such as target-share deltas, depth-chart changes, coverage difficulty, separation fit, team environment, injury risk, and contract risk. The CSV shape is:
 
 ```text
 player,category,score,confidence,source,note,provider,source_date,source_quality
@@ -145,7 +148,7 @@ player,category,score,confidence,source,note,provider,source_date,source_quality
 
 Positive evidence is intentionally capped tighter than negative evidence by default: one good news stack should not create a whole extra tier of $75-plus players, but real role, health, environment, or defensive-attention problems can still pull a player down. The base pricing allocator also enforces historical top-price volume limits before keeper inflation so the model can redistribute dollars into the mid-tier without inventing too many elite-price buys.
 
-The initial sourced 2026 evidence set lives at `data/raw/player-evidence-2026-initial.csv` and can be used directly with `--player-evidence=data/raw/player-evidence-2026-initial.csv`.
+The initial sourced 2026 evidence set lives at `data/raw/player-evidence-2026-initial.csv` and loads automatically in pricing, scenario, audit, sanity, evidence queue, mock, calibration, QA, and output commands.
 
 `scenarios` removes known keepers from the priced auction pool and applies confirmed-only, expected, and high-retention inflation factors. Scenario counts and average keeper costs are config-driven so unannounced keepers are not assigned to owners.
 
@@ -158,6 +161,7 @@ Use `audit` when a player number looks weird and you want the bridge in one plac
 ```bash
 npm run audit -- --player="Drake London" --scenario=expected --runs=10
 npm run audit -- --player="Drake London" --scenario=expected --player-evidence=data/raw/player-evidence.example.csv
+npm run audit -- --player="Drake London" --scenario=expected --no-default-evidence
 npm run scenarios:sensitivity -- --limit=60 --format=csv
 npm run sanity -- --scenario=expected --limit=40 --runs=10
 npm run outliers:queue -- --scenario=expected --limit=40 --runs=10
@@ -192,6 +196,7 @@ npm run mock
 npm run mock -- --scenario=expected --seed=economic-regression
 npm run mock -- --scenario=expected --player-context=data/raw/player-context.example.csv
 npm run mock -- --scenario=expected --player-evidence=data/raw/player-evidence.example.csv
+npm run mock -- --scenario=expected --no-default-evidence
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run smoke -- --scenario=expected --runs=2 --seed=smoke
 npm run qa -- --scenarios=expected --runs=2 --seed-prefix=qa

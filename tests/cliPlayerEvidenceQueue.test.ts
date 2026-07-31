@@ -33,6 +33,7 @@ describe("CLI player evidence queue", () => {
         player: string;
         priority: string;
         evidenceStatus: string;
+        currentEvidenceCount: number;
         categories: string[];
         researchPrompts: string[];
       }[];
@@ -46,7 +47,8 @@ describe("CLI player evidence queue", () => {
     expect(london).toBeDefined();
     expect(london).toMatchObject({
       priority: "high",
-      evidenceStatus: "missing",
+      evidenceStatus: "present",
+      currentEvidenceCount: 5,
     });
     expect(london?.categories).toContain("opportunity");
     expect(london?.categories).toContain("defensiveAttention");

@@ -8,6 +8,70 @@ import { describe, expect, it } from "vitest";
 const execFileAsync = promisify(execFile);
 
 describe("CLI player evidence imports", () => {
+  it("loads the checked-in 2026 evidence file by default", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      ["run", "--silent", "prices"],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 20 * 1024 * 1024,
+      },
+    );
+    const result = JSON.parse(stdout) as {
+      config: {
+        playerContext: {
+          enabled: boolean;
+          evidencePath?: string;
+        };
+      };
+      prices: {
+        name: string;
+        contextSignals: Record<string, number>;
+        contextEvidence?: unknown[];
+      }[];
+    };
+    const london = result.prices.find(price => price.name === "Drake London");
+
+    expect(result.config.playerContext.enabled).toBe(true);
+    expect(result.config.playerContext.evidencePath).toBe("data/raw/player-evidence-2026-initial.csv");
+    expect(london?.contextSignals).toMatchObject({
+      opportunity: 0.8,
+      defensiveAttention: -0.325,
+      skillFit: -0.35,
+      environment: -0.8,
+      risk: -0.85,
+    });
+    expect(london?.contextEvidence).toHaveLength(5);
+  }, 15000);
+
+  it("can opt out of default evidence for raw pricing baselines", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      ["run", "--silent", "prices", "--", "--no-default-evidence"],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 20 * 1024 * 1024,
+      },
+    );
+    const result = JSON.parse(stdout) as {
+      config: {
+        playerContext: {
+          enabled: boolean;
+          evidencePath?: string;
+        };
+      };
+      prices: {
+        name: string;
+        contextEvidence?: unknown[];
+      }[];
+    };
+    const london = result.prices.find(price => price.name === "Drake London");
+
+    expect(result.config.playerContext.enabled).toBe(false);
+    expect(result.config.playerContext.evidencePath).toBeUndefined();
+    expect(london?.contextEvidence).toBeUndefined();
+  }, 15000);
+
   it("uses sourced evidence rows as auditable pricing context", async () => {
     const directory = await mkdtemp(join(tmpdir(), "mockd-cli-evidence-"));
     const evidencePath = join(directory, "evidence.csv");
