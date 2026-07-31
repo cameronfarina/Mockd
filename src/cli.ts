@@ -4,6 +4,10 @@ import { customWeightsPlayerContextConfig } from "../config/playerContext.js";
 import { keeperSummary } from "./keeperModel.js";
 import { loadHistoricalAuctionRecords } from "./data/parseHistoricalBoards.js";
 import {
+  loadPlayerContextOverrides,
+  mergePlayerContextOverrides,
+} from "./data/playerContextImports.js";
+import {
   buildOwnerAuctionBehaviors,
   buildOwnerDemandMultipliers,
   buildOwnerRosterMaximums,
@@ -28,19 +32,15 @@ import { buildProjectionRankings } from "./modeling/projectionRankings.js";
 import { loadEspnWeeksOneToFour } from "./projections.js";
 
 const command = process.argv[2];
-const useCustomWeights = process.argv.includes("--custom-weights");
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
 const scenarioKeys = ["confirmedOnly", "expected", "highRetention"] as const;
 
-const pricingConfig = useCustomWeights
-  ? { ...defaultPricingConfig, playerContext: customWeightsPlayerContextConfig }
-  : defaultPricingConfig;
-
-const playerContextSummary = (config: PricingConfig) => ({
+const playerContextSummary = (config: PricingConfig, importPath?: string) => ({
   enabled: config.playerContext.enabled,
   weights: config.playerContext.weights,
   maxAdjustment: config.playerContext.maxAdjustment,
   overrideCount: config.playerContext.overrides.length,
+  ...(importPath ? { importPath } : {}),
 });
 
 const countBySeason = (records: { season: number }[]): Record<number, number> =>
@@ -52,6 +52,21 @@ const countBySeason = (records: { season: number }[]): Record<number, number> =>
 const optionValue = (name: string): string | undefined => {
   const option = process.argv.find(arg => arg.startsWith(`${name}=`));
   return option?.slice(name.length + 1);
+};
+
+const pricingConfigFromOptions = async (): Promise<PricingConfig> => {
+  const importPath = optionValue("--player-context");
+  if (!process.argv.includes("--custom-weights") && !importPath) return defaultPricingConfig;
+
+  const importedOverrides = importPath ? await loadPlayerContextOverrides(importPath) : [];
+
+  return {
+    ...defaultPricingConfig,
+    playerContext: {
+      ...customWeightsPlayerContextConfig,
+      overrides: mergePlayerContextOverrides(customWeightsPlayerContextConfig.overrides, importedOverrides),
+    },
+  };
 };
 
 const numericOptionValue = (name: string, fallback: number): number => {
@@ -89,6 +104,8 @@ const scenarioListOptionValue = (): (typeof scenarioKeys)[number][] => {
 };
 
 const main = async (): Promise<void> => {
+  const playerContextImportPath = optionValue("--player-context");
+
   if (command === "keepers") {
     console.log(JSON.stringify(keeperSummary(), null, 2));
     return;
@@ -128,6 +145,7 @@ const main = async (): Promise<void> => {
   }
 
   if (command === "prices") {
+    const pricingConfig = await pricingConfigFromOptions();
     const players = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const prices = buildBasePrices(players, historicalRecords, pricingConfig);
@@ -139,7 +157,7 @@ const main = async (): Promise<void> => {
         rankGapAdjustmentCap: pricingConfig.rankGapAdjustmentCap,
         marketPressureByPosition: pricingConfig.marketPressureByPosition,
         hardPriceCeilings: pricingConfig.hardPriceCeilings,
-        playerContext: playerContextSummary(pricingConfig),
+        playerContext: playerContextSummary(pricingConfig, playerContextImportPath),
       },
       summary: summarizePricePool(prices),
       prices,
@@ -148,6 +166,7 @@ const main = async (): Promise<void> => {
   }
 
   if (command === "scenarios") {
+    const pricingConfig = await pricingConfigFromOptions();
     const players = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const prices = buildBasePrices(players, historicalRecords, pricingConfig);
@@ -155,7 +174,7 @@ const main = async (): Promise<void> => {
 
     console.log(JSON.stringify({
       config: {
-        playerContext: playerContextSummary(pricingConfig),
+        playerContext: playerContextSummary(pricingConfig, playerContextImportPath),
       },
       scenarios: scenarios.map(scenario => applyKeeperScenarioToPrices(prices, scenario, keepers)),
     }, null, 2));
@@ -174,6 +193,7 @@ const main = async (): Promise<void> => {
   }
 
   if (command === "mock") {
+    const pricingConfig = await pricingConfigFromOptions();
     const players = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const result = runMock({
@@ -230,6 +250,7 @@ const main = async (): Promise<void> => {
   }
 
   if (command === "mocks") {
+    const pricingConfig = await pricingConfigFromOptions();
     const players = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const batch = runMockBatch({
@@ -251,6 +272,7 @@ const main = async (): Promise<void> => {
   }
 
   if (command === "smoke") {
+    const pricingConfig = await pricingConfigFromOptions();
     const players = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const scenarioKey = scenarioOptionValue();
@@ -272,6 +294,7 @@ const main = async (): Promise<void> => {
   }
 
   if (command === "calibration") {
+    const pricingConfig = await pricingConfigFromOptions();
     const players = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const batch = runMockBatch({
@@ -292,6 +315,7 @@ const main = async (): Promise<void> => {
   }
 
   if (command === "outputs") {
+    const pricingConfig = await pricingConfigFromOptions();
     const players = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const batch = runMockBatch({
@@ -321,7 +345,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights] | npm run scenarios [-- --custom-weights] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd] | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep]");
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv] | npm run scenarios [-- --custom-weights --player-context=path.csv] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv] | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --player-context=path.csv]");
 };
 
 main().catch(error => {

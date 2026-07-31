@@ -42,6 +42,7 @@ npm run profiles
 npm run rankings
 npm run prices
 npm run prices:custom
+npm run prices -- --player-context=data/raw/player-context.example.csv
 npm run scenarios
 npm run scenarios:custom
 npm run mock
@@ -106,6 +107,14 @@ npm run scenarios
 
 `prices:custom` turns on editable player-context weights from `config/playerContext.ts`. Those weights can move prices for manually configured role, injury, contract, coaching, schedule, and bye-week signals while still reconciling the final pool back to historical positional spend. The default `prices` command leaves that layer off, preserving the audited baseline.
 
+Player-context imports can be layered on with `--player-context=path/to/file.csv` or `--player-context=path/to/file.json`. Passing an import path turns the context layer on, merges the imported rows with the manual overrides, and lets imported category values win for matching normalized player names. CSV imports use this shape:
+
+```text
+player,role,injury,contract,coaching,schedule,bye,role_note,injury_note,contract_note,coaching_note,schedule_note,bye_note
+```
+
+Each category value is a signed signal multiplied by the configured category weight; notes are optional. JSON imports can be either an array of `{ player, signals, notes }` overrides or an object with an `overrides` array.
+
 `scenarios` removes known keepers from the priced auction pool and applies confirmed-only, expected, and high-retention inflation factors. Scenario counts and average keeper costs are config-driven so unannounced keepers are not assigned to owners.
 
 `scenarios:custom` applies the same keeper scenario logic after custom player-context weights are turned on.
@@ -117,6 +126,7 @@ Run:
 ```bash
 npm run mock
 npm run mock -- --scenario=expected --seed=economic-regression
+npm run mock -- --scenario=expected --player-context=data/raw/player-context.example.csv
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run smoke -- --scenario=expected --runs=2 --seed=smoke
 npm run calibration -- --scenarios=expected --runs=50 --seed-prefix=prep
