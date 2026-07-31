@@ -31,6 +31,19 @@ describe("mock smoke report", () => {
     expect(report.invalidRosterCount).toBe(0);
     expect(report.batch.invalidRosterCount).toBe(0);
     expect(report.firstTwoRounds).toHaveLength(ownerOrder.length * 2);
+    expect(report.budgetTrajectory).toHaveLength((ownerOrder.length * 2 + 1) * ownerOrder.length);
+    expect(report.budgetTrajectory[0]).toEqual(expect.objectContaining({
+      event: "initial",
+      pick: 0,
+      owner: ownerOrder[0],
+      initialSpend: expect.any(Number),
+      auctionSpend: 0,
+    }));
+    expect(report.budgetTrajectory.some(row =>
+      row.event === "after_pick" &&
+      row.pick === 1 &&
+      row.winningOwner === report.firstTwoRounds[0]?.winner,
+    )).toBe(true);
     expect(report.firstTwoRoundSummary.pickCount).toBe(ownerOrder.length * 2);
     expect(report.firstTwoRoundSummary.averageSalePrice).toBeGreaterThan(
       report.firstTwoRoundSummary.averageAnchorPrice,

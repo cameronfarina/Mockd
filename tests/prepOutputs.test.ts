@@ -225,6 +225,7 @@ describe("prep output artifacts", () => {
         "mock-smoke.json",
         "mock-bid-diagnostics.csv",
         "mock-draft-board.csv",
+        "owner-budget-trajectory.csv",
         "owner-player-exposure.csv",
         "owner-summaries.csv",
         "player-outlier-review-queue.csv",
@@ -299,6 +300,18 @@ describe("prep output artifacts", () => {
         ) + 1,
       );
       expect(bidDiagnosticsLines[1]).toContain(",expected,1,");
+
+      const ownerBudgetTrajectoryCsv = await readFile(
+        join(outputDirectory, "owner-budget-trajectory.csv"),
+        "utf8",
+      );
+      const ownerBudgetTrajectoryLines = ownerBudgetTrajectoryCsv.trim().split("\n");
+      expect(ownerBudgetTrajectoryLines[0]).toBe("seed,scenario,pick,event,owner,nominator,winner,player,position,market_price,sale_price,spent,initial_spend,auction_spend,budget_remaining,roster_slots_remaining,max_bid,roster_size,budget_per_roster_slot,qb_count,rb_count,wr_count,te_count,k_count,dst_count");
+      expect(ownerBudgetTrajectoryLines).toHaveLength(
+        batch.runs.reduce((count, run) => count + (run.pickCount + 1) * run.rosters.length, 0) + 1,
+      );
+      expect(ownerBudgetTrajectoryLines[1]).toContain(",expected,0,initial,");
+      expect(ownerBudgetTrajectoryCsv).toContain(",after_pick,");
 
       const smokeJson = JSON.parse(
         await readFile(join(outputDirectory, "mock-smoke.json"), "utf8"),

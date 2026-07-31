@@ -40,10 +40,10 @@ export interface BuildPrepOutputArtifactsOptions {
   keeperScenarioSensitivity?: KeeperScenarioSensitivityReport;
 }
 
-type CsvValue = string | number | boolean | undefined;
+type CsvValue = string | number | boolean | null | undefined;
 
 const csvCell = (value: CsvValue): string => {
-  const text = value === undefined ? "" : String(value);
+  const text = value === undefined || value === null ? "" : String(value);
   if (!/[",\n]/.test(text)) return text;
   return `"${text.replaceAll("\"", "\"\"")}"`;
 };
@@ -253,6 +253,66 @@ const mockBidDiagnosticsCsv = (batch: MockBatch): string =>
           ] satisfies readonly CsvValue[];
         }),
       ),
+    ),
+  );
+
+const ownerBudgetTrajectoryCsv = (batch: MockBatch): string =>
+  toCsv(
+    [
+      "seed",
+      "scenario",
+      "pick",
+      "event",
+      "owner",
+      "nominator",
+      "winner",
+      "player",
+      "position",
+      "market_price",
+      "sale_price",
+      "spent",
+      "initial_spend",
+      "auction_spend",
+      "budget_remaining",
+      "roster_slots_remaining",
+      "max_bid",
+      "roster_size",
+      "budget_per_roster_slot",
+      "qb_count",
+      "rb_count",
+      "wr_count",
+      "te_count",
+      "k_count",
+      "dst_count",
+    ],
+    batch.runs.flatMap(run =>
+      run.budgetTrajectory.map(row => [
+        run.seed,
+        run.keeperScenario.key,
+        row.pick,
+        row.event,
+        row.owner,
+        row.nominator,
+        row.winningOwner,
+        row.player,
+        row.position,
+        row.marketPrice,
+        row.salePrice,
+        row.spent,
+        row.initialSpend,
+        row.auctionSpend,
+        row.budgetRemaining,
+        row.rosterSlotsRemaining,
+        row.maxBid,
+        row.rosterSize,
+        row.budgetPerRosterSlot,
+        row.positionCounts.QB,
+        row.positionCounts.RB,
+        row.positionCounts.WR,
+        row.positionCounts.TE,
+        row.positionCounts.K,
+        row.positionCounts.DST,
+      ]),
     ),
   );
 
@@ -585,6 +645,10 @@ export const buildPrepOutputArtifacts = ({
     {
       filename: "mock-bid-diagnostics.csv",
       content: `${mockBidDiagnosticsCsv(batch)}\n`,
+    },
+    {
+      filename: "owner-budget-trajectory.csv",
+      content: `${ownerBudgetTrajectoryCsv(batch)}\n`,
     },
     {
       filename: "price-tier-calibration.csv",

@@ -1,5 +1,5 @@
 import { ownerOrder, type Owner, type Position } from "../../config/league.js";
-import type { AuctionBidDriver, AuctionSalePriceBasis } from "./auctionEngine.js";
+import type { AuctionBidDriver, AuctionBudgetTrajectoryRow, AuctionSalePriceBasis } from "./auctionEngine.js";
 import type { KeeperScenarioKey } from "./keeperInflation.js";
 import type { MockBatch, MockRun } from "./mockBatch.js";
 
@@ -65,6 +65,7 @@ export interface MockSmokeReport {
   pickCount: number;
   invalidRosterCount: number;
   firstTwoRounds: MockSmokePick[];
+  budgetTrajectory: AuctionBudgetTrajectoryRow[];
   firstTwoRoundSummary: MockSmokeRoundSummary;
   batch: MockSmokeBatchSummary;
   warnings: string[];
@@ -176,6 +177,7 @@ export const buildMockSmokeReport = ({
   const firstTwoRounds = firstRoundsFor(run, rounds);
   const batchSummary = summarizeBatch(batch);
   const expectedPickCount = ownerCount * rounds;
+  const budgetTrajectory = run.budgetTrajectory.filter(row => row.pick <= firstTwoRounds.length);
 
   return {
     seed: run.seed,
@@ -184,6 +186,7 @@ export const buildMockSmokeReport = ({
     pickCount: run.pickCount,
     invalidRosterCount: run.invalidRosterCount,
     firstTwoRounds,
+    budgetTrajectory,
     firstTwoRoundSummary: summarizePicks(firstTwoRounds),
     batch: batchSummary,
     warnings: warningsFor(run, batchSummary, firstTwoRounds, expectedPickCount),

@@ -16,6 +16,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - optional custom player-context weights for role, injury, contract, coaching, schedule, bye-week, opportunity, defensive-attention, skill-fit, environment, and risk adjustments
 - confirmed-only, expected, and high-retention keeper inflation scenarios
 - deterministic owner-local auction simulation with scarcity pressure
+- per-owner budget trajectory diagnostics after every sold pick
 - repeatable smoke checks for roster validity, batch validity, and the first two nomination rounds
 - structured player price waterfalls from effective public anchor through mock-sale outcome
 - prioritized outlier review queues for top-player values that need human attention
@@ -197,7 +198,7 @@ npm run calibration -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run outputs -- --scenarios=expected --runs=50 --seed-prefix=prep --out=data/processed/mock-prep
 ```
 
-`mock` runs a deterministic auction from the selected keeper scenario. Declared keepers are locked into their owners' rosters at keeper cost, the auction pool uses scenario-adjusted market prices, and additional $1 replacement players are added from the projection file when the known priced pool is smaller than the remaining roster slots.
+`mock` runs a deterministic auction from the selected keeper scenario. Declared keepers are locked into their owners' rosters at keeper cost, the auction pool uses scenario-adjusted market prices, and additional $1 replacement players are added from the projection file when the known priced pool is smaller than the remaining roster slots. The output includes `budgetTrajectory`, a per-owner timeline from initial budgets through every sold pick with initial spend, open-auction spend, remaining budget, max bid, roster slots, budget per slot, and position counts. In keeper scenarios, initial spend is keeper spend.
 
 Nominations are synthetic and deterministic because the historical boards do not include reliable nomination order. Owners rotate through nominations, the first phase strongly prefers elite market players, and later nominations adapt to the current nominator's roster needs, opponents' unfilled roster holes, max bid, positional scarcity, and chance to make other owners spend. Each pick records both the nominator and the winning owner.
 
@@ -250,6 +251,7 @@ owner-summaries.csv
 owner-player-exposure.csv
 mock-draft-board.csv
 mock-bid-diagnostics.csv
+owner-budget-trajectory.csv
 price-tier-calibration.csv
 high-price-volume-calibration.csv
 position-count-calibration.csv
@@ -260,6 +262,8 @@ scenario-calibration.csv
 `mock-draft-board.csv` is the full pick-by-pick board across every run, including seed, scenario, nominator, winning owner, player, position, anchor price, sale price, post-pick budget, and the top three bids.
 
 `mock-bid-diagnostics.csv` is the explainability companion for the draft board. It writes one row per retained top bid with bid rank, owner, amount, max-bid cap status, reserve/second-bid/nominator-opening sale resolution, sale-price basis, and the top multiplier drivers such as roster need, scarcity, room pressure, budget pacing, or damping.
+
+`owner-budget-trajectory.csv` is the budget-timeline companion for the draft board. It writes one row per owner at the initial state and after each sold pick, including the pick context, initial spend, open-auction spend, remaining budget, max bid, roster slots, budget per slot, roster size, and position counts.
 
 When redirecting command output into JSON artifacts, use npm's silent mode:
 

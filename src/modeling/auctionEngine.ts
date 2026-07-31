@@ -238,6 +238,29 @@ export interface AuctionPick {
   diagnostics: AuctionPickDiagnostics;
 }
 
+export type AuctionBudgetTrajectoryEvent = "initial" | "after_pick";
+
+export interface AuctionBudgetTrajectoryRow {
+  pick: number;
+  event: AuctionBudgetTrajectoryEvent;
+  owner: Owner;
+  nominator?: Owner;
+  winningOwner?: Owner;
+  player?: string;
+  position?: Position;
+  marketPrice?: number;
+  salePrice?: number;
+  spent: number;
+  initialSpend: number;
+  auctionSpend: number;
+  budgetRemaining: number;
+  rosterSlotsRemaining: number;
+  maxBid: number;
+  rosterSize: number;
+  budgetPerRosterSlot: number | null;
+  positionCounts: PositionAmounts;
+}
+
 export type AuctionRosters = Partial<Record<Owner, MockRoster>>;
 
 export interface AuctionResult {
@@ -245,6 +268,7 @@ export interface AuctionResult {
   rosters: AuctionRosters;
   ownerStates: AuctionOwnerState[];
   picks: AuctionPick[];
+  budgetTrajectory: AuctionBudgetTrajectoryRow[];
   unsoldPlayers: Player[];
 }
 
@@ -416,6 +440,9 @@ const clamp = (value: number, min: number, max: number): number =>
 
 const average = (values: readonly number[]): number =>
   values.length === 0 ? 0 : values.reduce((total, value) => total + value, 0) / values.length;
+
+const roundToTwo = (value: number): number =>
+  Math.round((value + Number.EPSILON) * 100) / 100;
 
 const isFlexEligible = (position: Position): boolean =>
   flexEligiblePositions.some(flexPosition => flexPosition === position);
@@ -1462,15 +1489,59 @@ const applySaleToState = (
 const allRostersFull = (states: readonly AuctionOwnerState[]): boolean =>
   states.every(state => state.rosterSlotsRemaining === 0);
 
+const budgetPerRosterSlotFor = (state: AuctionOwnerState): number | null =>
+  state.rosterSlotsRemaining <= 0
+    ? null
+    : roundToTwo(state.budgetRemaining / state.rosterSlotsRemaining);
+
+const budgetTrajectoryRowsFor = (
+  ownerStates: readonly AuctionOwnerState[],
+  pick: number,
+  event: AuctionBudgetTrajectoryEvent,
+  initialSpendByOwner: ReadonlyMap<Owner, number>,
+  saleContext?: {
+    nominator: Owner;
+    sale: AuctionSale;
+  },
+): AuctionBudgetTrajectoryRow[] =>
+  ownerStates.map(state => {
+    const initialSpend = initialSpendByOwner.get(state.owner) ?? 0;
+
+    return {
+      pick,
+      event,
+      owner: state.owner,
+      ...(saleContext ? {
+        nominator: saleContext.nominator,
+        winningOwner: saleContext.sale.winner,
+        player: saleContext.sale.player.name,
+        position: saleContext.sale.player.position,
+        marketPrice: saleContext.sale.marketPrice,
+        salePrice: saleContext.sale.price,
+      } : {}),
+      spent: state.spent,
+      initialSpend,
+      auctionSpend: state.spent - initialSpend,
+      budgetRemaining: state.budgetRemaining,
+      rosterSlotsRemaining: state.rosterSlotsRemaining,
+      maxBid: state.maxBid,
+      rosterSize: state.roster.length,
+      budgetPerRosterSlot: budgetPerRosterSlotFor(state),
+      positionCounts: countPositions(state.roster),
+    };
+  });
+
 export const simulateAuction = ({
   players,
   config = defaultAuctionEngineConfig,
   initialRostersByOwner = {},
 }: SimulateAuctionOptions): AuctionResult => {
   let ownerStates = createAuctionOwnerStates({ config, initialRostersByOwner });
+  const initialSpendByOwner = new Map(ownerStates.map(state => [state.owner, state.spent]));
   const availablePlayers = [...players].sort(compareAuctionPlayers);
   const passedPlayers: Player[] = [];
   const picks: AuctionPick[] = [];
+  const budgetTrajectory = budgetTrajectoryRowsFor(ownerStates, 0, "initial", initialSpendByOwner);
   let nominationCursor = 0;
 
   while (availablePlayers.length > 0 && !allRostersFull(ownerStates)) {
@@ -1502,8 +1573,9 @@ export const simulateAuction = ({
 
     const updatedWinnerState = applySaleToState(winnerState, soldPlayer, config);
     ownerStates = ownerStates.map(state => state.owner === sale.winner ? updatedWinnerState : state);
+    const pickNumber = picks.length + 1;
     picks.push({
-      pick: picks.length + 1,
+      pick: pickNumber,
       nominator,
       owner: sale.winner,
       player: soldPlayer.name,
@@ -1515,6 +1587,9 @@ export const simulateAuction = ({
       topBids: sale.bids.slice(0, 3),
       diagnostics: sale.diagnostics,
     });
+    budgetTrajectory.push(
+      ...budgetTrajectoryRowsFor(ownerStates, pickNumber, "after_pick", initialSpendByOwner, { nominator, sale }),
+    );
   }
 
   const incompleteOwners = ownerStates
@@ -1538,6 +1613,7 @@ export const simulateAuction = ({
     rosters,
     ownerStates,
     picks,
+    budgetTrajectory,
     unsoldPlayers: [...availablePlayers, ...passedPlayers]
       .filter(player => !soldNames.has(player.name))
       .sort(compareAuctionPlayers),

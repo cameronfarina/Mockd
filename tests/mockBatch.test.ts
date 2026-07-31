@@ -42,6 +42,32 @@ describe("mock batch simulation", () => {
     expect(batch.summary.owners.every(owner => owner.invalidRosterCount === 0)).toBe(true);
     expect(batch.summary.owners.every(owner => owner.averageSpend <= 200)).toBe(true);
 
+    const firstRun = batch.runs[0];
+    if (!firstRun) throw new Error("Expected at least one run.");
+    expect(firstRun.budgetTrajectory).toHaveLength((firstRun.pickCount + 1) * ownerOrder.length);
+    expect(firstRun.budgetTrajectory[0]).toEqual(expect.objectContaining({
+      event: "initial",
+      pick: 0,
+      owner: ownerOrder[0],
+      budgetRemaining: expect.any(Number),
+      initialSpend: expect.any(Number),
+      auctionSpend: 0,
+      rosterSlotsRemaining: expect.any(Number),
+      maxBid: expect.any(Number),
+    }));
+    const finalSnapshots = firstRun.budgetTrajectory.filter(row => row.pick === firstRun.pickCount);
+    expect(finalSnapshots).toHaveLength(ownerOrder.length);
+    expect(finalSnapshots.every(row => row.rosterSlotsRemaining === 0)).toBe(true);
+    for (const roster of firstRun.rosters) {
+      const finalSnapshot = finalSnapshots.find(row => row.owner === roster.owner);
+      expect(finalSnapshot?.spent).toBe(roster.spend);
+      expect(finalSnapshot?.budgetRemaining).toBe(roster.budgetRemaining);
+      expect(finalSnapshot?.initialSpend ?? 0).toBeGreaterThanOrEqual(0);
+      expect(finalSnapshot?.auctionSpend ?? 0).toBeGreaterThanOrEqual(0);
+      expect((finalSnapshot?.initialSpend ?? 0) + (finalSnapshot?.auctionSpend ?? 0)).toBe(roster.spend);
+      expect(finalSnapshot?.budgetPerRosterSlot).toBeNull();
+    }
+
     const exposure = batch.summary.ownerPlayerExposure.find(entry => entry.player === "Jahmyr Gibbs");
     expect(exposure).toBeDefined();
     expect(exposure?.draftedCount).toBeGreaterThan(0);

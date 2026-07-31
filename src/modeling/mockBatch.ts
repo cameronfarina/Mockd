@@ -12,6 +12,7 @@ import {
   buildOwnerDemandMultipliers,
   buildOwnerRosterMaximums,
   simulateAuction,
+  type AuctionBudgetTrajectoryRow,
   type AuctionPick,
   type InitialRostersByOwner,
 } from "./auctionEngine.js";
@@ -65,6 +66,7 @@ export interface MockRun {
   inputCounts: MockInputCounts;
   pickCount: number;
   picks: AuctionPick[];
+  budgetTrajectory: AuctionBudgetTrajectoryRow[];
   rosters: MockRosterSummary[];
   invalidRosterCount: number;
   unsoldPlayerCount: number;
@@ -277,6 +279,7 @@ const runPreparedScenario = (
     inputCounts: preparedScenario.inputCounts,
     pickCount: result.picks.length,
     picks: result.picks,
+    budgetTrajectory: result.budgetTrajectory,
     rosters,
     invalidRosterCount: rosters.filter(roster => !roster.valid).length,
     unsoldPlayerCount: result.unsoldPlayers.length,
