@@ -41,6 +41,7 @@ npm run scenarios
 npm run scenarios:custom
 npm run mock
 npm run mocks
+npm run calibration
 npm run keepers
 ```
 
@@ -110,6 +111,7 @@ Run:
 npm run mock
 npm run mock -- --scenario=expected --seed=economic-regression
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
+npm run calibration -- --scenarios=expected --runs=50 --seed-prefix=prep
 ```
 
 `mock` runs a deterministic auction from the selected keeper scenario. Declared keepers are locked into their owners' rosters at keeper cost, the auction pool uses scenario-adjusted market prices, and additional $1 replacement players are added from the projection file when the known priced pool is smaller than the remaining roster slots.
@@ -117,6 +119,8 @@ npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
 The auction engine does not globally discount the pool after a few expensive buys. Each owner carries their own remaining budget, remaining roster slots, and max bid, with $1 reserved for every unfilled slot. If two owners spend $80 early, those owners are capped; other owners with full budgets can still bid good players above anchor when comparable talent is scarce.
 
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.
+
+`calibration` runs the same batch and compares it against the 2023-2025 historical auction boards by price tier, position spend, owner spend, top-two auction spend, and $1 player volume. This is the audit surface for tuning whether the simulated room is behaving like the real room.
 
 When redirecting command output into JSON artifacts, use npm's silent mode:
 
@@ -126,16 +130,16 @@ npm run --silent prices:custom > data/processed/player-prices-custom.json
 npm run --silent scenarios > data/processed/keeper-scenarios.json
 npm run --silent mock > data/processed/mock-auction.json
 npm run --silent mocks -- --scenarios=expected --runs=50 > data/processed/mock-batch-summary.json
+npm run --silent calibration -- --scenarios=expected --runs=50 > data/processed/historical-calibration-audit.json
 ```
 
 The context layer is intentionally manual for now. Add only player facts you want the model to believe; unsupported contract, coaching, schedule, or bye assumptions should stay empty until you enter or import them from a trusted source.
 
 ## Next implementation work
 
-1. Tune owner-level auction behavior beyond position preference.
-2. Compare batch outputs against historical auction calibration.
-3. Generate Excel/CSV outputs directly from the codebase.
-4. Add a web-app upload flow once the league-specific engine is trusted.
+1. Generate Excel/CSV outputs directly from the codebase.
+2. Add import paths for richer player-context data sources.
+3. Add a web-app upload flow once the league-specific engine is trusted.
 
 ## Push to GitHub
 

@@ -4,6 +4,7 @@ import { customWeightsPlayerContextConfig } from "../config/playerContext.js";
 import { keeperSummary } from "./keeperModel.js";
 import { loadHistoricalAuctionRecords } from "./data/parseHistoricalBoards.js";
 import { buildOwnerAuctionBehaviors, buildOwnerDemandMultipliers } from "./modeling/auctionEngine.js";
+import { buildHistoricalCalibrationAudit } from "./modeling/calibrationAudit.js";
 import {
   buildBasePrices,
   defaultPricingConfig,
@@ -241,7 +242,27 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights] | npm run scenarios [-- --custom-weights] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd]");
+  if (command === "calibration") {
+    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const batch = runMockBatch({
+      projections: players,
+      historicalRecords,
+      keepers,
+      scenarioKeys: scenarioListOptionValue(),
+      runsPerScenario: numericOptionValue("--runs", 50),
+      seedPrefix: optionValue("--seed-prefix") ?? "mockd",
+      pricingConfig,
+    });
+
+    console.log(JSON.stringify({
+      options: batch.options,
+      audit: buildHistoricalCalibrationAudit({ historicalRecords, batch }),
+    }, null, 2));
+    return;
+  }
+
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights] | npm run scenarios [-- --custom-weights] | npm run validate | npm run mock [-- --scenario=expected --seed=mockd-default] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd]");
 };
 
 main().catch(error => {

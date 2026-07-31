@@ -16,7 +16,8 @@
     "scenarios": "tsx src/cli.ts scenarios",
     "scenarios:custom": "tsx src/cli.ts scenarios --custom-weights",
     "mock": "tsx src/cli.ts mock",
-    "mocks": "tsx src/cli.ts mocks"
+    "mocks": "tsx src/cli.ts mocks",
+    "calibration": "tsx src/cli.ts calibration"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
