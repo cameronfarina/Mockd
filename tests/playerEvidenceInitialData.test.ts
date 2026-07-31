@@ -23,12 +23,17 @@ const highPriorityPlayers = [
   "Jeremiyah Love",
   "James Cook III",
 ] as const;
+const requiredTopAuctionPlayers = [
+  ...highPriorityPlayers,
+  "Ashton Jeanty",
+  "Omarion Hampton",
+] as const;
 
 describe("initial 2026 player evidence data", () => {
-  it("covers every high-priority sanity player with sourced factual categories", async () => {
+  it("covers every required top auction player with sourced factual categories", async () => {
     const rows = parsePlayerContextEvidenceCsv(await readFile(evidencePath, "utf8"));
 
-    for (const player of highPriorityPlayers) {
+    for (const player of requiredTopAuctionPlayers) {
       const playerRows = rows.filter(row => row.player === player);
       const coveredCategories = new Set<FactualPlayerContextCategory>(
         playerRows.map(row => row.category),
