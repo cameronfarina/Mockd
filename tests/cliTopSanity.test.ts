@@ -89,7 +89,11 @@ describe("CLI top-player sanity report", () => {
     expect(london).toBeDefined();
     expect(london?.scenarioPrice).toBeGreaterThan(0);
     expect(london?.averageMockSalePrice).toBeGreaterThan(0);
-    expect(london?.flags.some(flag => flag.key === "highMockPremium")).toBe(true);
+    expect(london?.saleVsScenarioPrice).toBeLessThan(6);
+    const londonFlagKeys = london?.flags.map(flag => flag.key) ?? [];
+    expect(londonFlagKeys).not.toContain("highMockPremium");
+    expect(londonFlagKeys).toContain("largeProjectionRankLift");
+    expect(londonFlagKeys).toContain("missingFactualEvidence");
 
     const missingEvidenceFlag = report.flaggedPlayers.find(player =>
       player.flags.some(flag => flag.key === "missingFactualEvidence"),

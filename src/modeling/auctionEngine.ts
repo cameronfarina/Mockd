@@ -94,6 +94,10 @@ export interface TopEndSaleGuardConfig {
 export interface TierSaleGuardConfig {
   threshold: number;
   capBelowThresholdAt: number;
+  strongThreshold: number;
+  capBelowStrongThresholdAt: number;
+  maxPremiumStartPrice: number;
+  maxPremiumBelowStrongThreshold: number;
 }
 
 export interface OwnerAuctionBehavior {
@@ -477,6 +481,10 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   tierSaleGuard: {
     threshold: 40,
     capBelowThresholdAt: 39,
+    strongThreshold: 60,
+    capBelowStrongThresholdAt: 59,
+    maxPremiumStartPrice: 55,
+    maxPremiumBelowStrongThreshold: 2,
   },
   seed: defaultSeed,
 };
@@ -1252,10 +1260,23 @@ const tierSaleGuardPriceFor = (
   config: AuctionEngineConfig,
 ): number => {
   const guard = config.tierSaleGuard;
-  if (player.price >= guard.threshold) return salePrice;
-  if (salePrice < guard.threshold) return salePrice;
+  let guardedPrice = salePrice;
 
-  return Math.max(player.price, guard.capBelowThresholdAt);
+  if (player.price < guard.threshold && guardedPrice >= guard.threshold) {
+    guardedPrice = Math.max(player.price, guard.capBelowThresholdAt);
+  }
+
+  if (player.price < guard.strongThreshold && guardedPrice >= guard.strongThreshold) {
+    const tierCap = player.price >= guard.maxPremiumStartPrice
+      ? Math.min(
+        guard.capBelowStrongThresholdAt,
+        player.price + guard.maxPremiumBelowStrongThreshold,
+      )
+      : guard.capBelowStrongThresholdAt;
+    guardedPrice = Math.max(player.price, tierCap);
+  }
+
+  return guardedPrice;
 };
 
 export const resolveAuctionSale = (
