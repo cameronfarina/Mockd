@@ -31,6 +31,7 @@ describe("prep output artifacts", () => {
       const filenames = artifacts.map(artifact => artifact.filename).sort();
 
       expect(filenames).toEqual([
+        "calibration-gates.csv",
         "calibration-summary.csv",
         "historical-calibration-audit.json",
         "mock-draft-board.csv",
@@ -55,10 +56,15 @@ describe("prep output artifacts", () => {
       expect(calibrationSummaryCsv.split("\n")[0]).toBe("category,key,label,target,actual,delta");
       expect(calibrationSummaryCsv).toContain("owner_spend");
 
+      const calibrationGatesCsv = await readFile(join(outputDirectory, "calibration-gates.csv"), "utf8");
+      expect(calibrationGatesCsv.split("\n")[0]).toBe("key,category,label,status,target,actual,delta,warn_threshold,fail_threshold");
+      expect(calibrationGatesCsv).toContain("price-tier-count:dollar,price_tier_count,$1 player count,fail");
+
       const calibrationJson = JSON.parse(
         await readFile(join(outputDirectory, "historical-calibration-audit.json"), "utf8"),
-      ) as { runCount: number };
+      ) as { runCount: number; gates: { summary: { status: string } } };
       expect(calibrationJson.runCount).toBe(2);
+      expect(calibrationJson.gates.summary.status).toBe("fail");
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
     }

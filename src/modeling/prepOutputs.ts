@@ -234,6 +234,22 @@ const calibrationSummaryCsv = (audit: HistoricalCalibrationAudit): string =>
     ],
   );
 
+const calibrationGatesCsv = (audit: HistoricalCalibrationAudit): string =>
+  toCsv(
+    ["key", "category", "label", "status", "target", "actual", "delta", "warn_threshold", "fail_threshold"],
+    audit.gates.items.map(gate => [
+      gate.key,
+      gate.category,
+      gate.label,
+      gate.status,
+      gate.target,
+      gate.actual,
+      gate.delta,
+      gate.warnThreshold,
+      gate.failThreshold,
+    ]),
+  );
+
 export const buildPrepOutputArtifacts = ({
   batch,
   audit,
@@ -251,6 +267,10 @@ export const buildPrepOutputArtifacts = ({
     {
       filename: "calibration-summary.csv",
       content: `${calibrationSummaryCsv(audit)}\n`,
+    },
+    {
+      filename: "calibration-gates.csv",
+      content: `${calibrationGatesCsv(audit)}\n`,
     },
     {
       filename: "player-sale-ranges.csv",

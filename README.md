@@ -17,6 +17,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - confirmed-only, expected, and high-retention keeper inflation scenarios
 - deterministic owner-local auction simulation with scarcity pressure
 - repeatable smoke checks for roster validity, batch validity, and the first two nomination rounds
+- calibration gates that mark mock batches as pass, warn, or fail against explicit economic thresholds
 - legal lineup optimization performed **after** the full roster is built
 - validation guards for duplicate players, budget, roster size, and position limits
 - the current validated Excel model as an output artifact
@@ -129,7 +130,7 @@ The auction engine does not globally discount the pool after a few expensive buy
 
 `smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, and warnings such as owners leaving too much budget unused.
 
-`calibration` runs the same batch and compares it against the 2023-2025 historical auction boards by price tier, position spend, owner spend, top-two auction spend, and $1 player volume. This is the audit surface for tuning whether the simulated room is behaving like the real room.
+`calibration` runs the same batch and compares it against the 2023-2025 historical auction boards by price tier, position spend, owner spend, top-two auction spend, and $1 player volume. The audit includes pass/warn/fail gates for roster validity, auction spend, tier counts, position spend, owner spend, and leftover budget so tuning work has an explicit credibility signal.
 
 `outputs` writes the usable prep files:
 
@@ -137,6 +138,7 @@ The auction engine does not globally discount the pool after a few expensive buy
 mock-batch-summary.json
 historical-calibration-audit.json
 calibration-summary.csv
+calibration-gates.csv
 player-sale-ranges.csv
 owner-summaries.csv
 owner-player-exposure.csv

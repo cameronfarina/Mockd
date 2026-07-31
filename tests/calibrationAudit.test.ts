@@ -26,6 +26,9 @@ describe("historical calibration audit", () => {
     expect(audit.summary.runCount).toBe(2);
     expect(audit.summary.scenarioKeys).toEqual(["expected"]);
     expect(audit.summary.runsPerScenario).toBe(2);
+    expect(audit.gates.summary.status).toBe("fail");
+    expect(audit.gates.summary.failCount).toBeGreaterThan(0);
+    expect(audit.gates.summary.credible).toBe(false);
     expect(audit.historicalSeasons).toEqual([2023, 2024, 2025]);
     expect(audit.priceTiers.map(tier => tier.key)).toEqual(["elite", "strong", "starter", "depth", "dollar"]);
     expect(audit.positionSpend.map(position => position.position)).toEqual([...positions]);
@@ -48,5 +51,25 @@ describe("historical calibration audit", () => {
     expect(audit.summary.budgetRemaining.ownersWithAverageBudgetRemaining.every(owner =>
       owner.averageBudgetRemaining > 0,
     )).toBe(true);
+
+    const dollarPlayerGate = audit.gates.items.find(gate => gate.key === "price-tier-count:dollar");
+    expect(dollarPlayerGate).toMatchObject({
+      category: "price_tier_count",
+      label: "$1 player count",
+      status: "fail",
+      target: audit.overall.historicalAverageDollarPlayers,
+      actual: audit.overall.mockAverageDollarPlayers,
+      delta: audit.overall.dollarPlayerDelta,
+    });
+    expect(dollarPlayerGate?.warnThreshold).toBeLessThan(dollarPlayerGate?.failThreshold ?? 0);
+
+    const invalidRosterGate = audit.gates.items.find(gate => gate.key === "roster-validity");
+    expect(invalidRosterGate).toMatchObject({
+      category: "roster_validity",
+      status: "pass",
+      target: 0,
+      actual: 0,
+      delta: 0,
+    });
   });
 });

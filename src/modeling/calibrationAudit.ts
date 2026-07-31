@@ -66,6 +66,42 @@ export interface BudgetRemainingCalibrationSummary {
   ownersWithAverageBudgetRemaining: OwnerBudgetRemainingSummary[];
 }
 
+export type CalibrationGateCategory =
+  | "roster_validity"
+  | "auction_spend"
+  | "price_tier_count"
+  | "position_spend"
+  | "owner_spend"
+  | "budget_remaining";
+
+export type CalibrationGateStatus = "pass" | "warn" | "fail";
+
+export interface CalibrationGate {
+  key: string;
+  category: CalibrationGateCategory;
+  label: string;
+  status: CalibrationGateStatus;
+  target: number;
+  actual: number;
+  delta: number;
+  warnThreshold: number;
+  failThreshold: number;
+}
+
+export interface CalibrationGateSummary {
+  status: CalibrationGateStatus;
+  credible: boolean;
+  gateCount: number;
+  passCount: number;
+  warnCount: number;
+  failCount: number;
+}
+
+export interface CalibrationGates {
+  summary: CalibrationGateSummary;
+  items: CalibrationGate[];
+}
+
 export interface CalibrationSummary {
   runCount: number;
   scenarioKeys: MockBatch["options"]["scenarioKeys"];
@@ -84,6 +120,7 @@ export interface HistoricalCalibrationAudit {
   positionSpend: PositionSpendCalibration[];
   ownerSpend: OwnerSpendCalibration[];
   overall: OverallCalibration;
+  gates: CalibrationGates;
 }
 
 export interface BuildHistoricalCalibrationAuditOptions {
@@ -98,6 +135,23 @@ const priceTiers: readonly CalibrationPriceTier[] = [
   { key: "depth", label: "$2-$19", minPrice: 2, maxPrice: 19 },
   { key: "dollar", label: "$1", minPrice: 1, maxPrice: 1 },
 ];
+
+const priceTierCountThresholds: Record<CalibrationPriceTier["key"], { warn: number; fail: number }> = {
+  elite: { warn: 4, fail: 8 },
+  strong: { warn: 5, fail: 10 },
+  starter: { warn: 8, fail: 16 },
+  depth: { warn: 20, fail: 40 },
+  dollar: { warn: 20, fail: 45 },
+};
+
+const positionSpendThresholds: Record<Position, { warn: number; fail: number }> = {
+  QB: { warn: 25, fail: 50 },
+  RB: { warn: 50, fail: 100 },
+  WR: { warn: 50, fail: 100 },
+  TE: { warn: 25, fail: 50 },
+  K: { warn: 10, fail: 20 },
+  DST: { warn: 10, fail: 20 },
+};
 
 const roundToTwo = (value: number): number =>
   Math.round((value + Number.EPSILON) * 100) / 100;
@@ -385,6 +439,166 @@ const summarizeCalibration = (
   budgetRemaining: summarizeBudgetRemaining(batch),
 });
 
+const gateStatus = (
+  delta: number,
+  warnThreshold: number,
+  failThreshold: number,
+): CalibrationGateStatus => {
+  const magnitude = Math.abs(delta);
+  if (magnitude >= failThreshold) return "fail";
+  if (magnitude >= warnThreshold) return "warn";
+  return "pass";
+};
+
+const calibrationGate = ({
+  key,
+  category,
+  label,
+  target,
+  actual,
+  warnThreshold,
+  failThreshold,
+}: Omit<CalibrationGate, "delta" | "status">): CalibrationGate => {
+  const delta = roundToTwo(actual - target);
+
+  return {
+    key,
+    category,
+    label,
+    status: gateStatus(delta, warnThreshold, failThreshold),
+    target,
+    actual,
+    delta,
+    warnThreshold,
+    failThreshold,
+  };
+};
+
+const summarizeGateStatuses = (items: readonly CalibrationGate[]): CalibrationGateSummary => {
+  const failCount = items.filter(gate => gate.status === "fail").length;
+  const warnCount = items.filter(gate => gate.status === "warn").length;
+  const passCount = items.filter(gate => gate.status === "pass").length;
+  let status: CalibrationGateStatus = "pass";
+
+  if (failCount > 0) {
+    status = "fail";
+  } else if (warnCount > 0) {
+    status = "warn";
+  }
+
+  return {
+    status,
+    credible: failCount === 0,
+    gateCount: items.length,
+    passCount,
+    warnCount,
+    failCount,
+  };
+};
+
+const priceTierGateLabel = (tier: PriceTierCalibration): string =>
+  tier.key === "dollar" ? "$1 player count" : `${tier.label} player count`;
+
+const maxOwnerAverageBudgetRemaining = (
+  summary: BudgetRemainingCalibrationSummary,
+): number =>
+  summary.ownersWithAverageBudgetRemaining[0]?.averageBudgetRemaining ?? 0;
+
+const summarizeGates = (
+  batch: MockBatch,
+  summary: CalibrationSummary,
+  priceTierCalibration: readonly PriceTierCalibration[],
+  positionSpendCalibration: readonly PositionSpendCalibration[],
+  ownerSpendCalibration: readonly OwnerSpendCalibration[],
+  overall: OverallCalibration,
+): CalibrationGates => {
+  const invalidRosterCount = batch.summary.scenarios.reduce(
+    (count, scenario) => count + scenario.invalidRosterCount,
+    0,
+  );
+
+  const items = [
+    calibrationGate({
+      key: "roster-validity",
+      category: "roster_validity",
+      label: "Invalid roster count",
+      target: 0,
+      actual: invalidRosterCount,
+      warnThreshold: 0.5,
+      failThreshold: 1,
+    }),
+    calibrationGate({
+      key: "auction-spend",
+      category: "auction_spend",
+      label: "Total auction spend",
+      target: overall.historicalAverageAuctionSpend,
+      actual: overall.mockAverageAuctionSpend,
+      warnThreshold: 50,
+      failThreshold: 100,
+    }),
+    ...priceTierCalibration.map(tier => {
+      const thresholds = priceTierCountThresholds[tier.key];
+
+      return calibrationGate({
+        key: `price-tier-count:${tier.key}`,
+        category: "price_tier_count",
+        label: priceTierGateLabel(tier),
+        target: tier.historicalAverageCount,
+        actual: tier.mockAverageCount,
+        warnThreshold: thresholds.warn,
+        failThreshold: thresholds.fail,
+      });
+    }),
+    ...positionSpendCalibration.map(position => {
+      const thresholds = positionSpendThresholds[position.position];
+
+      return calibrationGate({
+        key: `position-spend:${position.position}`,
+        category: "position_spend",
+        label: `${position.position} spend`,
+        target: position.historicalAverageSpend,
+        actual: position.mockAverageSpend,
+        warnThreshold: thresholds.warn,
+        failThreshold: thresholds.fail,
+      });
+    }),
+    ...ownerSpendCalibration.map(owner =>
+      calibrationGate({
+        key: `owner-spend:${owner.owner}`,
+        category: "owner_spend",
+        label: `${owner.owner} auction spend`,
+        target: owner.historicalAverageAuctionSpend,
+        actual: owner.mockAverageAuctionSpend,
+        warnThreshold: 20,
+        failThreshold: 40,
+      }),
+    ),
+    calibrationGate({
+      key: "budget-remaining:league-average",
+      category: "budget_remaining",
+      label: "League average budget remaining",
+      target: 0,
+      actual: summary.budgetRemaining.leagueAverageBudgetRemaining,
+      warnThreshold: 1.5,
+      failThreshold: 4,
+    }),
+    calibrationGate({
+      key: "budget-remaining:max-owner",
+      category: "budget_remaining",
+      label: "Highest owner average budget remaining",
+      target: 0,
+      actual: maxOwnerAverageBudgetRemaining(summary.budgetRemaining),
+      warnThreshold: 10,
+      failThreshold: 20,
+    }),
+  ];
+
+  return {
+    summary: summarizeGateStatuses(items),
+    items,
+  };
+};
+
 export const buildHistoricalCalibrationAudit = ({
   historicalRecords,
   batch,
@@ -395,14 +609,24 @@ export const buildHistoricalCalibrationAudit = ({
   const priceTierCalibration = summarizePriceTiers(records, runs, seasons);
   const positionSpendCalibration = summarizePositionSpend(records, runs, seasons);
   const ownerSpendCalibration = summarizeOwnerSpend(records, runs, seasons);
+  const summary = summarizeCalibration(batch, priceTierCalibration, positionSpendCalibration, ownerSpendCalibration);
+  const overall = summarizeOverall(records, runs, seasons);
 
   return {
     runCount: runs.length,
     historicalSeasons: seasons,
-    summary: summarizeCalibration(batch, priceTierCalibration, positionSpendCalibration, ownerSpendCalibration),
+    summary,
     priceTiers: priceTierCalibration,
     positionSpend: positionSpendCalibration,
     ownerSpend: ownerSpendCalibration,
-    overall: summarizeOverall(records, runs, seasons),
+    overall,
+    gates: summarizeGates(
+      batch,
+      summary,
+      priceTierCalibration,
+      positionSpendCalibration,
+      ownerSpendCalibration,
+      overall,
+    ),
   };
 };
