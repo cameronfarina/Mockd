@@ -31,6 +31,7 @@ describe("CLI draft plan report", () => {
       strategy: {
         key: string;
       };
+      engineMode: string;
       runCount: number;
       matchedRunCount: number;
       candidateLimit: number;
@@ -52,6 +53,7 @@ describe("CLI draft plan report", () => {
 
     expect(report.owner).toBe("Cam");
     expect(report.strategy.key).toBe("three-rb");
+    expect(report.engineMode).toBe("fast");
     expect(report.runCount).toBe(8);
     expect(report.matchedRunCount).toBeGreaterThan(0);
     expect(report.candidateLimit).toBe(3);
@@ -73,5 +75,43 @@ describe("CLI draft plan report", () => {
         .slice(3);
       expect(rbDepth.every(player => player.price <= 8)).toBe(true);
     }
+  }, 30000);
+
+  it("prints compact CSV draft plans for spreadsheet comparison", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "teams",
+        "--",
+        "--owner=Cam",
+        "--strategy=three-rb",
+        "--scenario=expected",
+        "--runs=4",
+        "--limit=2",
+        "--strategy-mode=force",
+        "--format=csv",
+        "--seed-prefix=cli-draft-plan-csv-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 10 * 1024 * 1024,
+      },
+    );
+    const lines = stdout.trim().split("\n");
+    expect(lines[0]).toBe(
+      "rank,seed,scenario,owner,strategy,engine_mode,roster_spend,budget_remaining,week1_score,weeks1_to_4_score,rb_core_spend,rb1,rb1_price,rb2,rb2_price,rb3,rb3_price,wr1,wr1_price,wr2,wr2_price,te,te_price,k,k_price,dst,dst_price,lineup,bench,roster",
+    );
+    expect(lines.length).toBeGreaterThan(1);
+
+    const firstRow = lines[1]?.split(",") ?? [];
+    expect(firstRow[3]).toBe("Cam");
+    expect(firstRow[5]).toBe("fast");
+    expect(Number(firstRow[6])).toBeLessThanOrEqual(200);
+    expect(Number(firstRow[12])).toBeGreaterThanOrEqual(55);
+    expect(Number(firstRow[14])).toBeGreaterThanOrEqual(45);
+    expect(Number(firstRow[16])).toBeGreaterThanOrEqual(35);
+    expect(firstRow[27]).toContain("RB1:");
   }, 30000);
 });

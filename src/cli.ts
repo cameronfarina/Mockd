@@ -27,6 +27,7 @@ import {
 } from "./modeling/basePricing.js";
 import {
   buildDraftPlanReport,
+  draftPlanReportCsv,
   draftPlanAuctionOverridesFor,
   type DraftPlanPlayer,
   type DraftPlanReport,
@@ -64,6 +65,7 @@ import {
 import { writePrepOutputArtifacts } from "./modeling/prepOutputs.js";
 import { buildProjectionRankings } from "./modeling/projectionRankings.js";
 import { buildQaReport } from "./modeling/qaReport.js";
+import { buildDraftReadyReport } from "./modeling/draftReadiness.js";
 import { buildTopPlayerSanityReport } from "./modeling/topPlayerSanity.js";
 import { loadEspnWeeksOneToFour } from "./projections.js";
 
@@ -194,6 +196,14 @@ const draftPlanStrategyModeOptionValue = (): "filter" | "force" => {
   return value;
 };
 
+const draftPlanEngineModeOptionValue = (): "fast" | "full" => {
+  const value = optionValue("--engine-mode") ?? "fast";
+  if (value !== "fast" && value !== "full") {
+    throw new Error(`Unknown draft plan engine mode "${value}". Use fast or full.`);
+  }
+  return value;
+};
+
 const marketBandFor = (player: DraftPlanPlayer): string => {
   if (!player.market) return "";
   return `, avg $${player.market.averageSalePrice}, range $${player.market.minimumSalePrice}-$${player.market.maximumSalePrice}`;
@@ -206,6 +216,7 @@ const draftPlanReportMarkdown = (report: DraftPlanReport): string => {
   const lines = [
     `# ${report.owner} ${report.strategy.label} Draft Plans`,
     "",
+    `Engine: ${report.engineMode}`,
     `Runs: ${report.runCount}`,
     `Matches: ${report.matchedRunCount}`,
     `Thresholds: RB1 $${report.strategy.thresholds.rb1Minimum}+, RB2 $${report.strategy.thresholds.rb2Minimum}+, RB3 $${report.strategy.thresholds.rb3Minimum}+, core $${report.strategy.thresholds.rbCoreSpendMinimum}+`,
@@ -579,6 +590,7 @@ const main = async (): Promise<void> => {
     const owner = ownerOptionValue();
     const strategyKey = draftPlanStrategyOptionValue();
     const strategyMode = draftPlanStrategyModeOptionValue();
+    const engineMode = draftPlanEngineModeOptionValue();
     const batch = runMockBatch({
       projections: players,
       historicalRecords,
@@ -590,6 +602,7 @@ const main = async (): Promise<void> => {
       auctionConfigOverrides: strategyMode === "force"
         ? draftPlanAuctionOverridesFor({ owner, strategyKey })
         : {},
+      diagnosticsMode: engineMode === "fast" ? "summary" : "full",
     });
     const report = buildDraftPlanReport({
       batch,
@@ -604,9 +617,111 @@ const main = async (): Promise<void> => {
       return;
     }
 
-    if (format !== "json") throw new Error(`Unknown teams format "${format}". Use json or markdown.`);
+    if (format === "csv") {
+      console.log(draftPlanReportCsv(report));
+      return;
+    }
+
+    if (format !== "json") throw new Error(`Unknown teams format "${format}". Use json, markdown, or csv.`);
 
     console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  if (command === "draft-ready") {
+    const pricingConfig = await pricingConfigFromOptions();
+    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const scenarioKey = scenarioOptionValue();
+    const owner = ownerOptionValue();
+    const strategyKey = draftPlanStrategyOptionValue();
+    const strategyMode = draftPlanStrategyModeOptionValue();
+    const engineMode = draftPlanEngineModeOptionValue();
+    const runs = numericOptionValue("--runs", 50);
+    const qaRuns = numericOptionValue("--qa-runs", 2);
+    const seedPrefix = optionValue("--seed-prefix") ?? "draft-ready";
+    const minimumMatches = numericOptionValue("--min-matches", Math.max(1, Math.ceil(runs * 0.2)));
+    const qaSeedPrefix = `${seedPrefix}:qa`;
+    const planSeedPrefix = `${seedPrefix}:plans`;
+    const qaBatch = runMockBatch({
+      projections: players,
+      historicalRecords,
+      keepers,
+      scenarioKeys: [scenarioKey],
+      runsPerScenario: qaRuns,
+      seedPrefix: qaSeedPrefix,
+      pricingConfig,
+    });
+    const firstRun = qaBatch.runs[0];
+    if (!firstRun) throw new Error("Draft readiness command did not produce a QA mock run.");
+    const calibration = buildHistoricalCalibrationAudit({ historicalRecords, batch: qaBatch });
+    const smokeReport = buildMockSmokeReport({ run: firstRun, batch: qaBatch, rounds: 2 });
+    const historicalBacktest = buildHistoricalBacktest(historicalRecords);
+    const sanityReport = buildTopPlayerSanityReport({
+      projections: players,
+      historicalRecords,
+      keepers,
+      scenarioKey,
+      limit: numericOptionValue("--evidence-limit", 40),
+      seedPrefix: qaSeedPrefix,
+      pricingConfig,
+      mockBatch: qaBatch,
+    });
+    const evidenceCoverageAudit = buildPlayerEvidenceCoverageAudit(buildPlayerEvidenceQueue(sanityReport));
+    const qaReport = buildQaReport({
+      options: {
+        scenarioKeys: [scenarioKey],
+        runsPerScenario: qaRuns,
+        seedPrefix: qaSeedPrefix,
+      },
+      smoke: smokeReport,
+      calibration,
+      backtest: historicalBacktest,
+      evidenceCoverage: evidenceCoverageAudit,
+    });
+    const planBatch = runMockBatch({
+      projections: players,
+      historicalRecords,
+      keepers,
+      scenarioKeys: [scenarioKey],
+      runsPerScenario: runs,
+      seedPrefix: planSeedPrefix,
+      pricingConfig,
+      auctionConfigOverrides: strategyMode === "force"
+        ? draftPlanAuctionOverridesFor({ owner, strategyKey })
+        : {},
+      diagnosticsMode: engineMode === "fast" ? "summary" : "full",
+    });
+    const draftPlanReport = buildDraftPlanReport({
+      batch: planBatch,
+      owner,
+      strategyKey,
+      limit: numericOptionValue("--limit", 5),
+    });
+    const report = buildDraftReadyReport({
+      options: {
+        owner,
+        strategyKey,
+        strategyMode,
+        scenarioKey,
+        runs,
+        qaRuns,
+        seedPrefix,
+        engineMode,
+        minimumMatches,
+      },
+      dataCounts: {
+        projections: players.length,
+        historicalRecords: historicalRecords.length,
+        keepers: keepers.length,
+      },
+      qaReport,
+      draftPlanReport,
+      planBatch,
+    });
+
+    console.log(JSON.stringify(report, null, 2));
+    process.exitCode = report.recommendedExitCode;
     return;
   }
 
@@ -789,7 +904,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run scenarios:sensitivity [-- --limit=60 --format=json|csv --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run sanity [-- --scenario=expected --limit=40 --runs=10 --seed-prefix=top-sanity --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run outliers:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:template [-- --scenario=expected --limit=40 --runs=10 --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:adapt -- --input=path.csv [--adapter=scored-local --format=csv|json] | npm run evidence:coverage [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run qa [-- --scenarios=expected --runs=2 --seed-prefix=qa --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run teams [-- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --strategy-mode=force --format=json|markdown --seed-prefix=draft-prep] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run backtest | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv --no-default-evidence]");
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run scenarios:sensitivity [-- --limit=60 --format=json|csv --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run sanity [-- --scenario=expected --limit=40 --runs=10 --seed-prefix=top-sanity --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run outliers:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:template [-- --scenario=expected --limit=40 --runs=10 --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:adapt -- --input=path.csv [--adapter=scored-local --format=csv|json] | npm run evidence:coverage [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run qa [-- --scenarios=expected --runs=2 --seed-prefix=qa --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run teams [-- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --strategy-mode=force --engine-mode=fast|full --format=json|markdown|csv --seed-prefix=draft-prep] | npm run draft:ready [-- --owner=Cam --strategy=three-rb --scenario=expected --runs=50 --qa-runs=2 --strategy-mode=force --engine-mode=fast|full --min-matches=10 --seed-prefix=draft-ready] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run backtest | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv --no-default-evidence]");
 };
 
 main().catch(error => {
