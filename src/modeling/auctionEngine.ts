@@ -11,6 +11,10 @@ export type InitialRostersByOwner = Partial<Record<Owner, readonly Player[]>>;
 export type OwnerDemandMultipliers = Partial<Record<Owner, Partial<Record<Position, number>>>>;
 export type OwnerAuctionBehaviors = Partial<Record<Owner, OwnerAuctionBehavior>>;
 export type OwnerRosterMaximums = Partial<Record<Owner, Partial<Record<Position, number>>>>;
+export type OwnerPositionAnchorTargets = Partial<Record<Owner, Partial<Record<Position, number>>>>;
+export type OwnerPositionCoreTargets = Partial<Record<Owner, Partial<Record<Position, readonly number[]>>>>;
+export type OwnerPositionCoreMaxBids = Partial<Record<Owner, Partial<Record<Position, readonly number[]>>>>;
+export type OwnerPositionSlotMaxBids = Partial<Record<Owner, Partial<Record<Position, readonly number[]>>>>;
 export type PositionOverbidDamping = Partial<Record<Position, number>>;
 
 export interface ScarcityConfig {
@@ -129,6 +133,10 @@ export interface AuctionEngineConfig {
   ownerDemandMultipliers: OwnerDemandMultipliers;
   ownerBehaviors: OwnerAuctionBehaviors;
   ownerRosterMaximums: OwnerRosterMaximums;
+  ownerPositionAnchorTargets: OwnerPositionAnchorTargets;
+  ownerPositionCoreTargets: OwnerPositionCoreTargets;
+  ownerPositionCoreMaxBids: OwnerPositionCoreMaxBids;
+  ownerPositionSlotMaxBids: OwnerPositionSlotMaxBids;
   positionOverbidDamping: PositionOverbidDamping;
   scarcity: ScarcityConfig;
   rosterNeed: RosterNeedConfig;
@@ -145,10 +153,14 @@ export interface AuctionEngineConfig {
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "roomPressure" | "budgetPacing" | "lateOpeningBid" | "topEndOverbidDamping" | "contextPenaltyBidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "ownerPositionAnchorTargets" | "ownerPositionCoreTargets" | "ownerPositionCoreMaxBids" | "ownerPositionSlotMaxBids" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "roomPressure" | "budgetPacing" | "lateOpeningBid" | "topEndOverbidDamping" | "contextPenaltyBidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
     ownerRosterMaximums?: OwnerRosterMaximums;
+    ownerPositionAnchorTargets?: OwnerPositionAnchorTargets;
+    ownerPositionCoreTargets?: OwnerPositionCoreTargets;
+    ownerPositionCoreMaxBids?: OwnerPositionCoreMaxBids;
+    ownerPositionSlotMaxBids?: OwnerPositionSlotMaxBids;
     positionOverbidDamping?: PositionOverbidDamping;
     scarcity?: Partial<ScarcityConfig>;
     rosterNeed?: Partial<RosterNeedConfig>;
@@ -177,6 +189,7 @@ export interface AuctionBid {
   amount: number;
   uncappedAmount: number;
   maxBid: number;
+  strategyBudgetMaxBid?: number;
   marketPrice: number;
   ownerDemandMultiplier: number;
   rosterNeedMultiplier: number;
@@ -417,6 +430,10 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   ownerDemandMultipliers: {},
   ownerBehaviors: {},
   ownerRosterMaximums: {},
+  ownerPositionAnchorTargets: {},
+  ownerPositionCoreTargets: {},
+  ownerPositionCoreMaxBids: {},
+  ownerPositionSlotMaxBids: {},
   positionOverbidDamping: {
     QB: 0.75,
     WR: 0.18,
@@ -542,6 +559,14 @@ export const buildAuctionConfig = (
   ownerDemandMultipliers: overrides.ownerDemandMultipliers ?? defaultAuctionEngineConfig.ownerDemandMultipliers,
   ownerBehaviors: overrides.ownerBehaviors ?? defaultAuctionEngineConfig.ownerBehaviors,
   ownerRosterMaximums: overrides.ownerRosterMaximums ?? defaultAuctionEngineConfig.ownerRosterMaximums,
+  ownerPositionAnchorTargets: overrides.ownerPositionAnchorTargets ??
+    defaultAuctionEngineConfig.ownerPositionAnchorTargets,
+  ownerPositionCoreTargets: overrides.ownerPositionCoreTargets ??
+    defaultAuctionEngineConfig.ownerPositionCoreTargets,
+  ownerPositionCoreMaxBids: overrides.ownerPositionCoreMaxBids ??
+    defaultAuctionEngineConfig.ownerPositionCoreMaxBids,
+  ownerPositionSlotMaxBids: overrides.ownerPositionSlotMaxBids ??
+    defaultAuctionEngineConfig.ownerPositionSlotMaxBids,
   positionOverbidDamping: overrides.positionOverbidDamping ?? defaultAuctionEngineConfig.positionOverbidDamping,
   scarcity: {
     ...defaultAuctionEngineConfig.scarcity,
@@ -1063,11 +1088,87 @@ const contextPenaltyDampingMultiplierFor = (
 const anchorRosterCount = (roster: readonly Player[]): number =>
   roster.filter(player => player.price >= anchorBuildPriceThreshold).length;
 
+const positionAnchorRosterCount = (roster: readonly Player[], position: Position): number =>
+  roster.filter(player => player.position === position && player.price >= anchorBuildPriceThreshold).length;
+
+const positionRosterCount = (roster: readonly Player[], position: Position): number =>
+  roster.filter(player => player.position === position).length;
+
+const unmetPositionAnchorTargets = (
+  state: AuctionOwnerState,
+  config: AuctionEngineConfig,
+): Position[] => {
+  const targets = config.ownerPositionAnchorTargets[state.owner] ?? {};
+
+  return positions.filter(position => {
+    const target = targets[position];
+    return target !== undefined && positionAnchorRosterCount(state.roster, position) < target;
+  });
+};
+
+const strategyBudgetMaxBidFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  config: AuctionEngineConfig,
+): number | undefined => {
+  const positionAnchorCount = positionAnchorRosterCount(state.roster, player.position);
+  const cappedMaxBids: number[] = [];
+  const coreTargets = player.price >= anchorBuildPriceThreshold
+    ? config.ownerPositionCoreTargets[state.owner]?.[player.position]
+    : undefined;
+  if (coreTargets && coreTargets.length > 0) {
+    const remainingTargets = coreTargets.slice(positionAnchorCount);
+    if (remainingTargets.length > 1) {
+      const futureCoreReserve = remainingTargets
+        .slice(1)
+        .reduce((total, targetPrice) => total + targetPrice, 0);
+      const futureCoreSlots = remainingTargets.length - 1;
+      const rosterSlotsAfterPurchase = Math.max(0, state.rosterSlotsRemaining - 1);
+      const nonCoreSlotsAfterPurchase = Math.max(0, rosterSlotsAfterPurchase - futureCoreSlots);
+      cappedMaxBids.push(Math.floor(
+        state.budgetRemaining -
+          futureCoreReserve -
+          nonCoreSlotsAfterPurchase * config.minimumBid,
+      ));
+    }
+  }
+
+  const coreSlotMaxBid = player.price >= anchorBuildPriceThreshold
+    ? config.ownerPositionCoreMaxBids[state.owner]?.[player.position]?.[positionAnchorCount]
+    : undefined;
+  if (coreSlotMaxBid !== undefined) cappedMaxBids.push(coreSlotMaxBid);
+  const positionSlotCount = positionRosterCount(state.roster, player.position);
+  const positionSlotMaxBid = config.ownerPositionSlotMaxBids[state.owner]?.[player.position]?.[positionSlotCount];
+  if (positionSlotMaxBid !== undefined) cappedMaxBids.push(positionSlotMaxBid);
+  if (cappedMaxBids.length === 0) return undefined;
+
+  return clamp(Math.min(...cappedMaxBids), config.minimumBid, state.maxBid);
+};
+
 const buildStyleMultiplierFor = (
   state: AuctionOwnerState,
   player: Player,
   behavior: CompleteOwnerAuctionBehavior,
+  config: AuctionEngineConfig,
 ): number => {
+  const unmetTargets = unmetPositionAnchorTargets(state, config);
+  if (
+    player.price >= anchorBuildPriceThreshold &&
+    unmetTargets.length > 0 &&
+    !unmetTargets.some(position => position === player.position)
+  ) {
+    return behavior.depthAggression;
+  }
+
+  const positionAnchorTarget = config.ownerPositionAnchorTargets[state.owner]?.[player.position];
+  if (
+    positionAnchorTarget !== undefined &&
+    player.price >= anchorBuildPriceThreshold &&
+    positionAnchorRosterCount(state.roster, player.position) < positionAnchorTarget
+  ) {
+    return behavior.anchorAggression;
+  }
+
   if (
     player.price >= anchorBuildPriceThreshold &&
     anchorRosterCount(state.roster) < targetAnchorRosterCount
@@ -1093,7 +1194,7 @@ const bidForOwner = (
   const rosterNeedMultiplier = rosterNeedMultiplierFor(state, player.position, config);
   const ownerBehavior = ownerBehaviorFor(state.owner, config);
   const behaviorScarcityMultiplier = 1 + (scarcityMultiplier - 1) * ownerBehavior.scarcityChase;
-  const buildStyleMultiplier = buildStyleMultiplierFor(state, player, ownerBehavior);
+  const buildStyleMultiplier = buildStyleMultiplierFor(state, player, ownerBehavior, config);
   const replacementPatienceMultiplier = player.price <= replacementPatiencePriceThreshold
     ? ownerBehavior.replacementPatience
     : 1;
@@ -1138,12 +1239,15 @@ const bidForOwner = (
     ),
   );
   const uncappedAmount = Math.max(pricedBidAmount, openingBid);
+  const strategyBudgetMaxBid = strategyBudgetMaxBidFor(state, player, config);
+  const maxBid = Math.min(state.maxBid, strategyBudgetMaxBid ?? state.maxBid);
 
   return {
     owner: state.owner,
-    amount: Math.min(state.maxBid, uncappedAmount),
+    amount: Math.min(maxBid, uncappedAmount),
     uncappedAmount,
     maxBid: state.maxBid,
+    ...(strategyBudgetMaxBid === undefined ? {} : { strategyBudgetMaxBid }),
     marketPrice: player.price,
     ownerDemandMultiplier,
     rosterNeedMultiplier,

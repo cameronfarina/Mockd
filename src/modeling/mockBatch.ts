@@ -12,9 +12,17 @@ import {
   buildOwnerDemandMultipliers,
   buildOwnerRosterMaximums,
   simulateAuction,
+  type AuctionEngineConfigOverrides,
   type AuctionBudgetTrajectoryRow,
   type AuctionPick,
   type InitialRostersByOwner,
+  type OwnerAuctionBehaviors,
+  type OwnerDemandMultipliers,
+  type OwnerPositionAnchorTargets,
+  type OwnerPositionCoreMaxBids,
+  type OwnerPositionCoreTargets,
+  type OwnerPositionSlotMaxBids,
+  type OwnerRosterMaximums,
 } from "./auctionEngine.js";
 import { buildBasePrices, defaultPricingConfig, type PricingConfig } from "./basePricing.js";
 import {
@@ -34,6 +42,7 @@ export interface RunMockOptions {
   scenarioKey?: KeeperScenarioKey;
   seed?: string;
   pricingConfig?: PricingConfig;
+  auctionConfigOverrides?: AuctionEngineConfigOverrides;
 }
 
 export interface RunMockBatchOptions extends Omit<RunMockOptions, "scenarioKey" | "seed"> {
@@ -255,16 +264,138 @@ const summarizeRoster = (owner: Owner, roster: MockRoster): MockRosterSummary =>
   return summary;
 };
 
+const mergeOwnerPositionMaps = <T extends OwnerDemandMultipliers | OwnerRosterMaximums | OwnerPositionAnchorTargets>(
+  base: T,
+  overrides?: T,
+): T => {
+  if (!overrides) return base;
+
+  const merged = { ...base } as T;
+  const owners = new Set<Owner>([
+    ...(Object.keys(base) as Owner[]),
+    ...(Object.keys(overrides) as Owner[]),
+  ]);
+
+  for (const owner of owners) {
+    merged[owner] = {
+      ...(base[owner] ?? {}),
+      ...(overrides[owner] ?? {}),
+    };
+  }
+
+  return merged;
+};
+
+const mergeOwnerPositionPriceLadders = <
+  T extends OwnerPositionCoreTargets | OwnerPositionCoreMaxBids | OwnerPositionSlotMaxBids,
+>(
+  base: T,
+  overrides?: T,
+): T => {
+  if (!overrides) return base;
+
+  const merged = { ...base } as T;
+  const owners = new Set<Owner>([
+    ...(Object.keys(base) as Owner[]),
+    ...(Object.keys(overrides) as Owner[]),
+  ]);
+
+  for (const owner of owners) {
+    merged[owner] = {
+      ...(base[owner] ?? {}),
+      ...(overrides[owner] ?? {}),
+    };
+  }
+
+  return merged;
+};
+
+const mergeOwnerAuctionBehaviors = (
+  base: OwnerAuctionBehaviors,
+  overrides?: OwnerAuctionBehaviors,
+): OwnerAuctionBehaviors => {
+  if (!overrides) return base;
+
+  const merged = { ...base };
+  const owners = new Set<Owner>([
+    ...(Object.keys(base) as Owner[]),
+    ...(Object.keys(overrides) as Owner[]),
+  ]);
+
+  for (const owner of owners) {
+    const mergedBehavior = {
+      ...(base[owner] ?? {}),
+      ...(overrides[owner] ?? {}),
+    };
+    const { priceAggression, scarcityChase, replacementPatience } = mergedBehavior;
+
+    if (
+      priceAggression === undefined ||
+      scarcityChase === undefined ||
+      replacementPatience === undefined
+    ) {
+      throw new Error(`Incomplete auction behavior override for ${owner}.`);
+    }
+
+    merged[owner] = {
+      priceAggression,
+      scarcityChase,
+      replacementPatience,
+      ...(mergedBehavior.anchorAggression === undefined
+        ? {}
+        : { anchorAggression: mergedBehavior.anchorAggression }),
+      ...(mergedBehavior.depthAggression === undefined
+        ? {}
+        : { depthAggression: mergedBehavior.depthAggression }),
+    };
+  }
+
+  return merged;
+};
+
 const runPreparedScenario = (
   preparedScenario: PreparedScenario,
   ownerDemandMultipliers: ReturnType<typeof buildOwnerDemandMultipliers>,
   ownerBehaviors: ReturnType<typeof buildOwnerAuctionBehaviors>,
   ownerRosterMaximums: ReturnType<typeof buildOwnerRosterMaximums>,
   seed: string,
+  auctionConfigOverrides: AuctionEngineConfigOverrides = {},
 ): MockRun => {
+  const auctionConfig = buildAuctionConfig({
+    ...auctionConfigOverrides,
+    seed,
+    ownerDemandMultipliers: mergeOwnerPositionMaps(
+      ownerDemandMultipliers,
+      auctionConfigOverrides.ownerDemandMultipliers,
+    ),
+    ownerBehaviors: mergeOwnerAuctionBehaviors(
+      ownerBehaviors,
+      auctionConfigOverrides.ownerBehaviors,
+    ),
+    ownerRosterMaximums: mergeOwnerPositionMaps(
+      ownerRosterMaximums,
+      auctionConfigOverrides.ownerRosterMaximums,
+    ),
+    ownerPositionAnchorTargets: mergeOwnerPositionMaps(
+      {},
+      auctionConfigOverrides.ownerPositionAnchorTargets,
+    ),
+    ownerPositionCoreTargets: mergeOwnerPositionPriceLadders(
+      {},
+      auctionConfigOverrides.ownerPositionCoreTargets,
+    ),
+    ownerPositionCoreMaxBids: mergeOwnerPositionPriceLadders(
+      {},
+      auctionConfigOverrides.ownerPositionCoreMaxBids,
+    ),
+    ownerPositionSlotMaxBids: mergeOwnerPositionPriceLadders(
+      {},
+      auctionConfigOverrides.ownerPositionSlotMaxBids,
+    ),
+  });
   const result = simulateAuction({
     players: preparedScenario.auctionPlayers,
-    config: buildAuctionConfig({ seed, ownerDemandMultipliers, ownerBehaviors, ownerRosterMaximums }),
+    config: auctionConfig,
     initialRostersByOwner: preparedScenario.initialRostersByOwner,
   });
   const rosters = ownerOrder.map(owner => {
@@ -293,6 +424,7 @@ export const runMock = ({
   scenarioKey = "expected",
   seed = "mockd-default",
   pricingConfig = defaultPricingConfig,
+  auctionConfigOverrides = {},
 }: RunMockOptions): MockRun => {
   const preparation = prepareMockInputs({
     projections,
@@ -310,6 +442,7 @@ export const runMock = ({
     preparation.ownerBehaviors,
     preparation.ownerRosterMaximums,
     seed,
+    auctionConfigOverrides,
   );
 };
 
@@ -441,6 +574,7 @@ export const runMockBatch = ({
   runsPerScenario = defaultRunsPerScenario,
   seedPrefix = defaultSeedPrefix,
   pricingConfig = defaultPricingConfig,
+  auctionConfigOverrides = {},
 }: RunMockBatchOptions): MockBatch => {
   const normalizedScenarioKeys = [...scenarioKeys];
   const preparation = prepareMockInputs({
@@ -458,6 +592,7 @@ export const runMockBatch = ({
         preparation.ownerBehaviors,
         preparation.ownerRosterMaximums,
         `${seedPrefix}:${preparedScenario.scenario.key}:${index + 1}`,
+        auctionConfigOverrides,
       ),
     ),
   );
