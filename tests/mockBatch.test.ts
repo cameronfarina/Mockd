@@ -72,4 +72,51 @@ describe("mock batch simulation", () => {
     expect(exposure).toBeDefined();
     expect(exposure?.draftedCount).toBeGreaterThan(0);
   }, 15000);
+
+  it("can run lightweight batches for draft-plan mining without heavy diagnostics", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const baseOptions = {
+      projections,
+      historicalRecords,
+      keepers,
+      scenarioKeys: ["expected"] as const,
+      runsPerScenario: 1,
+      seedPrefix: "batch-lightweight",
+    };
+    const fullBatch = runMockBatch(baseOptions);
+    const lightweightBatch = runMockBatch({
+      ...baseOptions,
+      diagnosticsMode: "summary",
+    });
+    const fullRun = fullBatch.runs[0];
+    const lightweightRun = lightweightBatch.runs[0];
+    if (!fullRun || !lightweightRun) throw new Error("Expected both batches to produce a run.");
+
+    expect(lightweightRun.seed).toBe(fullRun.seed);
+    expect(lightweightRun.pickCount).toBe(fullRun.pickCount);
+    expect(lightweightRun.budgetTrajectory).toEqual([]);
+    expect(lightweightRun.picks).toHaveLength(fullRun.picks.length);
+    expect(lightweightRun.picks.every(pick => pick.topBids.length === 0)).toBe(true);
+    expect(lightweightRun.picks.map(pick => ({
+      owner: pick.owner,
+      player: pick.player,
+      price: pick.price,
+    }))).toEqual(fullRun.picks.map(pick => ({
+      owner: pick.owner,
+      player: pick.player,
+      price: pick.price,
+    })));
+    expect(lightweightRun.rosters.map(roster => ({
+      owner: roster.owner,
+      spend: roster.spend,
+      budgetRemaining: roster.budgetRemaining,
+      valid: roster.valid,
+    }))).toEqual(fullRun.rosters.map(roster => ({
+      owner: roster.owner,
+      spend: roster.spend,
+      budgetRemaining: roster.budgetRemaining,
+      valid: roster.valid,
+    })));
+  }, 15000);
 });

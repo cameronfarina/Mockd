@@ -12,6 +12,7 @@ import {
   buildOwnerDemandMultipliers,
   buildOwnerRosterMaximums,
   simulateAuction,
+  type AuctionDiagnosticsMode,
   type AuctionEngineConfigOverrides,
   type AuctionBudgetTrajectoryRow,
   type AuctionPick,
@@ -43,6 +44,7 @@ export interface RunMockOptions {
   seed?: string;
   pricingConfig?: PricingConfig;
   auctionConfigOverrides?: AuctionEngineConfigOverrides;
+  diagnosticsMode?: AuctionDiagnosticsMode;
 }
 
 export interface RunMockBatchOptions extends Omit<RunMockOptions, "scenarioKey" | "seed"> {
@@ -135,6 +137,7 @@ export interface MockBatch {
     scenarioKeys: KeeperScenarioKey[];
     runsPerScenario: number;
     seedPrefix: string;
+    diagnosticsMode?: AuctionDiagnosticsMode;
   };
   runs: MockRun[];
   summary: MockBatchSummary;
@@ -360,6 +363,7 @@ const runPreparedScenario = (
   ownerRosterMaximums: ReturnType<typeof buildOwnerRosterMaximums>,
   seed: string,
   auctionConfigOverrides: AuctionEngineConfigOverrides = {},
+  diagnosticsMode: AuctionDiagnosticsMode = "full",
 ): MockRun => {
   const auctionConfig = buildAuctionConfig({
     ...auctionConfigOverrides,
@@ -397,6 +401,7 @@ const runPreparedScenario = (
     players: preparedScenario.auctionPlayers,
     config: auctionConfig,
     initialRostersByOwner: preparedScenario.initialRostersByOwner,
+    diagnosticsMode,
   });
   const rosters = ownerOrder.map(owner => {
     const roster = result.rosters[owner];
@@ -425,6 +430,7 @@ export const runMock = ({
   seed = "mockd-default",
   pricingConfig = defaultPricingConfig,
   auctionConfigOverrides = {},
+  diagnosticsMode = "full",
 }: RunMockOptions): MockRun => {
   const preparation = prepareMockInputs({
     projections,
@@ -443,6 +449,7 @@ export const runMock = ({
     preparation.ownerRosterMaximums,
     seed,
     auctionConfigOverrides,
+    diagnosticsMode,
   );
 };
 
@@ -575,6 +582,7 @@ export const runMockBatch = ({
   seedPrefix = defaultSeedPrefix,
   pricingConfig = defaultPricingConfig,
   auctionConfigOverrides = {},
+  diagnosticsMode = "full",
 }: RunMockBatchOptions): MockBatch => {
   const normalizedScenarioKeys = [...scenarioKeys];
   const preparation = prepareMockInputs({
@@ -593,6 +601,7 @@ export const runMockBatch = ({
         preparation.ownerRosterMaximums,
         `${seedPrefix}:${preparedScenario.scenario.key}:${index + 1}`,
         auctionConfigOverrides,
+        diagnosticsMode,
       ),
     ),
   );
@@ -602,6 +611,7 @@ export const runMockBatch = ({
       scenarioKeys: normalizedScenarioKeys,
       runsPerScenario,
       seedPrefix,
+      ...(diagnosticsMode === "full" ? {} : { diagnosticsMode }),
     },
     runs,
     summary: summarizeMockBatch(runs),
