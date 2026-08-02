@@ -39,6 +39,20 @@ export interface TopPriceVolumeLimit {
   maxCount: number;
 }
 
+export interface HistoricalPricePriorConfig {
+  enabled: boolean;
+  minimumHistoricalPrice: number;
+  minimumCurrentAnchorValue: number;
+  maximumCurrentEspnRank: number;
+  recencyDecay: number;
+  singleSeasonFloorShare: number;
+  multiSeasonFloorShare: number;
+  projectionRankBoostPerRank: number;
+  maxProjectionRankBoost: number;
+  negativeContextPenaltyMultiplier: number;
+  maxNegativeContextPenalty: number;
+}
+
 export interface PricingConfig {
   draftedPoolCounts: PositionAmounts;
   positionMarketMultipliers: PositionAmounts;
@@ -51,6 +65,7 @@ export interface PricingConfig {
   projectionFloorRules: Partial<Record<Position, ProjectionFloorRule>>;
   projectionRankPriceFloors: Partial<Record<Position, readonly ProjectionRankPriceFloor[]>>;
   playerContext: PlayerContextConfig;
+  historicalPricePrior: HistoricalPricePriorConfig;
   topPriceVolumeLimits: readonly TopPriceVolumeLimit[];
   spendTargetRoundingPriority: readonly Position[];
 }
@@ -71,6 +86,10 @@ export interface BasePrice extends ProjectionRanking {
   contextNotes?: PlayerContextNotes;
   contextEvidence?: readonly PlayerContextEvidence[];
   rawPrice: number;
+  historicalAuctionCount: number;
+  historicalRoomPrice: number;
+  historicalRoomFloor: number;
+  historicalRoomFloorShare: number;
   minimumPrice: number;
   hardCeiling: number;
   spendTarget: number;
@@ -152,6 +171,19 @@ export const defaultPricingConfig = {
     TE: [{ maxProjectionRank: 2, price: 38 }],
   },
   playerContext: defaultPlayerContextConfig,
+  historicalPricePrior: {
+    enabled: true,
+    minimumHistoricalPrice: 30,
+    minimumCurrentAnchorValue: 30,
+    maximumCurrentEspnRank: 40,
+    recencyDecay: 0.6,
+    singleSeasonFloorShare: 0.9,
+    multiSeasonFloorShare: 0.84,
+    projectionRankBoostPerRank: 0.003,
+    maxProjectionRankBoost: 0.04,
+    negativeContextPenaltyMultiplier: 1.5,
+    maxNegativeContextPenalty: 0.12,
+  },
   topPriceVolumeLimits: [
     { threshold: 77, maxCount: 1 },
     { threshold: 72, maxCount: 3 },
@@ -174,6 +206,9 @@ const clamp = (value: number, min: number, max: number): number =>
 
 const roundedTotal = (amounts: PositionAmounts): number =>
   Math.round(Object.values(amounts).reduce((total, amount) => total + amount, 0));
+
+const roundToTwo = (value: number): number =>
+  Math.round((value + Number.EPSILON) * 100) / 100;
 
 export const roundSpendTargets = (
   spendTargets: PositionAmounts,
@@ -250,10 +285,99 @@ const projectionRankPriceFloorFor = (ranking: ProjectionRanking, config: Pricing
     ?.find(rule => ranking.projectionRank <= rule.maxProjectionRank)
     ?.price ?? 0;
 
+type HistoricalAuctionRecordsByName = ReadonlyMap<string, readonly HistoricalAuctionRecord[]>;
+
+interface HistoricalRoomPricePrior {
+  historicalAuctionCount: number;
+  historicalRoomPrice: number;
+  historicalRoomFloor: number;
+  historicalRoomFloorShare: number;
+}
+
+const emptyHistoricalRoomPricePrior = (): HistoricalRoomPricePrior => ({
+  historicalAuctionCount: 0,
+  historicalRoomPrice: 0,
+  historicalRoomFloor: 0,
+  historicalRoomFloorShare: 0,
+});
+
+const buildHistoricalAuctionRecordsByName = (
+  records: readonly HistoricalAuctionRecord[],
+  config: PricingConfig,
+): HistoricalAuctionRecordsByName => {
+  if (!config.historicalPricePrior.enabled) return new Map();
+
+  const byName = new Map<string, HistoricalAuctionRecord[]>();
+  for (const record of records) {
+    if (record.acquisitionType !== "auction") continue;
+    if (record.price < config.historicalPricePrior.minimumHistoricalPrice) continue;
+
+    const entries = byName.get(record.normalizedPlayerName) ?? [];
+    entries.push(record);
+    byName.set(record.normalizedPlayerName, entries);
+  }
+
+  return byName;
+};
+
+const historicalRoomPricePriorFor = (
+  ranking: ProjectionRanking,
+  recordsByName: HistoricalAuctionRecordsByName,
+  contextAdjustmentPercent: number,
+  config: PricingConfig,
+): HistoricalRoomPricePrior => {
+  const records = (recordsByName.get(ranking.normalizedName) ?? [])
+    .filter(record => record.position === ranking.position);
+  if (records.length === 0) return emptyHistoricalRoomPricePrior();
+  const currentAnchorQualifies =
+    (ranking.espnAuctionValue ?? 0) >= config.historicalPricePrior.minimumCurrentAnchorValue ||
+    (ranking.espnRank ?? Number.MAX_SAFE_INTEGER) <= config.historicalPricePrior.maximumCurrentEspnRank;
+  if (!currentAnchorQualifies) return emptyHistoricalRoomPricePrior();
+
+  const maxSeason = Math.max(...records.map(record => record.season));
+  const weighted = records.reduce(
+    (totals, record) => {
+      const weight = config.historicalPricePrior.recencyDecay ** (maxSeason - record.season);
+      return {
+        weight: totals.weight + weight,
+        price: totals.price + record.price * weight,
+      };
+    },
+    { weight: 0, price: 0 },
+  );
+  const historicalRoomPrice = roundToTwo(weighted.price / Math.max(0.000001, weighted.weight));
+  const baseFloorShare = records.length === 1
+    ? config.historicalPricePrior.singleSeasonFloorShare
+    : config.historicalPricePrior.multiSeasonFloorShare;
+  const projectionRankBoost = ranking.espnRank === undefined
+    ? 0
+    : clamp(
+      (ranking.espnRank - ranking.projectionRank) *
+        config.historicalPricePrior.projectionRankBoostPerRank,
+      0,
+      config.historicalPricePrior.maxProjectionRankBoost,
+    );
+  const contextPenalty = clamp(
+    Math.max(0, -contextAdjustmentPercent) *
+      config.historicalPricePrior.negativeContextPenaltyMultiplier,
+    0,
+    config.historicalPricePrior.maxNegativeContextPenalty,
+  );
+  const historicalRoomFloorShare = clamp(baseFloorShare + projectionRankBoost - contextPenalty, 0, 1);
+
+  return {
+    historicalAuctionCount: records.length,
+    historicalRoomPrice,
+    historicalRoomFloor: Math.round(historicalRoomPrice * historicalRoomFloorShare),
+    historicalRoomFloorShare: roundToTwo(historicalRoomFloorShare),
+  };
+};
+
 const minimumPriceFor = (
   ranking: ProjectionRanking,
   anchoredPrice: number,
   projectionFloorPrice: number,
+  historicalRoomFloor: number,
   adjustmentFactor: number,
   config: PricingConfig,
 ): number => {
@@ -263,10 +387,11 @@ const minimumPriceFor = (
     : 1;
   const rankFloor = projectionRankPriceFloorFor(ranking, config);
   const projectionFloorMinimum = Math.round(projectionFloorPrice * adjustmentFactor);
+  const historicalRoomMinimum = Math.round(historicalRoomFloor * adjustmentFactor);
 
   return Math.min(
     config.hardPriceCeilings[ranking.position],
-    Math.max(1, topAnchorMinimum, rankFloor, projectionFloorMinimum),
+    Math.max(1, topAnchorMinimum, rankFloor, projectionFloorMinimum, historicalRoomMinimum),
   );
 };
 
@@ -274,6 +399,7 @@ const candidateForRanking = (
   ranking: ProjectionRanking,
   spendTarget: number,
   overrideByName: ReadonlyMap<string, PlayerOverride>,
+  historicalAuctionRecordsByName: HistoricalAuctionRecordsByName,
   config: PricingConfig,
 ): PriceCandidate => {
   const publicAnchorValue = Math.max(1, ranking.espnAuctionValue ?? 0);
@@ -282,16 +408,27 @@ const candidateForRanking = (
   const marketPressure = config.marketPressureByPosition[ranking.position];
   const anchoredPrice = publicAnchorValue * positionMultiplier * rankGapAdjustment * marketPressure;
   const projectionFloorPrice = projectionFloorFor(ranking, config);
-  const preSustainabilityPrice = Math.max(anchoredPrice, projectionFloorPrice);
   const override = overrideByName.get(ranking.normalizedName);
   const sustainabilityFactor = override?.sustainabilityFactor ?? 1;
   const contextAdjustment = calculatePlayerContextAdjustment(ranking.normalizedName, config.playerContext);
+  const historicalRoomPricePrior = historicalRoomPricePriorFor(
+    ranking,
+    historicalAuctionRecordsByName,
+    contextAdjustment.cappedAdjustment,
+    config,
+  );
+  const preSustainabilityPrice = Math.max(
+    anchoredPrice,
+    projectionFloorPrice,
+    historicalRoomPricePrior.historicalRoomFloor,
+  );
   const adjustmentFactor = sustainabilityFactor * contextAdjustment.factor;
   const rawPrice = preSustainabilityPrice * adjustmentFactor;
   const minimumPrice = minimumPriceFor(
     ranking,
     anchoredPrice,
     projectionFloorPrice,
+    historicalRoomPricePrior.historicalRoomFloor,
     adjustmentFactor,
     config,
   );
@@ -313,6 +450,7 @@ const candidateForRanking = (
     ...(contextAdjustment.notes ? { contextNotes: contextAdjustment.notes } : {}),
     ...(contextAdjustment.evidence ? { contextEvidence: contextAdjustment.evidence } : {}),
     rawPrice,
+    ...historicalRoomPricePrior,
     allocationWeight: Math.max(0.01, rawPrice),
     minimumPrice,
     hardCeiling: config.hardPriceCeilings[ranking.position],
@@ -466,6 +604,7 @@ export const buildBasePrices = (
 ): BasePrice[] => {
   const spendTargets = deriveAuditedSpendTargets(historicalRecords, config);
   const overrideByName = roleOverrideByName(playerOverrides);
+  const historicalAuctionRecordsByName = buildHistoricalAuctionRecordsByName(historicalRecords, config);
   const rankings = buildProjectionRankings(projections);
   const candidates = positions.flatMap(position => {
     const poolCount = config.draftedPoolCounts[position];
@@ -478,7 +617,15 @@ export const buildBasePrices = (
     }
 
     const spendTarget = spendTargets[position];
-    return positionRankings.map(ranking => candidateForRanking(ranking, spendTarget, overrideByName, config));
+    return positionRankings.map(ranking =>
+      candidateForRanking(
+        ranking,
+        spendTarget,
+        overrideByName,
+        historicalAuctionRecordsByName,
+        config,
+      ),
+    );
   });
   const cappedCandidates = applyTopPriceVolumeCaps(candidates, config);
 

@@ -60,6 +60,36 @@ describe("audited base pricing", () => {
     expect(jadarian.price).toBe(15);
   });
 
+  it("protects historically expensive same-player RBs from soft public anchors", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const prices = buildBasePrices(projections, historicalRecords);
+    const byName = new Map(prices.map(price => [price.name, price]));
+    const expectedScenario = buildKeeperScenarios(keepers).find(scenario => scenario.key === "expected");
+    if (!expectedScenario) throw new Error("Expected keeper scenario was not found.");
+    const availableByName = new Map(
+      applyKeeperScenarioToPrices(prices, expectedScenario, keepers)
+        .availablePrices
+        .map(price => [price.name, price]),
+    );
+
+    const barkley = byName.get("Saquon Barkley")!;
+    const jeanty = byName.get("Ashton Jeanty")!;
+    const jacobs = byName.get("Josh Jacobs")!;
+
+    expect(barkley.historicalRoomPrice).toBeGreaterThanOrEqual(68);
+    expect(barkley.historicalRoomFloor).toBeGreaterThanOrEqual(58);
+    expect(barkley.price).toBeGreaterThanOrEqual(58);
+    expect(availableByName.get("Saquon Barkley")?.scenarioPrice).toBeGreaterThanOrEqual(60);
+
+    expect(jeanty.historicalRoomPrice).toBe(56);
+    expect(jeanty.price).toBeGreaterThanOrEqual(52);
+    expect(availableByName.get("Ashton Jeanty")?.scenarioPrice).toBeGreaterThanOrEqual(54);
+
+    expect(jacobs.historicalRoomPrice).toBeGreaterThanOrEqual(46);
+    expect(jacobs.price).toBeGreaterThanOrEqual(41);
+  });
+
   it("can turn on custom player-context weights while preserving spend reconciliation", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();

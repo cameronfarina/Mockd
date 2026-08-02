@@ -243,7 +243,7 @@ describe("CLI player audit report", () => {
         "--silent",
         "audit",
         "--",
-        "--player=C.J. Stroud",
+        "--player=Terrance Ferguson",
         "--scenario=expected",
         "--runs=1",
         "--seed-prefix=undrafted-audit-test",
