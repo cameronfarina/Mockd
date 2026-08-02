@@ -13,9 +13,11 @@ This repository captures the reusable foundation behind the analysis previously 
 - current keeper declarations and assumptions
 - projection rank anchors, ESPN ranks, auction values, and rank gaps
 - audited pre-keeper prices reconciled to historical open-auction spend
+- historical same-player room-clearing priors for league-magnet players whose public anchors are too soft
 - optional custom player-context weights for role, injury, contract, coaching, schedule, bye-week, opportunity, defensive-attention, skill-fit, environment, and risk adjustments
 - confirmed-only, expected, and high-retention keeper inflation scenarios
 - deterministic owner-local auction simulation with scarcity pressure
+- strategy-specific team-plan mining from real mock batches, including a true three-RB build for Cam
 - per-owner budget trajectory diagnostics after every sold pick
 - nomination decision diagnostics that show why each player was put up for auction
 - room-pressure diagnostics that show how deep the legal bidder market was for each sale
@@ -65,6 +67,7 @@ npm run scenarios:custom
 npm run scenarios:sensitivity -- --limit=60
 npm run mock
 npm run mocks
+npm run teams -- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --format=markdown
 npm run smoke
 npm run qa
 npm run backtest
@@ -198,6 +201,7 @@ npm run mock -- --scenario=expected --player-context=data/raw/player-context.exa
 npm run mock -- --scenario=expected --player-evidence=data/raw/player-evidence.example.csv
 npm run mock -- --scenario=expected --no-default-evidence
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
+npm run teams -- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --strategy-mode=force --format=markdown --seed-prefix=draft-prep
 npm run smoke -- --scenario=expected --runs=2 --seed=smoke
 npm run qa -- --scenarios=expected --runs=2 --seed-prefix=qa
 npm run backtest
@@ -228,6 +232,8 @@ TE spend uses the same shape with lighter defaults: elite TE overbids are dampen
 WR spend uses a very light position overbid damper so owner preferences can still chase receivers, while the above-anchor portion of those bids stays closer to the historical league spend mix.
 
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.
+
+`teams` mines complete rosters from real mock batches for an owner and strategy. With `--strategy-mode=force`, the selected strategy is pushed into the auction engine before filtering results; with `--strategy-mode=filter`, the command only finds naturally occurring matches. The Cam true-three-RB strategy targets three premium RB slots, caps expensive fourth-RB depth, reserves room for paid WR starters, and reports the actual mock sale price plus the batch sale range for every player.
 
 `smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, compact winner/runner-up bid diagnostics, and warnings such as owners leaving too much budget unused.
 
