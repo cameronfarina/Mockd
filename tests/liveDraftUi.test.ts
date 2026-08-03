@@ -10,7 +10,6 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"position-filters\"");
     expect(liveDraftHtml).toContain("data-position-filter=\"RB\"");
     expect(liveDraftHtml).toContain("id=\"my-needs-filter\"");
-    expect(liveDraftHtml).toContain("id=\"hide-deep-filter\"");
     expect(liveDraftHtml).toContain("id=\"team-filter\"");
     expect(liveDraftHtml).toContain("id=\"bye-filter\"");
     expect(liveDraftHtml).toContain("id=\"sort-select\"");
@@ -25,6 +24,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("data-sort-key=\"personalValue\">Our");
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\">Gap");
     expect(liveDraftHtml).toContain("data-sort-key=\"byeWeek\">Bye");
+    expect(liveDraftHtml).toContain("<th class=\"money\" style=\"width:70px\">Score</th>");
+    expect(liveDraftHtml).not.toContain("id=\"hide-deep-filter\"");
+    expect(liveDraftHtml).not.toContain("Hide $1/fallback");
+    expect(liveDraftHtml).not.toContain("data-sort-key=\"valueScore\">Score");
   });
 
   it("includes board behavior for position filters, sortable values, and draft-day guardrails", () => {

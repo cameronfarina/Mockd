@@ -220,7 +220,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .board-toolbar {
       display: grid;
-      grid-template-columns: minmax(360px, 1fr) auto auto minmax(130px, 160px) minmax(112px, 130px) minmax(160px, 190px);
+      grid-template-columns: minmax(360px, 1fr) auto minmax(130px, 160px) minmax(112px, 130px) minmax(160px, 190px);
       gap: 8px;
       align-items: center;
       padding: 8px 10px;
@@ -720,7 +720,6 @@ export const liveDraftHtml = `<!doctype html>
             <button class="filter-chip" type="button" data-position-filter="DST" aria-pressed="false">DST</button>
           </div>
           <label class="toggle"><input type="checkbox" id="my-needs-filter"> My needs</label>
-          <label class="toggle"><input type="checkbox" id="hide-deep-filter"> Hide $1/fallback</label>
           <select id="team-filter" aria-label="NFL team filter"></select>
           <select id="bye-filter" aria-label="Bye week filter"></select>
           <select id="sort-select" aria-label="Board sort">
@@ -751,7 +750,7 @@ export const liveDraftHtml = `<!doctype html>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="personalValue">Our</button></th>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="valueGap">Gap</button></th>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="recommendedMaxBid">Max</button></th>
-                <th class="money" style="width:70px"><button class="sort-heading" type="button" data-sort-key="valueScore">Score</button></th>
+                <th class="money" style="width:70px">Score</th>
               </tr>
             </thead>
             <tbody id="board"></tbody>
@@ -1043,7 +1042,6 @@ export const liveDraftHtml = `<!doctype html>
       if (byId('team-filter').value && target.teamAbbreviation !== byId('team-filter').value) return false;
       if (byId('bye-filter').value && String(target.byeWeek || '') !== byId('bye-filter').value) return false;
       if (byId('my-needs-filter').checked && !targetFitsOwnerNeed(target, owner)) return false;
-      if (byId('hide-deep-filter').checked && (target.source === 'projectionFallback' || target.expectedPrice <= 1)) return false;
       return true;
     };
 
@@ -1336,7 +1334,7 @@ export const liveDraftHtml = `<!doctype html>
       });
     }
 
-    for (const input of [byId('my-needs-filter'), byId('hide-deep-filter'), byId('team-filter'), byId('bye-filter')]) {
+    for (const input of [byId('my-needs-filter'), byId('team-filter'), byId('bye-filter')]) {
       input.addEventListener('input', () => {
         if (currentState) renderBoard(currentState);
       });
