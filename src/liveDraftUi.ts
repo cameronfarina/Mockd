@@ -192,6 +192,71 @@ export const liveDraftHtml = `<!doctype html>
       max-height: calc(100vh - 178px);
     }
 
+    .board-cards {
+      display: none;
+      padding: 8px;
+    }
+
+    .target-card {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr);
+      gap: 8px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .target-card:last-child {
+      border-bottom: 0;
+    }
+
+    .target-card-body {
+      min-width: 0;
+    }
+
+    .target-card-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .target-card-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+      white-space: nowrap;
+    }
+
+    .target-card-values {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .target-card-value {
+      min-width: 0;
+      padding: 6px 7px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: #fbfcfa;
+    }
+
+    .target-card-value span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.1;
+    }
+
+    .target-card-value strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 15px;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -389,11 +454,12 @@ export const liveDraftHtml = `<!doctype html>
         padding: 10px;
       }
 
-      .board-table th:nth-child(7),
-      .board-table td:nth-child(7),
-      .board-table th:nth-child(9),
-      .board-table td:nth-child(9) {
+      .scroll {
         display: none;
+      }
+
+      .board-cards {
+        display: block;
       }
     }
   </style>
@@ -434,6 +500,7 @@ export const liveDraftHtml = `<!doctype html>
             <tbody id="board"></tbody>
           </table>
         </div>
+        <div class="board-cards" id="board-cards"></div>
       </section>
       <aside class="side">
         <div class="panel-header">
@@ -509,6 +576,33 @@ export const liveDraftHtml = `<!doctype html>
       return element;
     };
 
+    const addTargetButton = (target, className) => {
+      const button = document.createElement('button');
+      button.className = className;
+      button.type = 'button';
+      button.textContent = '+';
+      button.title = 'Add ' + target.name;
+      button.addEventListener('click', () => {
+        selectedTargetName = target.name;
+        byId('add-price').value = String(target.personalValue);
+        renderSelected(currentState);
+      });
+      return button;
+    };
+
+    const targetTags = target => {
+      if (!target.tags.length) return null;
+      const tags = document.createElement('div');
+      tags.className = 'subtle';
+      tags.replaceChildren(...target.tags.slice(0, 3).map(tag => {
+        const element = document.createElement('span');
+        element.className = 'tag';
+        element.textContent = tag;
+        return element;
+      }));
+      return tags;
+    };
+
     const ownerByName = name => currentState.owners.find(owner => owner.owner === name) || currentState.watchOwner;
     const selectedTarget = () => currentState && currentState.availableTargets.find(target => target.name === selectedTargetName);
 
@@ -567,29 +661,15 @@ export const liveDraftHtml = `<!doctype html>
       const rows = matches.map(target => {
         const row = document.createElement('tr');
         const addCell = tableCell(row, '', 'center');
-        const button = document.createElement('button');
-        button.className = 'icon';
-        button.type = 'button';
-        button.textContent = '+';
-        button.title = 'Add ' + target.name;
-        button.addEventListener('click', () => {
-          selectedTargetName = target.name;
-          byId('add-price').value = String(target.personalValue);
-          renderSelected(state);
-        });
-        addCell.appendChild(button);
+        addCell.appendChild(addTargetButton(target, 'icon'));
 
         const playerCell = tableCell(row, '', '');
         const name = document.createElement('div');
         name.className = 'player-name';
         name.textContent = target.name;
         playerCell.appendChild(name);
-        if (target.tags.length) {
-          const tags = document.createElement('div');
-          tags.className = 'subtle';
-          tags.innerHTML = target.tags.slice(0, 3).map(tag => '<span class="tag">' + tag + '</span>').join('');
-          playerCell.appendChild(tags);
-        }
+        const tags = targetTags(target);
+        if (tags) playerCell.appendChild(tags);
 
         tableCell(row, target.position);
         tableCell(row, target.teamAbbreviation || '-');
@@ -603,6 +683,39 @@ export const liveDraftHtml = `<!doctype html>
       });
 
       byId('board').replaceChildren(...rows);
+      byId('board-cards').replaceChildren(...matches.map(target => {
+        const card = document.createElement('div');
+        card.className = 'target-card';
+        const add = document.createElement('div');
+        add.appendChild(addTargetButton(target, 'icon'));
+        const body = document.createElement('div');
+        body.className = 'target-card-body';
+        const top = document.createElement('div');
+        top.className = 'target-card-top';
+        const name = document.createElement('div');
+        name.className = 'player-name';
+        name.textContent = target.name;
+        const meta = document.createElement('div');
+        meta.className = 'target-card-meta';
+        meta.textContent = target.position + ' ' + (target.teamAbbreviation || '-') + ' - bye ' + (target.byeWeek || '-');
+        top.append(name, meta);
+
+        const values = document.createElement('div');
+        values.className = 'target-card-values';
+        for (const [label, value] of [['Exp', target.expectedPrice], ['Live', target.liveExpectedPrice], ['Our', target.personalValue]]) {
+          const cell = document.createElement('div');
+          cell.className = 'target-card-value';
+          cell.innerHTML = '<span>' + label + '</span><strong>' + money(value) + '</strong>';
+          values.appendChild(cell);
+        }
+
+        const tags = targetTags(target);
+        body.append(top);
+        if (tags) body.appendChild(tags);
+        body.appendChild(values);
+        card.append(add, body);
+        return card;
+      }));
     };
 
     const renderSelected = state => {
