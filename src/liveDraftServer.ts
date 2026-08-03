@@ -37,7 +37,13 @@ import {
   type MockBatch,
   type RunMockBatchOptions,
 } from "./modeling/mockBatch.js";
+import type { AuctionEngineConfigOverrides, OwnerPlayerTargetMaxBids } from "./modeling/auctionEngine.js";
 import { buildMockResultsReport, type MockResultsReport } from "./modeling/mockResults.js";
+import {
+  canonicalizeMockDraftScript,
+  parseMockDraftScript,
+  type MockDraftScript,
+} from "./modeling/mockScript.js";
 import { buildPricingConfigFromSources } from "./pricingConfig.js";
 import { loadEspnWeeksOneToFour, type ProjectionRecord } from "./projections.js";
 import type { PricingConfig } from "./modeling/basePricing.js";
@@ -305,6 +311,7 @@ interface MockBatchJob {
   status: MockBatchJobStatus;
   strategyKey: LiveDraftStrategyKey;
   runStrategyKeys: readonly LiveDraftStrategyKey[];
+  script?: MockDraftScript;
   totalRuns: number;
   completedRuns: number;
   percent: number;
@@ -469,6 +476,65 @@ const nominatedPlayerFromValue = (value: unknown): string | undefined => {
 
   const nominatedPlayer = value.trim();
   return nominatedPlayer ? nominatedPlayer : undefined;
+};
+
+const mockDraftScriptFromBody = (body: Record<string, unknown>): MockDraftScript | undefined => {
+  const value = body.script ?? body.mockScript;
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") throw new Error("Mock script must be text.");
+  return parseMockDraftScript(value);
+};
+
+const targetMaxBidOverridesFor = (
+  script: MockDraftScript | undefined,
+): AuctionEngineConfigOverrides => {
+  if (!script) return {};
+
+  const ownerPlayerTargetMaxBids: OwnerPlayerTargetMaxBids = {};
+  for (const target of script.targetMaxBids) {
+    ownerPlayerTargetMaxBids[target.owner] = {
+      ...(ownerPlayerTargetMaxBids[target.owner] ?? {}),
+      [normalizePlayerName(target.player)]: target.maxBid,
+    };
+  }
+
+  return { ownerPlayerTargetMaxBids };
+};
+
+const mergeOwnerPlayerTargetMaxBids = (
+  base: OwnerPlayerTargetMaxBids | undefined,
+  overrides: OwnerPlayerTargetMaxBids | undefined,
+): OwnerPlayerTargetMaxBids | undefined => {
+  if (!base && !overrides) return undefined;
+
+  const merged: OwnerPlayerTargetMaxBids = {};
+  for (const owner of ownerOrder) {
+    const ownerTargets = {
+      ...(base?.[owner] ?? {}),
+      ...(overrides?.[owner] ?? {}),
+    };
+    if (Object.keys(ownerTargets).length > 0) {
+      merged[owner] = ownerTargets;
+    }
+  }
+
+  return Object.keys(merged).length > 0 ? merged : undefined;
+};
+
+const mergeAuctionConfigOverrides = (
+  base: AuctionEngineConfigOverrides,
+  overrides: AuctionEngineConfigOverrides,
+): AuctionEngineConfigOverrides => {
+  const ownerPlayerTargetMaxBids = mergeOwnerPlayerTargetMaxBids(
+    base.ownerPlayerTargetMaxBids,
+    overrides.ownerPlayerTargetMaxBids,
+  );
+
+  return {
+    ...base,
+    ...overrides,
+    ...(ownerPlayerTargetMaxBids === undefined ? {} : { ownerPlayerTargetMaxBids }),
+  };
 };
 
 const commandFromInteractiveMockAction = (result: unknown): string => {
@@ -948,6 +1014,7 @@ export const createLiveDraftServer = async (
     status: job.status,
     strategyKey: job.strategyKey,
     runStrategyKeys: job.runStrategyKeys,
+    ...(job.script === undefined ? {} : { script: job.script }),
     totalRuns: job.totalRuns,
     completedRuns: job.completedRuns,
     percent: job.percent,
@@ -984,6 +1051,7 @@ export const createLiveDraftServer = async (
     job.updatedAt = new Date().toISOString();
 
     try {
+      const scriptOverrides = targetMaxBidOverridesFor(job.script);
       const batch = options.mockBatchRunner
         ? options.mockBatchRunner({
           projections,
@@ -993,9 +1061,10 @@ export const createLiveDraftServer = async (
           runsPerScenario,
           seedPrefix,
           pricingConfig,
-          auctionConfigOverrides: strategyAuctionOverridesFor("Cam", job.strategyKey, {
-            variantSeed: seedPrefix,
-          }),
+          auctionConfigOverrides: mergeAuctionConfigOverrides(
+            strategyAuctionOverridesFor("Cam", job.strategyKey, { variantSeed: seedPrefix }),
+            scriptOverrides,
+          ),
           diagnosticsMode: "summary",
         })
         : await runMockBatchProgressively({
@@ -1007,10 +1076,13 @@ export const createLiveDraftServer = async (
           seedPrefix,
           pricingConfig,
           auctionConfigOverridesForRun: context =>
-            strategyAuctionOverridesFor(
-              "Cam",
-              job.runStrategyKeys[context.completedRuns] ?? job.strategyKey,
-              { variantSeed: context.seed },
+            mergeAuctionConfigOverrides(
+              strategyAuctionOverridesFor(
+                "Cam",
+                job.runStrategyKeys[context.completedRuns] ?? job.strategyKey,
+                { variantSeed: context.seed },
+              ),
+              scriptOverrides,
             ),
           diagnosticsMode: "summary",
           onRunComplete: async progress => {
@@ -1021,7 +1093,7 @@ export const createLiveDraftServer = async (
 
       updateMockBatchJobProgress(job, job.totalRuns);
       job.status = "complete";
-      job.result = buildMockResultsReport(batch, job.strategyKey, job.runStrategyKeys);
+      job.result = buildMockResultsReport(batch, job.strategyKey, job.runStrategyKeys, job.script);
       job.updatedAt = new Date().toISOString();
     } catch (error) {
       job.status = "failed";
@@ -1034,10 +1106,12 @@ export const createLiveDraftServer = async (
     strategyKey,
     runsPerScenario,
     seedPrefix,
+    script,
   }: {
     strategyKey: LiveDraftStrategyKey;
     runsPerScenario: number;
     seedPrefix: string;
+    script?: MockDraftScript;
   }): MockBatchJob => {
     const now = new Date().toISOString();
     const job: MockBatchJob = {
@@ -1045,6 +1119,7 @@ export const createLiveDraftServer = async (
       status: "queued",
       strategyKey,
       runStrategyKeys: mockBatchStrategySequence(strategyKey, runsPerScenario),
+      ...(script === undefined ? {} : { script }),
       totalRuns: runsPerScenario,
       completedRuns: 0,
       percent: 0,
@@ -1260,12 +1335,26 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/mock-batch") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
-        const runsPerScenario = batchRunsPerScenarioFromValue(body.runs ?? body.runsPerScenario);
+        let script: MockDraftScript | undefined;
+        try {
+          script = mockDraftScriptFromBody(body);
+        } catch (error) {
+          sendJson(response, 422, {
+            error: error instanceof Error ? error.message : "Mock script could not be read.",
+          });
+          return;
+        }
+        if (script) script = canonicalizeMockDraftScript(script, projections.map(projection => projection.name));
+        const requestedRunsPerScenario = batchRunsPerScenarioFromValue(body.runs ?? body.runsPerScenario);
+        const runsPerScenario = script?.runsPerScenario === undefined
+          ? requestedRunsPerScenario
+          : batchRunsPerScenarioFromValue(script.runsPerScenario);
         const seedPrefix = seedPrefixFromValue(body.seedPrefix);
         const job = startMockBatchJob({
           strategyKey,
           runsPerScenario,
           seedPrefix,
+          ...(script === undefined ? {} : { script }),
         });
         sendJson(response, 202, mockBatchJobResponseFor(job));
         return;

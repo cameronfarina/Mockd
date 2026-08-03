@@ -30,6 +30,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"start-mock-draft-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-batch-runs\"");
     expect(liveDraftHtml).toContain("id=\"run-mock-batch-button\"");
+    expect(liveDraftHtml).toContain("id=\"mock-batch-script\"");
     expect(liveDraftHtml).toContain("id=\"see-mock-results-button\"");
     expect(liveDraftHtml).toContain("id=\"draft-mode-status\"");
     expect(liveDraftHtml).toContain("id=\"mock-batch-results\"");
@@ -117,6 +118,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("currentDraftSession = practiceSessionForStrategy(currentStrategyKey);");
     expect(liveDraftHtml).toContain("const runMockBatch = async () =>");
     expect(liveDraftHtml).toContain("const mockBatchSeedPrefix = () =>");
+    expect(liveDraftHtml).toContain("const mockBatchScript = () =>");
     expect(liveDraftHtml).toContain("Date.now().toString(36)");
     expect(liveDraftHtml).not.toContain("if (!forceNew && latestMockBatchJob");
     expect(liveDraftHtml).toContain("const pollMockBatchJob = async jobId =>");
@@ -196,6 +198,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("strategyKey: currentStrategyKey");
     expect(liveDraftHtml).toContain("byId('see-mock-results-button').addEventListener('click', () => window.location.assign('/mock-results'))");
     expect(liveDraftHtml).toContain("byId('mock-results-run-new-button').addEventListener('click', () => runMockBatch())");
+    expect(liveDraftHtml).toContain("script: mockBatchScript()");
     expect(liveDraftHtml).toContain("const renderPositionMarket = state =>");
     expect(liveDraftHtml).toContain("const renderOwnerNeeds = state =>");
     expect(liveDraftHtml).toContain("const renderShortlist = state =>");

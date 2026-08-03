@@ -1,8 +1,10 @@
 import type { Owner, Position } from "../../config/league.js";
 import { ownerOrder } from "../../config/league.js";
+import { normalizePlayerName } from "../data/normalizePlayerName.js";
 import { lineupScore, optimizeLineup, playerMetricValue } from "../lineupOptimizer.js";
 import type { LineupEntry, Player, StarterSlot } from "../types.js";
 import type { MockBatch, MockBatchSummary, MockRosterSummary, MockRun } from "./mockBatch.js";
+import type { MockDraftScript, MockDraftScriptTargetMaxBid } from "./mockScript.js";
 import type { LiveDraftStrategyKey } from "./liveDraftStrategies.js";
 import {
   buildDraftPlanReport,
@@ -123,6 +125,32 @@ export interface MockResultsAnalytics {
   strategyCoach?: DraftPlanStrategyCoach;
 }
 
+export interface MockResultsScriptTargetOutcome {
+  owner: Owner;
+  player: string;
+  maxBid: number;
+  runCount: number;
+  draftedByOwnerCount: number;
+  draftedByOwnerRate: number;
+  draftedByOtherCount: number;
+  undraftedCount: number;
+  missedCount: number;
+  averageSalePrice: number;
+  minimumSalePrice: number;
+  maximumSalePrice: number;
+  averageOwnerRankWhenDrafted: number;
+  averageOwnerWeek1WhenDrafted: number;
+  averageOwnerSeasonStrengthWhenDrafted: number;
+}
+
+export interface MockResultsScriptSummary {
+  raw: string;
+  label: string;
+  targetMaxBids: MockDraftScriptTargetMaxBid[];
+  targetOutcomes: MockResultsScriptTargetOutcome[];
+  runsPerScenario?: number;
+}
+
 export interface MockResultsRun {
   index: number;
   label: string;
@@ -145,6 +173,7 @@ export interface MockResultsReport {
   runStrategyKeys: LiveDraftStrategyKey[];
   runs: MockResultsRun[];
   analytics: MockResultsAnalytics;
+  script?: MockResultsScriptSummary;
   cam?: MockBatchSummary["owners"][number];
   camTopExposures: MockBatchSummary["ownerPlayerExposure"];
   topPlayers: MockBatchSummary["players"];
@@ -595,6 +624,60 @@ const analyticsFor = (
   };
 };
 
+const rosteredTargetFor = (
+  run: MockResultsRun,
+  playerName: string,
+): { owner: Owner; price: number; team: MockResultsTeam } | undefined => {
+  const normalized = normalizePlayerName(playerName);
+
+  for (const team of run.teams) {
+    const player = team.players.find(candidate => normalizePlayerName(candidate.name) === normalized);
+    if (player) return { owner: team.owner, price: player.price, team };
+  }
+
+  return undefined;
+};
+
+const scriptTargetOutcomeFor = (
+  target: MockDraftScriptTargetMaxBid,
+  runs: readonly MockResultsRun[],
+): MockResultsScriptTargetOutcome => {
+  const rosteredTargets = runs
+    .map(run => rosteredTargetFor(run, target.player))
+    .filter((result): result is { owner: Owner; price: number; team: MockResultsTeam } => result !== undefined);
+  const ownerTargets = rosteredTargets.filter(result => result.owner === target.owner);
+  const salePrices = rosteredTargets.map(result => result.price);
+
+  return {
+    owner: target.owner,
+    player: target.player,
+    maxBid: target.maxBid,
+    runCount: runs.length,
+    draftedByOwnerCount: ownerTargets.length,
+    draftedByOwnerRate: roundToTwo(ownerTargets.length / Math.max(1, runs.length)),
+    draftedByOtherCount: rosteredTargets.length - ownerTargets.length,
+    undraftedCount: runs.length - rosteredTargets.length,
+    missedCount: runs.length - ownerTargets.length,
+    averageSalePrice: roundToTwo(average(salePrices)),
+    minimumSalePrice: salePrices.length === 0 ? 0 : Math.min(...salePrices),
+    maximumSalePrice: salePrices.length === 0 ? 0 : Math.max(...salePrices),
+    averageOwnerRankWhenDrafted: roundToTwo(average(ownerTargets.map(result => result.team.projectedRank ?? 0))),
+    averageOwnerWeek1WhenDrafted: roundToTwo(average(ownerTargets.map(result => result.team.week1Score))),
+    averageOwnerSeasonStrengthWhenDrafted: roundToTwo(average(ownerTargets.map(result => result.team.seasonStrengthScore))),
+  };
+};
+
+const scriptSummaryFor = (
+  script: MockDraftScript,
+  runs: readonly MockResultsRun[],
+): MockResultsScriptSummary => ({
+  raw: script.raw,
+  label: script.label,
+  targetMaxBids: [...script.targetMaxBids],
+  targetOutcomes: script.targetMaxBids.map(target => scriptTargetOutcomeFor(target, runs)),
+  ...(script.runsPerScenario === undefined ? {} : { runsPerScenario: script.runsPerScenario }),
+});
+
 const runResultFor = (
   run: MockRun,
   index: number,
@@ -633,6 +716,7 @@ export const buildMockResultsReport = (
   batch: MockBatch,
   strategyKey: LiveDraftStrategyKey,
   runStrategyKeys: readonly LiveDraftStrategyKey[] = [],
+  script?: MockDraftScript,
 ): MockResultsReport => {
   const cam = batch.summary.owners.find(owner => owner.owner === "Cam");
   const resolvedRunStrategyKeys = batch.runs.map((_run, index) => runStrategyKeys[index] ?? strategyKey);
@@ -648,6 +732,7 @@ export const buildMockResultsReport = (
     runStrategyKeys: resolvedRunStrategyKeys,
     runs,
     analytics: analyticsFor(runs, batch, strategyKey),
+    ...(script === undefined ? {} : { script: scriptSummaryFor(script, runs) }),
     ...(cam === undefined ? {} : { cam }),
     camTopExposures: batch.summary.ownerPlayerExposure
       .filter(exposure => exposure.owner === "Cam")

@@ -187,4 +187,45 @@ describe("mock results report", () => {
     expect(cam?.starterSeasonScore).toBeGreaterThan(martins?.starterSeasonScore ?? 0);
     expect(run.rankings[0]?.owner).toBe("Cam");
   });
+
+  it("summarizes scripted target outcomes across mock results", () => {
+    const rosters = ownerOrder.map(owner => {
+      const summary = rosterSummary(owner);
+      if (owner !== "Cam") return summary;
+
+      return {
+        ...summary,
+        players: [
+          {
+            ...player("Cam", "Target RB", "RB", 20, 11, 44),
+            name: "Jadarian Price",
+          },
+          ...summary.players.slice(1),
+        ],
+      };
+    });
+    const report = buildMockResultsReport(mockBatch(rosters), "three-rb", [], {
+      raw: "target Jadarian Price max 20",
+      label: "Target Jadarian Price up to $20",
+      targetMaxBids: [{ owner: "Cam", player: "Jadarian Price", maxBid: 20 }],
+    });
+
+    expect(report.script).toMatchObject({
+      raw: "target Jadarian Price max 20",
+      label: "Target Jadarian Price up to $20",
+      targetOutcomes: [
+        {
+          owner: "Cam",
+          player: "Jadarian Price",
+          maxBid: 20,
+          runCount: 1,
+          draftedByOwnerCount: 1,
+          draftedByOwnerRate: 1,
+          draftedByOtherCount: 0,
+          undraftedCount: 0,
+          averageSalePrice: 20,
+        },
+      ],
+    });
+  });
 });

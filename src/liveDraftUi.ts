@@ -324,6 +324,11 @@ export const liveDraftHtml = `<!doctype html>
       text-align: right;
     }
 
+    #mock-batch-script {
+      grid-column: 1 / -1;
+      text-align: left;
+    }
+
     #run-mock-batch-button {
       --mock-progress: 0%;
       min-width: 0;
@@ -1611,6 +1616,7 @@ export const liveDraftHtml = `<!doctype html>
         <div class="mock-batch-control">
           <input id="mock-batch-runs" inputmode="numeric" pattern="[0-9]*" value="25" aria-label="Mock draft run count">
           <button type="button" id="run-mock-batch-button">Run mocks</button>
+          <input id="mock-batch-script" autocomplete="off" placeholder="Script: target Jadarian Price max $20" aria-label="Mock draft script">
           <button type="button" id="see-mock-results-button" hidden>See results</button>
         </div>
         <div class="mode-status" id="draft-mode-status">
@@ -2276,6 +2282,19 @@ export const liveDraftHtml = `<!doctype html>
       byId('mock-draft-panel').hidden = currentDraftMode !== 'interactive-mock';
     };
 
+    const scriptOutcomeText = outcome => {
+      if (!outcome) return '';
+      const hitRate = Math.round((outcome.draftedByOwnerRate || 0) * 100);
+      const saleRange = outcome.minimumSalePrice || outcome.maximumSalePrice
+        ? ' / sale range ' + money(outcome.minimumSalePrice) + '-' + money(outcome.maximumSalePrice)
+        : '';
+      const ownerResult = outcome.owner + ' won ' + outcome.draftedByOwnerCount + '/' + outcome.runCount + ' (' + hitRate + '%)';
+      const teamResult = outcome.averageOwnerRankWhenDrafted
+        ? ' / avg rank when landed ' + scoreText(outcome.averageOwnerRankWhenDrafted)
+        : '';
+      return outcome.player + ' up to ' + money(outcome.maxBid) + ': ' + ownerResult + saleRange + teamResult;
+    };
+
     const renderMockBatchResults = report => {
       const root = byId('mock-batch-results');
       latestMockBatchReport = report || latestMockBatchReport;
@@ -2291,6 +2310,16 @@ export const liveDraftHtml = `<!doctype html>
           latestMockBatchReport.summary.runCount + ' runs - ' + latestMockBatchReport.options.strategyKey + ' - expected keepers'
         )
       ];
+
+      const scriptOutcomes = latestMockBatchReport.script && latestMockBatchReport.script.targetOutcomes
+        ? latestMockBatchReport.script.targetOutcomes
+        : [];
+      if (scriptOutcomes.length) {
+        items.push(mockDraftItem(
+          'Script result',
+          scriptOutcomes.map(scriptOutcomeText).join(' / ')
+        ));
+      }
 
       if (cam) {
         items.push(mockDraftItem(
@@ -2379,7 +2408,17 @@ export const liveDraftHtml = `<!doctype html>
       const camScoreRange = report.analytics.camScoreRange;
       const commonPath = report.analytics.topCamRosterPaths[0];
       const strategyCoach = report.analytics.strategyCoach;
+      const scriptOutcome = report.script && report.script.targetOutcomes
+        ? report.script.targetOutcomes[0]
+        : null;
       root.replaceChildren(
+        ...(scriptOutcome ? [
+          insightCard(
+            'Script result',
+            report.script.label,
+            scriptOutcomeText(scriptOutcome)
+          )
+        ] : []),
         insightCard(
           'Strategy edge',
           strategyLeader
@@ -2592,8 +2631,9 @@ export const liveDraftHtml = `<!doctype html>
       const run = latestMockBatchReport.runs[selectedMockResultsRunIndex];
       const strategyNames = [...new Set(latestMockBatchReport.runs.map(candidate => candidate.strategyKey))];
       const strategySummary = strategyNames.length > 1 ? 'strategy comparison' : latestMockBatchReport.options.strategyKey;
+      const scriptSummary = latestMockBatchReport.script ? ' - ' + latestMockBatchReport.script.label : '';
       byId('mock-results-title').textContent =
-        latestMockBatchReport.summary.runCount + ' completed runs - ' + strategySummary + ' - expected keepers';
+        latestMockBatchReport.summary.runCount + ' completed runs - ' + strategySummary + ' - expected keepers' + scriptSummary;
       byId('mock-results-status').textContent =
         run.label + ' / ' + run.scenarioLabel + ' / seed ' + run.seed;
       renderMockResultsRunSelector(latestMockBatchReport);
@@ -3380,6 +3420,7 @@ export const liveDraftHtml = `<!doctype html>
       const seeResultsButton = byId('see-mock-results-button');
       const resultsRunNewButton = byId('mock-results-run-new-button');
       const input = byId('mock-batch-runs');
+      const scriptInput = byId('mock-batch-script');
       const status = job ? job.status : '';
       const percent = Math.max(0, Math.min(100, Number(job && job.percent ? job.percent : 0)));
       const isRunning = status === 'queued' || status === 'running';
@@ -3390,6 +3431,7 @@ export const liveDraftHtml = `<!doctype html>
       button.classList.toggle('mock-batch-ready', false);
       button.disabled = isRunning;
       input.disabled = isRunning;
+      scriptInput.disabled = isRunning;
       seeResultsButton.hidden = !isReady;
       seeResultsButton.disabled = !isReady || isRunning;
       resultsRunNewButton.disabled = isRunning;
@@ -3445,6 +3487,9 @@ export const liveDraftHtml = `<!doctype html>
     const mockBatchSeedPrefix = () =>
       'live-ui-' + currentStrategyKey + '-' + Date.now().toString(36);
 
+    const mockBatchScript = () =>
+      byId('mock-batch-script').value.trim();
+
     const runMockBatch = async () => {
       const runs = Number(byId('mock-batch-runs').value || 25);
       selectedMockResultsRunIndex = 0;
@@ -3456,7 +3501,8 @@ export const liveDraftHtml = `<!doctype html>
             strategyKey: currentStrategyKey,
             draftSession: currentDraftSession,
             runs,
-            seedPrefix: mockBatchSeedPrefix()
+            seedPrefix: mockBatchSeedPrefix(),
+            script: mockBatchScript()
           })
         });
         const job = await response.json();

@@ -7,7 +7,7 @@ import {
   createLiveDraftServer,
   type CreateLiveDraftServerOptions,
 } from "../src/liveDraftServer.js";
-import type { MockBatch } from "../src/modeling/mockBatch.js";
+import type { MockBatch, RunMockBatchOptions } from "../src/modeling/mockBatch.js";
 
 const tempSessionDirectory = async (): Promise<string> =>
   mkdtemp(join(tmpdir(), "mockd-live-draft-server-"));
@@ -989,6 +989,47 @@ describe("live draft server", () => {
           }),
         ]),
       }));
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("accepts scripted mock targets and applies Cam max-bid caps to the batch job", async () => {
+    const directory = await tempSessionDirectory();
+    let capturedOptions: RunMockBatchOptions | undefined;
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner: options => {
+          capturedOptions = options;
+          return mockBatchRunner(options);
+        },
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const started = await post(baseUrl, "/api/mock-batch", {
+        strategyKey: "three-rb",
+        runs: 25,
+        seedPrefix: "script-test",
+        script: "run 2 mocks where i target jadarian price, where im not willing to pay over $20",
+      });
+      const completed = await waitForMockBatchJob(baseUrl, started.data.jobId);
+
+      expect(capturedOptions?.runsPerScenario).toBe(2);
+      expect(capturedOptions?.auctionConfigOverrides?.ownerPlayerTargetMaxBids?.Cam?.["Jadarian Price"]).toBe(20);
+      expect(completed.result.script).toMatchObject({
+        label: "Target Jadarian Price up to $20",
+        targetOutcomes: [
+          expect.objectContaining({
+            owner: "Cam",
+            player: "Jadarian Price",
+            maxBid: 20,
+            runCount: 2,
+          }),
+        ],
+      });
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
