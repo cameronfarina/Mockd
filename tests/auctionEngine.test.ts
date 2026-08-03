@@ -1705,6 +1705,58 @@ describe("auction engine economics", () => {
     expect(sale.winner).toBe("Beaton");
   });
 
+  it("preserves a legal roster path for explicit player targets still on the board", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 40,
+      rosterSize: 2,
+      rosterMaximums: positionAmounts(2),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1,
+          scarcityChase: 1,
+          replacementPatience: 1,
+          anchorAggression: 1,
+          depthAggression: 1,
+        },
+        Hoody: {
+          priceAggression: 1,
+          scarcityChase: 1,
+          replacementPatience: 1,
+          anchorAggression: 1,
+          depthAggression: 1,
+        },
+      },
+      ownerPlayerTargetMaxBids: {
+        Beaton: {
+          "Jadarian Price": 20,
+        },
+      },
+      seed: "target-path-reservation",
+    });
+    const ownerStates = createAuctionOwnerStates({
+      config,
+      initialRostersByOwner: {
+        Beaton: [player("Beaton Keeper", "QB", 1)],
+        Hoody: [player("Hoody Keeper", "QB", 1)],
+      },
+    });
+    const target = player("Jadarian Price", "RB", 13);
+    const nonTarget = player("Rico Dowdle", "RB", 12);
+
+    const nonTargetSale = resolveAuctionSale(nonTarget, ownerStates, [target], config);
+    const beatonNonTargetBid = nonTargetSale?.bids.find(bid => bid.owner === "Beaton");
+    expect(beatonNonTargetBid).toBeUndefined();
+    expect(nonTargetSale?.winner).toBe("Hoody");
+
+    const targetSale = resolveAuctionSale(target, ownerStates, [], config);
+    expect(targetSale?.winner).toBe("Beaton");
+    expect(targetSale?.price).toBeLessThanOrEqual(20);
+  });
+
   it("discounts backup tight end bids after an owner has a starter", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({

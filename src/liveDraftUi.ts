@@ -34,6 +34,10 @@ export const liveDraftHtml = `<!doctype html>
       box-sizing: border-box;
     }
 
+    [hidden] {
+      display: none !important;
+    }
+
     body {
       margin: 0;
       background: radial-gradient(circle at top left, rgba(45, 140, 255, 0.12), transparent 34vw), var(--bg);
@@ -70,6 +74,18 @@ export const liveDraftHtml = `<!doctype html>
       background: #63a8ff;
       color: #06101a;
       font-weight: 750;
+    }
+
+    button.danger {
+      border-color: rgba(255, 113, 106, 0.62);
+      background: rgba(255, 113, 106, 0.14);
+      color: #ffd7d4;
+      font-weight: 750;
+    }
+
+    button.danger:hover:not(:disabled) {
+      border-color: rgba(255, 113, 106, 0.86);
+      background: rgba(255, 113, 106, 0.24);
     }
 
     button.icon {
@@ -141,6 +157,14 @@ export const liveDraftHtml = `<!doctype html>
       background: linear-gradient(180deg, rgba(8, 24, 38, 0.96), rgba(5, 11, 18, 0.98));
     }
 
+    .app.draft-active {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app.draft-active .sidebar {
+      display: none;
+    }
+
     .sidebar {
       display: flex;
       flex-direction: column;
@@ -197,7 +221,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .workspace {
       display: grid;
-      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-rows: auto auto auto minmax(0, 1fr);
       min-width: 0;
       min-height: 100vh;
       overflow: hidden;
@@ -207,6 +231,7 @@ export const liveDraftHtml = `<!doctype html>
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 14px;
       min-width: 0;
       min-height: 64px;
       padding: 0 24px;
@@ -216,16 +241,31 @@ export const liveDraftHtml = `<!doctype html>
 
     h1 {
       margin: 0;
+      flex: 0 0 auto;
       color: #f4f8fc;
       font-size: 20px;
       line-height: 1.1;
       letter-spacing: 0;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      min-width: 0;
+      margin-left: auto;
+    }
+
     .search {
       width: 100%;
       height: 36px;
       background-color: rgba(8, 24, 38, 0.84);
+    }
+
+    .header-search {
+      width: min(34vw, 420px);
+      min-width: 220px;
     }
 
     .quick-sale {
@@ -242,6 +282,13 @@ export const liveDraftHtml = `<!doctype html>
     .quick-sale button {
       height: 34px;
       padding: 0 12px;
+    }
+
+    .header-sale-command {
+      display: grid;
+      grid-template-columns: minmax(280px, 440px) auto;
+      gap: 8px;
+      min-width: 360px;
     }
 
     .top-actions {
@@ -381,6 +428,24 @@ export const liveDraftHtml = `<!doctype html>
       line-height: 1.25;
     }
 
+    .start-draft-button {
+      width: 100%;
+      min-height: 36px;
+    }
+
+    .draft-countdown {
+      display: grid;
+      place-items: center;
+      min-height: 54px;
+      border: 1px solid rgba(242, 169, 59, 0.48);
+      border-radius: 6px;
+      background: rgba(242, 169, 59, 0.1);
+      color: #ffd38a;
+      font-size: 26px;
+      font-weight: 850;
+      font-variant-numeric: tabular-nums;
+    }
+
     .file-input {
       display: none;
     }
@@ -407,6 +472,27 @@ export const liveDraftHtml = `<!doctype html>
       padding: 16px 24px;
       border-bottom: 1px solid var(--line);
       background: rgba(7, 19, 31, 0.76);
+    }
+
+    .draft-start-banner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      min-height: 58px;
+      padding: 12px 24px;
+      border-bottom: 1px solid rgba(242, 169, 59, 0.36);
+      background: rgba(242, 169, 59, 0.1);
+      color: #ffd38a;
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    .draft-start-banner strong {
+      color: #fff3d8;
+      font-size: 30px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
 
     .metric {
@@ -718,6 +804,41 @@ export const liveDraftHtml = `<!doctype html>
       color: var(--muted);
       font-size: 11px;
       line-height: 1.1;
+    }
+
+    .room-mode-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      padding: 7px 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: rgba(12, 32, 51, 0.72);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .room-mode-indicator strong {
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .room-mode-indicator span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .room-mode-indicator.mock {
+      border-color: rgba(99, 168, 255, 0.52);
+      background: rgba(99, 168, 255, 0.14);
+    }
+
+    .room-mode-indicator.real {
+      border-color: rgba(31, 207, 143, 0.42);
+      background: rgba(31, 207, 143, 0.09);
     }
 
     .target-card-value strong {
@@ -1039,6 +1160,10 @@ export const liveDraftHtml = `<!doctype html>
       color: var(--danger);
       font-size: 12px;
       line-height: 1.25;
+    }
+
+    .sale-warning.info {
+      color: var(--muted);
     }
 
     .add-form button {
@@ -1623,6 +1748,8 @@ export const liveDraftHtml = `<!doctype html>
           <strong>Real draft</strong>
           <span>Draft-night logger. Writes to the real sale log.</span>
         </div>
+        <button class="primary start-draft-button" type="button" id="confirm-start-draft-button" aria-label="Confirm start draft" hidden>Start draft</button>
+        <div class="draft-countdown" id="draft-countdown" hidden>5</div>
       </div>
       <div class="sidebar-section">
         <div class="section-label">Sale Command</div>
@@ -1657,8 +1784,21 @@ export const liveDraftHtml = `<!doctype html>
     </nav>
     <div class="workspace">
       <header>
-        <h1>Dashboard</h1>
+        <h1 id="room-title">Dashboard</h1>
+        <div class="room-mode-indicator" id="room-mode-indicator"></div>
+        <div class="header-actions">
+          <input class="search header-search" id="header-board-search" autocomplete="off" placeholder="Search player, position, or team" hidden>
+          <form class="quick-sale header-sale-command" id="header-quick-sale-form" hidden>
+            <input id="header-quick-sale-command" autocomplete="off" placeholder="Quick sale: jakub kittle 28">
+            <button class="primary" type="submit">Log</button>
+          </form>
+          <button class="danger" type="button" id="end-draft-button" aria-label="End active draft" hidden>End draft</button>
+        </div>
       </header>
+      <div class="draft-start-banner" id="draft-start-banner" hidden>
+        <span id="draft-start-label">Draft starts in</span>
+        <strong id="draft-countdown-value">5</strong>
+      </div>
       <div class="metrics" id="metrics"></div>
       <main>
       <section class="board-panel">
@@ -1858,6 +1998,9 @@ export const liveDraftHtml = `<!doctype html>
     let currentStrategyKey = 'three-rb';
     let currentDraftMode = 'real';
     let currentDraftSession = 'live';
+    let draftLifecycle = 'setup';
+    let draftCountdownValue = 0;
+    let draftCountdownTimer = null;
     let activeSidePanel = 'lineup';
     let pendingCamNominationName = null;
     let currentMockDraft = null;
@@ -1868,6 +2011,9 @@ export const liveDraftHtml = `<!doctype html>
 
     const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST'];
     const strategyKeys = ['balanced', 'three-rb', 'hero-rb', 'wr-heavy'];
+    const draftLifecycles = ['setup', 'ready', 'countdown', 'active'];
+    const draftCountdownSeconds = 5;
+    const draftLifecycleStorageKey = 'mockd-draft-lifecycle';
     const strategyValueLabels = {
       balanced: 'Bal',
       'three-rb': '3RB',
@@ -1941,7 +2087,41 @@ export const liveDraftHtml = `<!doctype html>
         : 'Live session locked. Switch to a practice session to run mocks.';
     const practiceSessionForStrategy = strategyKey =>
       strategyKey === 'wr-heavy' ? 'practice-wr-heavy' : 'practice-3rb';
-    const realDraftHasStarted = state => currentDraftMode === 'real' && state.events.length > 0;
+    const isActiveDraft = () => draftLifecycle === 'active';
+    const isStartingDraft = () => draftLifecycle === 'countdown';
+    const normalizeDraftLifecycle = value => {
+      if (value === 'countdown') return 'ready';
+      if (draftLifecycles.includes(value)) return value;
+      return 'setup';
+    };
+    const persistDraftLifecycle = () => {
+      try {
+        if (!window.localStorage) return;
+        window.localStorage.setItem(draftLifecycleStorageKey, JSON.stringify({
+          lifecycle: draftLifecycle,
+          mode: currentDraftMode,
+          session: currentDraftSession,
+          strategy: currentStrategyKey
+        }));
+      } catch {
+        // The draft state still renders correctly without local storage.
+      }
+    };
+    const loadDraftLifecycle = () => {
+      try {
+        if (!window.localStorage) return;
+        const stored = window.localStorage.getItem(draftLifecycleStorageKey);
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        if (draftModes.includes(parsed.mode)) currentDraftMode = parsed.mode;
+        if (typeof parsed.session === 'string' && parsed.session) currentDraftSession = parsed.session;
+        if (strategyKeys.includes(parsed.strategy)) currentStrategyKey = parsed.strategy;
+        draftLifecycle = normalizeDraftLifecycle(parsed.lifecycle);
+      } catch {
+        draftLifecycle = 'setup';
+      }
+    };
+    const realDraftHasStarted = state => currentDraftMode === 'real' && (isActiveDraft() || state.events.length > 0);
     const visibleBoardTargets = state => [
       ...(!realDraftHasStarted(state) ? (state.keeperTargets || []) : []),
       ...(state.availableTargets || [])
@@ -1972,9 +2152,28 @@ export const liveDraftHtml = `<!doctype html>
       return element;
     };
 
+    const commandInput = () => {
+      if (isActiveDraft() && currentDraftMode === 'real') return byId('header-quick-sale-command');
+      if (isActiveDraft() && currentDraftMode === 'interactive-mock') return null;
+      return byId('quick-sale-command');
+    };
+
+    const boardSearchQuery = () => {
+      const headerSearch = byId('header-board-search').value.trim();
+      const sidebarSearch = byId('board-search').value.trim();
+      return (isActiveDraft() ? headerSearch : sidebarSearch).toLowerCase();
+    };
+
     const focusCommandInput = () => {
       requestAnimationFrame(() => {
-        if (!byId('draft-room-view').hidden) byId('quick-sale-command').focus();
+        if (byId('draft-room-view').hidden) return;
+        const input = commandInput();
+        if (input) {
+          if (input.id === 'quick-sale-command') byId('quick-sale-command').focus();
+          else input.focus();
+          return;
+        }
+        byId('header-board-search').focus();
       });
     };
 
@@ -2042,7 +2241,8 @@ export const liveDraftHtml = `<!doctype html>
       setSidePanel('lineup');
       renderSelected(currentState);
       renderBoard(currentState);
-      focusPriceInput();
+      if (currentDraftMode === 'interactive-mock') focusCommandInput();
+      else focusPriceInput();
     };
 
     const toggleShortlist = target => {
@@ -2264,6 +2464,71 @@ export const liveDraftHtml = `<!doctype html>
       byId('active-session-label').textContent = selectedSession.label + ' - ' + (selectedSession.description || 'Isolated draft room.');
     };
 
+    const activeSessionLabelFor = state => {
+      const session = state && state.activeDraftSession;
+      return session && session.label ? session.label : currentDraftSession;
+    };
+
+    const draftLifecycleLabel = () => {
+      if (isActiveDraft()) return 'Active';
+      if (isStartingDraft()) return 'Starting';
+      if (draftLifecycle === 'ready') return 'Ready';
+      return 'Setup';
+    };
+
+    const roomTitleFor = isMock => {
+      if (isActiveDraft()) return isMock ? 'Mock Draft Room' : 'Live Draft Room';
+      if (isStartingDraft()) return 'Starting Draft';
+      return 'Draft Setup';
+    };
+
+    const draftModeStatusDetailFor = copy => {
+      if (draftLifecycle === 'ready') return 'Ready to start. Click Start draft for the countdown.';
+      if (isStartingDraft()) return 'Starting now. Draft controls will unlock when the countdown finishes.';
+      if (isActiveDraft()) return 'Draft is active. Setup controls are hidden until the draft ends.';
+      return copy.detail;
+    };
+
+    const renderRoomModeIndicator = state => {
+      const copy = draftModeCopy[currentDraftMode] || draftModeCopy.real;
+      const isMock = currentDraftMode === 'interactive-mock';
+      const indicator = byId('room-mode-indicator');
+      byId('room-title').textContent = roomTitleFor(isMock);
+      indicator.className = 'room-mode-indicator ' + (isMock ? 'mock' : 'real');
+      indicator.replaceChildren(
+        textElement('strong', copy.label),
+        textElement('span', draftLifecycleLabel() + ' - ' + activeSessionLabelFor(state))
+      );
+    };
+
+    const renderDraftLifecycle = state => {
+      const copy = draftModeCopy[currentDraftMode] || draftModeCopy.real;
+      const isMock = currentDraftMode === 'interactive-mock';
+      const isReady = draftLifecycle === 'ready';
+      const countdownText = String(draftCountdownValue || draftCountdownSeconds);
+
+      byId('draft-room-view').classList.toggle('draft-active', isActiveDraft());
+      byId('header-board-search').hidden = !isActiveDraft();
+      byId('header-quick-sale-form').hidden = !(isActiveDraft() && currentDraftMode === 'real');
+      byId('end-draft-button').hidden = !isActiveDraft();
+      byId('end-draft-button').textContent = isMock ? 'End mock draft' : 'End real draft';
+      byId('add-form').hidden = isMock;
+
+      byId('confirm-start-draft-button').hidden = !isReady;
+      byId('confirm-start-draft-button').disabled = !isReady;
+      byId('draft-countdown').hidden = !isStartingDraft();
+      byId('draft-countdown').textContent = countdownText;
+      byId('draft-start-banner').hidden = !isStartingDraft();
+      byId('draft-start-label').textContent = copy.label + ' starts in';
+      byId('draft-countdown-value').textContent = countdownText;
+      byId('mock-draft-panel').hidden = !(isActiveDraft() && currentDraftMode === 'interactive-mock');
+
+      byId('header-board-search').placeholder = isMock
+        ? 'Search players during mock draft'
+        : 'Search player, position, or team';
+      if (state) renderRoomModeIndicator(state);
+    };
+
     const renderDraftMode = state => {
       if (state && draftModes.includes(state.draftMode)) currentDraftMode = state.draftMode;
       const locked = draftNightLockFor(state);
@@ -2271,7 +2536,9 @@ export const liveDraftHtml = `<!doctype html>
       const copy = draftModeCopy[currentDraftMode] || draftModeCopy.real;
       const status = byId('draft-mode-status');
       const startMock = byId('start-mock-draft-button');
-      status.replaceChildren(textElement('strong', copy.label), textElement('span', copy.detail));
+      renderDraftLifecycle(state);
+      const lifecycleCopy = draftModeStatusDetailFor(copy);
+      status.replaceChildren(textElement('strong', copy.label), textElement('span', lifecycleCopy));
       byId('start-real-draft-button').setAttribute('aria-pressed', String(currentDraftMode === 'real'));
       startMock.disabled = false;
       startMock.title = locked ? 'Opens a practice session for mocks.' : '';
@@ -2279,7 +2546,6 @@ export const liveDraftHtml = `<!doctype html>
       byId('draft-lock-status').textContent = locked
         ? 'Live session locked - practice rooms only for mocks.'
         : 'Practice room unlocked for mocks.';
-      byId('mock-draft-panel').hidden = currentDraftMode !== 'interactive-mock';
     };
 
     const scriptOutcomeText = outcome => {
@@ -3093,13 +3359,14 @@ export const liveDraftHtml = `<!doctype html>
 
       details.replaceChildren(...items);
       syncMockNominationSelection(mockDraft);
+      renderSaleControls(currentState);
       if (currentState) renderBoard(currentState);
     };
 
     const renderBoard = state => {
       syncBoardControls();
       const owner = currentOwner();
-      const query = byId('board-search').value.trim().toLowerCase();
+      const query = boardSearchQuery();
       const tierDrops = tierDropsFor(state.availableTargets);
       const allTargets = visibleBoardTargets(state);
       const filtered = allTargets.filter(target => targetMatchesFilters(target, query, owner));
@@ -3198,9 +3465,37 @@ export const liveDraftHtml = `<!doctype html>
       const price = priceInputValue();
       const warnings = saleWarningsFor(target, owner, price);
       const submit = byId('add-submit');
+      const priceInput = byId('add-price');
+      const ownerInput = byId('add-owner');
+      const warning = byId('sale-warning');
+      const isMockMode = currentDraftMode === 'interactive-mock';
+      ownerInput.disabled = isMockMode;
+      priceInput.disabled = isMockMode;
+      warning.classList.toggle('info', isMockMode);
+
+      if (isMockMode) {
+        const auction = currentMockDraft && currentMockDraft.auction;
+        const isAuctionTarget = Boolean(target && auction && auction.player === target.name);
+        submit.disabled = true;
+        submit.textContent = target ? 'Mock mode - use auction controls' : 'Mock mode';
+        if (isAuctionTarget && auction.status === 'sold' && auction.resolution) {
+          warning.textContent =
+            'Mock auction sold ' + target.name + ' to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price) + '. Advance to the next nomination.';
+        } else if (isAuctionTarget && auction.nextCamBid != null) {
+          warning.textContent = 'Use the Bid ' + money(auction.nextCamBid) + ' button in the mock auction controls.';
+        } else if (currentMockDraft && currentMockDraft.phase === 'human-nomination') {
+          warning.textContent = target ? 'Use Nominate ' + shortPlayerName(target.name) + ' in the mock auction controls.' : 'Select a player to nominate.';
+        } else {
+          warning.textContent = 'Mock mode uses the auction controls below. Manual sale logging is disabled here.';
+        }
+        return;
+      }
+
+      ownerInput.disabled = false;
+      priceInput.disabled = false;
       submit.disabled = warnings.length > 0;
       submit.textContent = target ? 'Add ' + shortPlayerName(target.name) + ' to ' + owner.owner + ' for ' + money(price || target.recommendedMaxBid) : 'Add';
-      byId('sale-warning').textContent = warnings.join(' ');
+      warning.textContent = warnings.join(' ');
     };
 
     const renderSelected = state => {
@@ -3347,7 +3642,7 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const refreshMockDraft = async () => {
-      if (currentDraftMode !== 'interactive-mock' || draftNightLockFor(currentState)) {
+      if (!isActiveDraft() || currentDraftMode !== 'interactive-mock' || draftNightLockFor(currentState)) {
         renderMockDraft(null);
         return null;
       }
@@ -3385,22 +3680,90 @@ export const liveDraftHtml = `<!doctype html>
       return state;
     };
 
-    const setDraftMode = async mode => {
+    const clearDraftCountdownTimer = () => {
+      if (!draftCountdownTimer) return;
+      window.clearTimeout(draftCountdownTimer);
+      draftCountdownTimer = null;
+    };
+
+    const activateDraft = async () => {
+      clearDraftCountdownTimer();
+      draftLifecycle = 'active';
+      draftCountdownValue = 0;
+      pendingCamNominationName = null;
+      persistDraftLifecycle();
+
+      if (currentDraftMode === 'interactive-mock') {
+        const data = await postJson('/api/reset', {});
+        alertCommandErrors(data);
+      }
+
+      await refreshDraftRoom();
+      focusCommandInput();
+    };
+
+    const beginDraftCountdown = () => {
+      if (isActiveDraft()) return;
+      clearDraftCountdownTimer();
+      draftLifecycle = 'countdown';
+      draftCountdownValue = draftCountdownSeconds;
+      persistDraftLifecycle();
+      renderDraftMode(currentState);
+
+      const tick = () => {
+        draftCountdownValue -= 1;
+        if (draftCountdownValue <= 0) {
+          void activateDraft();
+          return;
+        }
+        renderDraftLifecycle(currentState);
+        draftCountdownTimer = window.setTimeout(tick, 1000);
+      };
+
+      draftCountdownTimer = window.setTimeout(tick, 1000);
+    };
+
+    const endActiveDraft = async () => {
+      if (!isActiveDraft() && !isStartingDraft()) return;
+      const isMock = currentDraftMode === 'interactive-mock';
+      const message = isMock
+        ? 'End this mock draft and return to setup? This keeps the practice log until you reset it.'
+        : 'End the active real draft view? This will not change logged sales.';
+      if (!window.confirm(message)) {
+        focusCommandInput();
+        return;
+      }
+
+      clearDraftCountdownTimer();
+      draftLifecycle = 'setup';
+      draftCountdownValue = 0;
+      pendingCamNominationName = null;
+      persistDraftLifecycle();
+      await refreshDraftRoom();
+      focusCommandInput();
+    };
+
+    const setDraftMode = async (mode, options = {}) => {
       if (mode === 'real') currentDraftSession = 'live';
       if (mode === 'interactive-mock' && draftNightLockFor(currentState)) {
         currentDraftSession = practiceSessionForStrategy(currentStrategyKey);
       }
       currentDraftMode = draftModes.includes(mode) ? mode : 'real';
+      if (options.prepareStart) draftLifecycle = 'ready';
+      else if (!isActiveDraft()) draftLifecycle = 'setup';
       selectedTargetName = null;
       pendingCamNominationName = null;
+      persistDraftLifecycle();
       await refreshDraftRoom();
       focusCommandInput();
     };
 
     const setDraftSession = async draftSession => {
       currentDraftSession = draftSession || 'live';
+      if (!isActiveDraft()) draftLifecycle = 'setup';
       selectedTargetName = null;
       pendingCamNominationName = null;
+      persistDraftLifecycle();
       await refreshDraftRoom();
       focusCommandInput();
     };
@@ -3695,17 +4058,35 @@ export const liveDraftHtml = `<!doctype html>
       alertCommandErrors(data);
     };
 
-    byId('board-search').addEventListener('input', () => {
+    const syncBoardSearchInput = source => {
+      const other = source.id === 'board-search' ? byId('header-board-search') : byId('board-search');
+      other.value = source.value;
       if (currentState) renderBoard(currentState);
-    });
+    };
 
-    byId('quick-sale-form').addEventListener('submit', async event => {
-      event.preventDefault();
-      const input = byId('quick-sale-command');
+    const submitQuickSaleCommand = async input => {
       const command = input.value.trim();
       if (!command) return;
       const data = await submitCommand(command);
       if (!data.errors.length) input.value = '';
+    };
+
+    byId('board-search').addEventListener('input', event => {
+      syncBoardSearchInput(event.target);
+    });
+
+    byId('header-board-search').addEventListener('input', event => {
+      syncBoardSearchInput(event.target);
+    });
+
+    byId('quick-sale-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      await submitQuickSaleCommand(byId('quick-sale-command'));
+    });
+
+    byId('header-quick-sale-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      await submitQuickSaleCommand(byId('header-quick-sale-command'));
     });
 
     for (const button of document.querySelectorAll('[data-position-filter]')) {
@@ -3736,6 +4117,7 @@ export const liveDraftHtml = `<!doctype html>
     byId('strategy-select').addEventListener('change', async event => {
       currentStrategyKey = strategyKeys.includes(event.target.value) ? event.target.value : 'three-rb';
       pendingCamNominationName = null;
+      persistDraftLifecycle();
       await refreshDraftRoom();
       focusCommandInput();
     });
@@ -3779,6 +4161,11 @@ export const liveDraftHtml = `<!doctype html>
 
     byId('add-form').addEventListener('submit', async event => {
       event.preventDefault();
+      if (currentDraftMode === 'interactive-mock') {
+        renderSaleControls(currentState);
+        focusCommandInput();
+        return;
+      }
       const target = selectedTarget();
       if (!target) return;
       const owner = byId('add-owner').value;
@@ -3805,8 +4192,10 @@ export const liveDraftHtml = `<!doctype html>
         openScratchSession();
       }
     });
-    byId('start-real-draft-button').addEventListener('click', () => setDraftMode('real'));
-    byId('start-mock-draft-button').addEventListener('click', () => setDraftMode('interactive-mock'));
+    byId('start-real-draft-button').addEventListener('click', () => setDraftMode('real', { prepareStart: true }));
+    byId('start-mock-draft-button').addEventListener('click', () => setDraftMode('interactive-mock', { prepareStart: true }));
+    byId('confirm-start-draft-button').addEventListener('click', () => beginDraftCountdown());
+    byId('end-draft-button').addEventListener('click', () => endActiveDraft());
     byId('run-mock-batch-button').addEventListener('click', () => runMockBatch());
     byId('see-mock-results-button').addEventListener('click', () => window.location.assign('/mock-results'));
     byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
@@ -3828,6 +4217,7 @@ export const liveDraftHtml = `<!doctype html>
       if (!event.target.closest || !event.target.closest('.run-selector')) byId('mock-results-run-list').hidden = true;
     });
 
+    loadDraftLifecycle();
     renderCurrentRoute();
   </script>
 </body>

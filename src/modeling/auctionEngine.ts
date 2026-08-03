@@ -812,6 +812,86 @@ const remainingPlayersAtPosition = (
 ): number =>
   remainingPlayers.filter(player => player.position === position).length;
 
+const playerTargetKey = (name: string): string =>
+  normalizePlayerName(name).toLowerCase();
+
+const configuredPlayerTargetMaxBidFor = (
+  owner: Owner,
+  playerName: string,
+  config: AuctionEngineConfig,
+): number | undefined => {
+  const targetMaxBids = config.ownerPlayerTargetMaxBids[owner];
+  if (!targetMaxBids) return undefined;
+
+  const normalizedName = normalizePlayerName(playerName);
+  const directMatch = targetMaxBids[normalizedName];
+  if (directMatch !== undefined) return directMatch;
+
+  const searchKey = playerTargetKey(playerName);
+  return Object.entries(targetMaxBids)
+    .find(([targetName]) => playerTargetKey(targetName) === searchKey)
+    ?.[1];
+};
+
+interface RemainingPlayerTarget {
+  player: Player;
+  maxBid: number;
+}
+
+const remainingPlayerTargetsFor = (
+  state: AuctionOwnerState,
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): RemainingPlayerTarget[] => {
+  const targetMaxBids = config.ownerPlayerTargetMaxBids[state.owner];
+  if (!targetMaxBids) return [];
+
+  const rosteredTargetKeys = new Set(state.roster.map(player => playerTargetKey(player.name)));
+  return Object.entries(targetMaxBids).flatMap(([targetName, configuredMaxBid]) => {
+    if (configuredMaxBid === undefined) return [];
+
+    const targetKey = playerTargetKey(targetName);
+    if (rosteredTargetKeys.has(targetKey)) return [];
+
+    const targetPlayer = remainingPlayers.find(candidate => playerTargetKey(candidate.name) === targetKey);
+    if (!targetPlayer) return [];
+
+    return [{
+      player: targetPlayer,
+      maxBid: clamp(Math.floor(configuredMaxBid), config.minimumBid, state.maxBid),
+    }];
+  });
+};
+
+const targetPositionCountsFor = (
+  targets: readonly RemainingPlayerTarget[],
+): PositionAmounts => {
+  const counts = emptyPositionAmounts();
+  for (const target of targets) counts[target.player.position] += 1;
+  return counts;
+};
+
+const preservesRemainingPlayerTargetsAfterAdding = (
+  state: AuctionOwnerState,
+  player: Player,
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): boolean => {
+  if (configuredPlayerTargetMaxBidFor(state.owner, player.name, config) !== undefined) return true;
+
+  const targets = remainingPlayerTargetsFor(state, remainingPlayers, config);
+  if (targets.length === 0) return true;
+  if (state.rosterSlotsRemaining - 1 < targets.length) return false;
+
+  const countsAfterAdding = countPositions(state.roster);
+  countsAfterAdding[player.position] += 1;
+  const targetCounts = targetPositionCountsFor(targets);
+
+  return positions.every(position =>
+    countsAfterAdding[position] + targetCounts[position] <= rosterMaximumFor(state.owner, position, config)
+  );
+};
+
 const canLeagueStillMeetPositionMinimumsWithCount = (
   candidateState: AuctionOwnerState,
   player: Player,
@@ -861,7 +941,8 @@ const ownerCanBidOnPlayer = (
     ownerStates,
     remainingPlayersAtPosition(remainingPlayers, player.position),
     config,
-  );
+  ) &&
+  preservesRemainingPlayerTargetsAfterAdding(state, player, remainingPlayers, config);
 
 const hashString = (value: string): number => {
   let hash = 2166136261;
@@ -1349,10 +1430,28 @@ const playerTargetMaxBidFor = (
   player: Player,
   config: AuctionEngineConfig,
 ): number | undefined => {
-  const configuredMaxBid = config.ownerPlayerTargetMaxBids[state.owner]?.[normalizePlayerName(player.name)];
+  const configuredMaxBid = configuredPlayerTargetMaxBidFor(state.owner, player.name, config);
   if (configuredMaxBid === undefined) return undefined;
 
   return clamp(Math.floor(configuredMaxBid), config.minimumBid, state.maxBid);
+};
+
+const remainingPlayerTargetBudgetReserveFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): number | undefined => {
+  if (configuredPlayerTargetMaxBidFor(state.owner, player.name, config) !== undefined) return undefined;
+
+  const targets = remainingPlayerTargetsFor(state, remainingPlayers, config);
+  if (targets.length === 0) return undefined;
+
+  const reservedExtraBudget = targets.reduce(
+    (total, target) => total + Math.max(0, target.maxBid - config.minimumBid),
+    0,
+  );
+  return Math.max(0, state.maxBid - reservedExtraBudget);
 };
 
 const buildStyleMultiplierFor = (
@@ -1479,8 +1578,18 @@ const bidForOwner = (
     : Math.max(pricedBidAmount, playerTargetMaxBid);
   const uncappedAmount = Math.max(targetAdjustedBidAmount, openingBid);
   const strategyBudgetMaxBid = strategyBudgetMaxBidFor(state, player, config);
+  const remainingPlayerTargetBudgetReserve = remainingPlayerTargetBudgetReserveFor(
+    state,
+    player,
+    remainingPlayers,
+    config,
+  );
   const maxBid = playerTargetMaxBid === undefined
-    ? Math.min(state.maxBid, strategyBudgetMaxBid ?? state.maxBid)
+    ? Math.min(
+      state.maxBid,
+      strategyBudgetMaxBid ?? state.maxBid,
+      remainingPlayerTargetBudgetReserve ?? state.maxBid,
+    )
     : Math.min(state.maxBid, playerTargetMaxBid);
 
   return {

@@ -5,6 +5,14 @@ import { liveDraftHtml } from "../src/liveDraftUi.js";
 describe("live draft UI shell", () => {
   it("renders the draft-room controls needed for search, add, and roster review", () => {
     expect(liveDraftHtml).toContain("id=\"board-search\"");
+    expect(liveDraftHtml).toContain("id=\"header-board-search\"");
+    expect(liveDraftHtml).toContain("id=\"room-title\"");
+    expect(liveDraftHtml).toContain("id=\"room-mode-indicator\"");
+    expect(liveDraftHtml).toContain("id=\"draft-start-banner\"");
+    expect(liveDraftHtml).toContain("id=\"draft-countdown-value\"");
+    expect(liveDraftHtml).toContain("id=\"header-quick-sale-form\"");
+    expect(liveDraftHtml).toContain("id=\"header-quick-sale-command\"");
+    expect(liveDraftHtml).toContain("id=\"end-draft-button\"");
     expect(liveDraftHtml).toContain("id=\"quick-sale-command\"");
     expect(liveDraftHtml).toContain("id=\"board\"");
     expect(liveDraftHtml).toContain("id=\"board-cards\"");
@@ -33,6 +41,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"mock-batch-script\"");
     expect(liveDraftHtml).toContain("id=\"see-mock-results-button\"");
     expect(liveDraftHtml).toContain("id=\"draft-mode-status\"");
+    expect(liveDraftHtml).toContain("id=\"confirm-start-draft-button\"");
+    expect(liveDraftHtml).toContain("id=\"draft-countdown\"");
     expect(liveDraftHtml).toContain("id=\"mock-batch-results\"");
     expect(liveDraftHtml).toContain("id=\"draft-room-view\"");
     expect(liveDraftHtml).toContain("id=\"mock-results-view\"");
@@ -112,7 +122,17 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("window.alert(messages.join('\\n'))");
     expect(liveDraftHtml).toContain("const renderMockDraft = mockDraft =>");
     expect(liveDraftHtml).toContain("const renderDraftMode = state =>");
-    expect(liveDraftHtml).toContain("const setDraftMode = async mode =>");
+    expect(liveDraftHtml).toContain("const renderDraftLifecycle = state =>");
+    expect(liveDraftHtml).toContain("const renderRoomModeIndicator = state =>");
+    expect(liveDraftHtml).toContain("byId('draft-room-view').classList.toggle('draft-active', isActiveDraft());");
+    expect(liveDraftHtml).toContain("byId('header-quick-sale-form').hidden = !(isActiveDraft() && currentDraftMode === 'real');");
+    expect(liveDraftHtml).toContain("byId('mock-draft-panel').hidden = !(isActiveDraft() && currentDraftMode === 'interactive-mock');");
+    expect(liveDraftHtml).toContain("const beginDraftCountdown = () =>");
+    expect(liveDraftHtml).toContain("const activateDraft = async () =>");
+    expect(liveDraftHtml).toContain("const endActiveDraft = async () =>");
+    expect(liveDraftHtml).toContain("let draftLifecycle = 'setup'");
+    expect(liveDraftHtml).toContain("const draftCountdownSeconds = 5");
+    expect(liveDraftHtml).toContain("const setDraftMode = async (mode, options = {}) =>");
     expect(liveDraftHtml).toContain("const practiceSessionForStrategy = strategyKey =>");
     expect(liveDraftHtml).toContain("if (mode === 'real') currentDraftSession = 'live';");
     expect(liveDraftHtml).toContain("currentDraftSession = practiceSessionForStrategy(currentStrategyKey);");
@@ -164,6 +184,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("mockDraftItem('Top AI bids'");
     expect(liveDraftHtml).toContain("recommended + ' now / ' + topAiOwner + ' can chase to ' + topAiBid + ' / Cam max ' + maxBid");
     expect(liveDraftHtml).toContain("currentDraftMode === 'interactive-mock'");
+    expect(liveDraftHtml).toContain("Mock mode - use auction controls");
+    expect(liveDraftHtml).toContain("Mock auction sold ");
+    expect(liveDraftHtml).toContain("Manual sale logging is disabled here.");
+    expect(liveDraftHtml).toContain("if (currentDraftMode === 'interactive-mock') focusCommandInput();");
     expect(liveDraftHtml).toContain("mode: currentDraftMode");
     expect(liveDraftHtml).toContain("mode=' + currentDraftMode");
     expect(liveDraftHtml).toContain("let currentDraftSession = 'live'");
@@ -178,6 +202,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).not.toContain("startMock.disabled = locked");
     expect(liveDraftHtml).toContain("aria-label=\"Start real draft\">Real draft");
     expect(liveDraftHtml).toContain("aria-label=\"Start mock draft\">Mock draft");
+    expect(liveDraftHtml).toContain("aria-label=\"Confirm start draft\" hidden>Start draft");
+    expect(liveDraftHtml).toContain("aria-label=\"End active draft\" hidden>End draft");
+    expect(liveDraftHtml).toContain("byId('start-real-draft-button').addEventListener('click', () => setDraftMode('real', { prepareStart: true }))");
+    expect(liveDraftHtml).toContain("byId('start-mock-draft-button').addEventListener('click', () => setDraftMode('interactive-mock', { prepareStart: true }))");
+    expect(liveDraftHtml).toContain("byId('confirm-start-draft-button').addEventListener('click', () => beginDraftCountdown())");
+    expect(liveDraftHtml).toContain("byId('end-draft-button').addEventListener('click', () => endActiveDraft())");
     expect(liveDraftHtml).toContain("Run mocks");
     expect(liveDraftHtml).toContain("Run new mocks");
     expect(liveDraftHtml).toContain("See results");
@@ -232,7 +262,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).not.toContain("title.append(starTargetButton(target), textElement('div', target.name, 'player-name'));");
     expect(liveDraftHtml).toContain("const visibleBoardTargets = state =>");
     expect(liveDraftHtml).toContain("state.keeperTargets");
-    expect(liveDraftHtml).toContain("const realDraftHasStarted = state => currentDraftMode === 'real' && state.events.length > 0");
+    expect(liveDraftHtml).toContain("const realDraftHasStarted = state => currentDraftMode === 'real' && (isActiveDraft() || state.events.length > 0)");
     expect(liveDraftHtml).toContain("target.draftable === false");
     expect(liveDraftHtml).toContain("row.classList.add('keeper-row')");
     expect(liveDraftHtml).toContain("target.keeperOwner + ' keeper'");

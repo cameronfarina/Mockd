@@ -36,6 +36,18 @@ describe("mock draft scripts", () => {
     ]);
   });
 
+  it("does not include the connective word before up-to caps in player names", () => {
+    const script = parseMockDraftScript("target jadarian price for up to $20");
+    if (!script) throw new Error("Expected mock draft script.");
+
+    expect(canonicalizeMockDraftScript(script, ["Jadarian Price"])).toMatchObject({
+      label: "Target Jadarian Price up to $20",
+      targetMaxBids: [
+        { owner: "Cam", player: "Jadarian Price", maxBid: 20 },
+      ],
+    });
+  });
+
   it("rejects non-target scripts before a mock job starts", () => {
     expect(() => parseMockDraftScript("draft good players cheaply"))
       .toThrow("Mock script must include a target");

@@ -22,6 +22,7 @@ const cleanPlayerName = (value: string): string =>
     .replace(/\bwhere\s+i(?:'m| am)?\s*$/i, "")
     .replace(/\bwhere\s*$/i, "")
     .replace(/\bi(?:'m|m| am)?\s*$/i, "")
+    .replace(/\bfor\s*$/i, "")
     .replace(/^[\s,.:;-]+|[\s,.:;-]+$/g, "")
     .trim()
     .replace(/\s+/g, " ");
