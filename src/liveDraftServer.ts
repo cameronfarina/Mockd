@@ -1,4 +1,5 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { keepers } from "../config/keepers.js";
 import {
@@ -21,16 +22,42 @@ import {
   type LiveDraftReadinessStatus,
   type LiveDraftState,
 } from "./modeling/liveDraft.js";
+import { strategyAuctionOverridesFor } from "./modeling/interactiveMockDraft.js";
 import {
   defaultLiveDraftStrategyKey,
   parseLiveDraftStrategyKey,
   type LiveDraftStrategyKey,
 } from "./modeling/liveDraftStrategies.js";
+import { runMockBatch, type MockBatch, type RunMockBatchOptions } from "./modeling/mockBatch.js";
 import { loadEspnWeeksOneToFour, type ProjectionRecord } from "./projections.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
 const defaultPort = 4317;
 const liveTargetLimit = 500;
+const defaultLiveDraftSessionMode = "real";
+const interactiveMockSessionDirectoryName = "interactive-mock";
+const maximumBatchRunsPerScenario = 250;
+
+export type LiveDraftSessionMode = "real" | "interactive-mock";
+
+interface LiveDraftModeDescriptor {
+  key: LiveDraftSessionMode;
+  label: string;
+  description: string;
+}
+
+const liveDraftModes: readonly LiveDraftModeDescriptor[] = [
+  {
+    key: "real",
+    label: "Real draft",
+    description: "Draft-night logger. Writes to the real live-draft files.",
+  },
+  {
+    key: "interactive-mock",
+    label: "Mock draft",
+    description: "Practice room. Cam controls Cam while AI owners bid and nominate.",
+  },
+];
 
 const optionValue = (name: string): string | undefined => {
   const option = process.argv.find(arg => arg.startsWith(`${name}=`));
@@ -137,8 +164,21 @@ const parseJsonBody = async (request: IncomingMessage): Promise<Record<string, u
   JSON.parse(await readRequestBody(request) || "{}") as Record<string, unknown>;
 
 interface LiveDraftStateResponse extends LiveDraftState {
+  draftMode: LiveDraftSessionMode;
+  draftModes: readonly LiveDraftModeDescriptor[];
   session: LiveDraftSessionStatus;
   readiness: LiveDraftReadiness;
+}
+
+interface CompactMockBatchReport {
+  mode: "batch-mock";
+  options: MockBatch["options"] & {
+    strategyKey: LiveDraftStrategyKey;
+  };
+  summary: MockBatch["summary"];
+  cam?: MockBatch["summary"]["owners"][number];
+  camTopExposures: MockBatch["summary"]["ownerPlayerExposure"];
+  topPlayers: MockBatch["summary"]["players"];
 }
 
 interface InteractiveMockDraftModule {
@@ -154,11 +194,14 @@ interface InteractiveMockDraftModule {
   resolveInteractiveMockDraftAction(mockDraft: unknown, action: string): unknown;
 }
 
+type MockBatchRunner = (options: RunMockBatchOptions) => MockBatch;
+
 export interface CreateLiveDraftServerOptions {
   sessionDirectory?: string;
   projections?: readonly ProjectionRecord[];
   historicalRecords?: readonly HistoricalAuctionRecord[];
   interactiveMockDraft?: InteractiveMockDraftModule;
+  mockBatchRunner?: MockBatchRunner;
 }
 
 export interface LiveDraftServerApp {
@@ -194,11 +237,66 @@ const strategyKeyFromQuery = (url: URL): LiveDraftStrategyKey =>
 const strategyKeyFromBody = (body: Record<string, unknown>): LiveDraftStrategyKey =>
   parseLiveDraftStrategyKey(body.strategyKey);
 
+const sessionModeFromValue = (
+  value: unknown,
+  fallback: LiveDraftSessionMode = defaultLiveDraftSessionMode,
+): LiveDraftSessionMode => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (value === "real" || value === "interactive-mock") return value;
+  throw new Error("Draft mode must be real or interactive-mock.");
+};
+
+const sessionModeFromQuery = (
+  url: URL,
+  fallback: LiveDraftSessionMode = defaultLiveDraftSessionMode,
+): LiveDraftSessionMode =>
+  sessionModeFromValue(url.searchParams.get("mode"), fallback);
+
+const sessionModeFromBody = (
+  body: Record<string, unknown>,
+  fallback: LiveDraftSessionMode = defaultLiveDraftSessionMode,
+): LiveDraftSessionMode =>
+  sessionModeFromValue(body.mode, fallback);
+
+const batchRunsPerScenarioFromValue = (value: unknown): number => {
+  const parsed = value === undefined ? 25 : Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error("Mock batch runs must be a positive integer.");
+  }
+  return Math.min(parsed, maximumBatchRunsPerScenario);
+};
+
+const seedPrefixFromValue = (value: unknown): string => {
+  if (typeof value !== "string") return "live-ui-batch";
+  const seedPrefix = value.trim();
+  return seedPrefix || "live-ui-batch";
+};
+
 const seedFromValue = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined;
 
   const seed = value.trim();
   return seed ? seed : undefined;
+};
+
+const compactMockBatchReport = (
+  batch: MockBatch,
+  strategyKey: LiveDraftStrategyKey,
+): CompactMockBatchReport => {
+  const cam = batch.summary.owners.find(owner => owner.owner === "Cam");
+  return {
+    mode: "batch-mock",
+    options: {
+      ...batch.options,
+      strategyKey,
+    },
+    summary: batch.summary,
+    ...(cam === undefined ? {} : { cam }),
+    camTopExposures: batch.summary.ownerPlayerExposure
+      .filter(exposure => exposure.owner === "Cam")
+      .slice(0, 12),
+    topPlayers: batch.summary.players.slice(0, 12),
+  };
 };
 
 const commandFromInteractiveMockAction = (result: unknown): string => {
@@ -226,17 +324,25 @@ export const createLiveDraftServer = async (
   const projections = options.projections ?? (await loadEspnWeeksOneToFour(projectionPath));
   const historicalRecords = options.historicalRecords ?? (await loadHistoricalAuctionRecords());
   const sessionDirectory = options.sessionDirectory;
-  const store = new FileBackedLiveDraftSessionStore(
+  const realStore = new FileBackedLiveDraftSessionStore(
     sessionDirectory === undefined ? {} : { directory: sessionDirectory },
   );
-  await store.load();
+  const interactiveMockStore = new FileBackedLiveDraftSessionStore({
+    directory: join(realStore.paths.directory, interactiveMockSessionDirectoryName),
+  });
+  const storeFor = (mode: LiveDraftSessionMode): FileBackedLiveDraftSessionStore =>
+    mode === "interactive-mock" ? interactiveMockStore : realStore;
+  await Promise.all([realStore.load(), interactiveMockStore.load()]);
   const stateFor = ({
-    commands = store.currentCommands(),
+    mode = defaultLiveDraftSessionMode,
+    commands,
     strategyKey = defaultLiveDraftStrategyKey,
   }: {
+    mode?: LiveDraftSessionMode;
     commands?: readonly string[];
     strategyKey?: LiveDraftStrategyKey;
   } = {}): LiveDraftStateResponse => {
+    const store = storeFor(mode);
     const state = buildLiveDraftState({
       projections,
       historicalRecords,
@@ -244,18 +350,20 @@ export const createLiveDraftServer = async (
       watchOwner: "Cam",
       scenarioKey: "expected",
       strategyKey,
-      commands,
+      commands: commands ?? store.currentCommands(),
       targetLimit: liveTargetLimit,
     });
     const session = store.status();
     return {
       ...state,
+      draftMode: mode,
+      draftModes: liveDraftModes,
       session,
       readiness: readinessWithSession(state.readiness, session),
     };
   };
   const mockDraftFor = async ({
-    commands = store.currentCommands(),
+    commands = interactiveMockStore.currentCommands(),
     strategyKey,
     seed,
   }: {
@@ -281,9 +389,9 @@ export const createLiveDraftServer = async (
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
   }): Promise<LiveDraftStateResponse & { mockDraft: unknown }> => {
-    const commands = store.currentCommands();
+    const commands = interactiveMockStore.currentCommands();
     return {
-      ...stateFor({ commands, strategyKey }),
+      ...stateFor({ mode: "interactive-mock", commands, strategyKey }),
       mockDraft: await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed), commands }),
     };
   };
@@ -304,7 +412,10 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "GET" && url.pathname === "/api/state") {
-        sendJson(response, 200, stateFor({ strategyKey: strategyKeyFromQuery(url) }));
+        sendJson(response, 200, stateFor({
+          mode: sessionModeFromQuery(url),
+          strategyKey: strategyKeyFromQuery(url),
+        }));
         return;
       }
 
@@ -317,6 +428,7 @@ export const createLiveDraftServer = async (
 
       if (request.method === "GET" && url.pathname === "/api/export") {
         const format = url.searchParams.get("format") === "csv" ? "csv" : "json";
+        const store = storeFor(sessionModeFromQuery(url));
         const commands = store.currentCommands();
         if (format === "csv") {
           sendText(response, 200, "text/csv", liveDraftCommandsCsv(commands));
@@ -329,25 +441,27 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/events") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
+        const mode = sessionModeFromBody(body);
+        const store = storeFor(mode);
         const command = typeof body.command === "string" ? body.command.trim() : "";
         if (!command) {
           sendJson(response, 422, {
-            ...stateFor({ strategyKey }),
+            ...stateFor({ mode, strategyKey }),
             errors: [{ input: "", message: "Command is required." }],
           });
           return;
         }
 
         const trialCommands = [...store.currentCommands(), command];
-        const trialState = stateFor({ commands: trialCommands, strategyKey });
+        const trialState = stateFor({ mode, commands: trialCommands, strategyKey });
         const commandError = trialState.errors.find(error => error.input === command);
         if (commandError) {
-          sendJson(response, 422, { ...stateFor({ strategyKey }), errors: [commandError] });
+          sendJson(response, 422, { ...stateFor({ mode, strategyKey }), errors: [commandError] });
           return;
         }
 
         await store.appendCommand(command);
-        sendJson(response, 200, stateFor({ strategyKey }));
+        sendJson(response, 200, stateFor({ mode, strategyKey }));
         return;
       }
 
@@ -369,8 +483,8 @@ export const createLiveDraftServer = async (
         const command = commandFromInteractiveMockAction(
           interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, action),
         );
-        const trialCommands = [...store.currentCommands(), command];
-        const trialState = stateFor({ commands: trialCommands, strategyKey });
+        const trialCommands = [...interactiveMockStore.currentCommands(), command];
+        const trialState = stateFor({ mode: "interactive-mock", commands: trialCommands, strategyKey });
         const commandError = trialState.errors.find(error => error.input === command);
         if (commandError) {
           sendJson(response, 422, {
@@ -380,44 +494,70 @@ export const createLiveDraftServer = async (
           return;
         }
 
-        await store.appendCommand(command);
+        await interactiveMockStore.appendCommand(command);
         sendJson(response, 200, await stateWithMockDraft(mockDraftRequestFor(strategyKey, seed)));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/mock-batch") {
+        const body = await parseJsonBody(request);
+        const strategyKey = strategyKeyFromBody(body);
+        const runsPerScenario = batchRunsPerScenarioFromValue(body.runs ?? body.runsPerScenario);
+        const seedPrefix = seedPrefixFromValue(body.seedPrefix);
+        const mockBatchRunner = options.mockBatchRunner ?? runMockBatch;
+        const batch = mockBatchRunner({
+          projections,
+          historicalRecords,
+          keepers,
+          scenarioKeys: ["expected"],
+          runsPerScenario,
+          seedPrefix,
+          auctionConfigOverrides: strategyAuctionOverridesFor("Cam", strategyKey),
+          diagnosticsMode: "summary",
+        });
+        sendJson(response, 200, compactMockBatchReport(batch, strategyKey));
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/api/import") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
+        const mode = sessionModeFromBody(body);
+        const store = storeFor(mode);
         const importedCommands = Array.isArray(body.commands)
           ? parseLiveDraftCommandImport(JSON.stringify({ commands: body.commands }), "json")
           : parseLiveDraftCommandImport(
             typeof body.content === "string" ? body.content : "",
             importFormatFor(body.format),
           );
-        const trialState = stateFor({ commands: importedCommands, strategyKey });
+        const trialState = stateFor({ mode, commands: importedCommands, strategyKey });
         if (trialState.errors.length) {
-          sendJson(response, 422, { ...stateFor({ strategyKey }), errors: trialState.errors });
+          sendJson(response, 422, { ...stateFor({ mode, strategyKey }), errors: trialState.errors });
           return;
         }
 
         await store.importCommands(importedCommands);
-        sendJson(response, 200, stateFor({ strategyKey }));
+        sendJson(response, 200, stateFor({ mode, strategyKey }));
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/api/undo") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
+        const mode = sessionModeFromBody(body);
+        const store = storeFor(mode);
         await store.undo();
-        sendJson(response, 200, stateFor({ strategyKey }));
+        sendJson(response, 200, stateFor({ mode, strategyKey }));
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/api/reset") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
+        const mode = sessionModeFromBody(body);
+        const store = storeFor(mode);
         await store.reset();
-        sendJson(response, 200, stateFor({ strategyKey }));
+        sendJson(response, 200, stateFor({ mode, strategyKey }));
         return;
       }
 

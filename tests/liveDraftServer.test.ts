@@ -13,6 +13,7 @@ const tempSessionDirectory = async (): Promise<string> =>
 type TestServer = Awaited<ReturnType<typeof createLiveDraftServer>>["server"];
 
 const mockSaleCommand = "Beaton drafted Jahmyr Gibbs for 74";
+const realSaleCommand = "Jakub drafted Christian McCaffrey for 80";
 
 const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiveMockDraft"]> = {
   buildInteractiveMockDraftState: options => ({
@@ -27,6 +28,56 @@ const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiv
     return { command: mockSaleCommand };
   },
 };
+
+const mockBatchRunner: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner"]> = options => ({
+  options: {
+    scenarioKeys: [...(options.scenarioKeys ?? ["expected"])],
+    runsPerScenario: options.runsPerScenario ?? 1,
+    seedPrefix: options.seedPrefix ?? "test",
+    ...(options.diagnosticsMode === undefined ? {} : { diagnosticsMode: options.diagnosticsMode }),
+  },
+  runs: [],
+  summary: {
+    runCount: options.runsPerScenario ?? 1,
+    scenarios: [{
+      key: "expected",
+      label: "Expected",
+      runCount: options.runsPerScenario ?? 1,
+      invalidRosterCount: 0,
+      averagePickCount: 218,
+    }],
+    players: [{
+      name: "Jahmyr Gibbs",
+      position: "RB",
+      draftedCount: options.runsPerScenario ?? 1,
+      draftedRate: 1,
+      averageMarketPrice: 72,
+      averageSalePrice: 77,
+      minimumSalePrice: 76,
+      maximumSalePrice: 78,
+    }],
+    owners: [{
+      owner: "Cam",
+      runCount: options.runsPerScenario ?? 1,
+      invalidRosterCount: 0,
+      averageSpend: 199,
+      minimumSpend: 198,
+      maximumSpend: 200,
+      averageWeek1Score: 104,
+      averageWeeks1To4Score: 410,
+      averageBudgetRemaining: 1,
+      averagePositionSpend: { QB: 2, RB: 150, WR: 40, TE: 5, K: 1, DST: 1 },
+    }],
+    ownerPlayerExposure: [{
+      owner: "Cam",
+      player: "Jahmyr Gibbs",
+      position: "RB",
+      draftedCount: options.runsPerScenario ?? 1,
+      draftedRate: 1,
+      averagePrice: 77,
+    }],
+  },
+});
 
 const listen = async (server: TestServer): Promise<string> =>
   new Promise(resolve => {
@@ -63,15 +114,18 @@ describe("live draft server", () => {
       const app = await createLiveDraftServer({
         sessionDirectory: directory,
         interactiveMockDraft,
+        mockBatchRunner,
       });
       servers.push(app.server);
       const baseUrl = await listen(app.server);
 
       const strategyState = await fetch(`${baseUrl}/api/state?strategy=wr-heavy`).then(response => response.json());
       expect(strategyState.strategy.key).toBe("wr-heavy");
+      expect(strategyState.draftMode).toBe("real");
 
       const mockState = await fetch(`${baseUrl}/api/mock/state?strategy=three-rb&seed=server-test`)
         .then(response => response.json());
+      expect(mockState.draftMode).toBe("interactive-mock");
       expect(mockState.strategy.key).toBe("three-rb");
       expect(mockState.mockDraft.strategyKey).toBe("three-rb");
       expect(mockState.mockDraft.seed).toBe("server-test");
@@ -85,11 +139,16 @@ describe("live draft server", () => {
       expect(advanced.status).toBe(200);
       expect(advanced.data.events).toHaveLength(1);
       expect(advanced.data.session.commandCount).toBe(1);
+      expect(advanced.data.session.paths.directory).toBe(join(directory, "interactive-mock"));
       expect(advanced.data.mockDraft.commandCount).toBe(1);
 
-      const undone = await post(baseUrl, "/api/undo", { strategyKey: "wr-heavy" });
+      const undone = await post(baseUrl, "/api/undo", {
+        mode: "interactive-mock",
+        strategyKey: "wr-heavy",
+      });
       expect(undone.status).toBe(200);
       expect(undone.data.strategy.key).toBe("wr-heavy");
+      expect(undone.data.draftMode).toBe("interactive-mock");
       expect(undone.data.session.commandCount).toBe(0);
 
       const sale = await post(baseUrl, "/api/events", {
@@ -112,6 +171,74 @@ describe("live draft server", () => {
       expect(imported.status).toBe(200);
       expect(imported.data.strategy.key).toBe("three-rb");
       expect(imported.data.session.commandCount).toBe(1);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps real draft actions, interactive practice actions, and bulk mocks in distinct modes", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const realSale = await post(baseUrl, "/api/events", {
+        mode: "real",
+        strategyKey: "three-rb",
+        command: realSaleCommand,
+      });
+      expect(realSale.status).toBe(200);
+      expect(realSale.data.draftMode).toBe("real");
+      expect(realSale.data.session.commandCount).toBe(1);
+      expect(realSale.data.session.paths.directory).toBe(directory);
+      expect(realSale.data.events.map((event: { input: string }) => event.input)).toEqual([realSaleCommand]);
+
+      const practiceBefore = await fetch(`${baseUrl}/api/state?mode=interactive-mock&strategy=three-rb`)
+        .then(response => response.json());
+      expect(practiceBefore.draftMode).toBe("interactive-mock");
+      expect(practiceBefore.session.commandCount).toBe(0);
+      expect(practiceBefore.events).toHaveLength(0);
+
+      const practiceSale = await post(baseUrl, "/api/mock/advance", {
+        strategyKey: "three-rb",
+        seed: "separate-mode-test",
+        action: "advance",
+      });
+      expect(practiceSale.status).toBe(200);
+      expect(practiceSale.data.draftMode).toBe("interactive-mock");
+      expect(practiceSale.data.session.commandCount).toBe(1);
+      expect(practiceSale.data.events.map((event: { input: string }) => event.input)).toEqual([mockSaleCommand]);
+
+      const realAfterPractice = await fetch(`${baseUrl}/api/state?mode=real&strategy=three-rb`)
+        .then(response => response.json());
+      expect(realAfterPractice.draftMode).toBe("real");
+      expect(realAfterPractice.session.commandCount).toBe(1);
+      expect(realAfterPractice.events.map((event: { input: string }) => event.input)).toEqual([realSaleCommand]);
+
+      const batch = await post(baseUrl, "/api/mock-batch", {
+        strategyKey: "three-rb",
+        runs: 3,
+        seedPrefix: "server-batch",
+      });
+      expect(batch.status).toBe(200);
+      expect(batch.data.mode).toBe("batch-mock");
+      expect(batch.data.summary.runCount).toBe(3);
+      expect(batch.data.cam.owner).toBe("Cam");
+      expect(batch.data.camTopExposures).toEqual([
+        expect.objectContaining({ player: "Jahmyr Gibbs", draftedRate: 1 }),
+      ]);
+
+      const realAfterBatch = await fetch(`${baseUrl}/api/state?mode=real&strategy=three-rb`)
+        .then(response => response.json());
+      const practiceAfterBatch = await fetch(`${baseUrl}/api/state?mode=interactive-mock&strategy=three-rb`)
+        .then(response => response.json());
+      expect(realAfterBatch.session.commandCount).toBe(1);
+      expect(practiceAfterBatch.session.commandCount).toBe(1);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

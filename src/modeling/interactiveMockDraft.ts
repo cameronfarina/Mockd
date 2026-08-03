@@ -243,7 +243,7 @@ const mergeOwnerAuctionBehaviors = (
   return merged;
 };
 
-const strategyAuctionOverridesFor = (
+export const strategyAuctionOverridesFor = (
   owner: Owner,
   strategyKey: LiveDraftStrategyKey,
 ): AuctionEngineConfigOverrides => {

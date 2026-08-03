@@ -234,6 +234,56 @@ export const liveDraftHtml = `<!doctype html>
       color: #b9cbe0;
     }
 
+    .mode-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+
+    .mode-actions button {
+      min-height: 34px;
+      padding: 0 10px;
+      color: #b9cbe0;
+      font-weight: 650;
+    }
+
+    .mode-actions button[aria-pressed="true"] {
+      border-color: rgba(99, 168, 255, 0.72);
+      background: rgba(99, 168, 255, 0.18);
+      color: #e7f2ff;
+    }
+
+    .mock-batch-control {
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr);
+      gap: 7px;
+    }
+
+    .mock-batch-control input {
+      text-align: right;
+    }
+
+    .mode-status {
+      display: grid;
+      gap: 2px;
+      min-height: 54px;
+      padding: 8px 9px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: rgba(5, 11, 18, 0.34);
+    }
+
+    .mode-status strong {
+      color: #f4f8fc;
+      line-height: 1.15;
+    }
+
+    .mode-status span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
     .file-input {
       display: none;
     }
@@ -913,6 +963,21 @@ export const liveDraftHtml = `<!doctype html>
       </div>
       <input class="search" id="board-search" autocomplete="off" placeholder="Search player, position, or team">
       <div class="sidebar-section">
+        <div class="section-label">Draft Actions</div>
+        <div class="mode-actions">
+          <button type="button" id="start-real-draft-button" aria-pressed="true">Start real draft</button>
+          <button type="button" id="start-mock-draft-button" aria-pressed="false">Start mock draft</button>
+        </div>
+        <div class="mock-batch-control">
+          <input id="mock-batch-runs" inputmode="numeric" pattern="[0-9]*" value="25" aria-label="Mock draft run count">
+          <button type="button" id="run-mock-batch-button">Run mocks</button>
+        </div>
+        <div class="mode-status" id="draft-mode-status">
+          <strong>Real draft</strong>
+          <span>Draft-night logger. Writes to the real sale log.</span>
+        </div>
+      </div>
+      <div class="sidebar-section">
         <div class="section-label">Sale Command</div>
         <form class="quick-sale" id="quick-sale-form">
           <input id="quick-sale-command" autocomplete="off" placeholder="Quick sale: jakub kittle 28">
@@ -1031,6 +1096,13 @@ export const liveDraftHtml = `<!doctype html>
               <button type="button" id="mock-pass-button" disabled>Pass</button>
             </div>
           </div>
+          <div class="section-label">Mock Results</div>
+          <div class="summary-list" id="mock-batch-results">
+            <div class="summary-item">
+              <strong>No batch run yet</strong>
+              <span class="subtle">Run mocks to compare AI-only team outcomes for the selected strategy.</span>
+            </div>
+          </div>
           <div class="section-label">Readiness</div>
           <div class="summary-list" id="readiness-checks"></div>
           <div class="section-label">Cam Shortlist</div>
@@ -1070,9 +1142,22 @@ export const liveDraftHtml = `<!doctype html>
     let boardSortKey = 'valueScore';
     let boardSortDirection = 'desc';
     let currentStrategyKey = 'three-rb';
+    let currentDraftMode = 'real';
+    let latestMockBatchReport = null;
 
     const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST'];
     const strategyKeys = ['balanced', 'three-rb', 'hero-rb', 'wr-heavy'];
+    const draftModes = ['real', 'interactive-mock'];
+    const draftModeCopy = {
+      real: {
+        label: 'Real draft',
+        detail: 'Draft-night logger. Writes to the real sale log.'
+      },
+      'interactive-mock': {
+        label: 'Mock draft',
+        detail: 'Practice room. Cam controls Cam while AI owners bid.'
+      }
+    };
     const flexPositions = ['RB', 'WR', 'TE'];
     const rosterMaximums = { QB: 2, RB: 6, WR: 6, TE: 2, K: 1, DST: 1 };
     const positionOrder = { RB: 1, WR: 2, TE: 3, QB: 4, K: 5, DST: 6 };
@@ -1103,8 +1188,8 @@ export const liveDraftHtml = `<!doctype html>
     const currentOwner = () => ownerByName(selectedRosterOwner);
     const priceInputValue = () => Number(byId('add-price').value);
     const gapClassFor = gap => gap > 0 ? 'gap-positive' : gap < 0 ? 'gap-negative' : '';
-    const stateUrl = () => '/api/state?strategy=' + currentStrategyKey;
-    const mockDraftUrl = () => '/api/mock/state?strategy=' + currentStrategyKey + '&seed=live-ui';
+    const stateUrl = () => '/api/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey;
+    const mockDraftUrl = () => '/api/mock/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + '&seed=live-ui';
 
     const textElement = (tagName, text, className) => {
       const element = document.createElement(tagName);
@@ -1121,7 +1206,7 @@ export const liveDraftHtml = `<!doctype html>
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ strategyKey: currentStrategyKey, ...(body || {}) })
+        body: JSON.stringify({ strategyKey: currentStrategyKey, mode: currentDraftMode, ...(body || {}) })
       });
       const data = await response.json();
       render(data);
@@ -1293,6 +1378,58 @@ export const liveDraftHtml = `<!doctype html>
       const key = state.strategy && strategyKeys.includes(state.strategy.key) ? state.strategy.key : currentStrategyKey;
       currentStrategyKey = key;
       byId('strategy-select').value = currentStrategyKey;
+    };
+
+    const renderDraftMode = state => {
+      if (state && draftModes.includes(state.draftMode)) currentDraftMode = state.draftMode;
+      const copy = draftModeCopy[currentDraftMode] || draftModeCopy.real;
+      const status = byId('draft-mode-status');
+      status.replaceChildren(textElement('strong', copy.label), textElement('span', copy.detail));
+      byId('start-real-draft-button').setAttribute('aria-pressed', String(currentDraftMode === 'real'));
+      byId('start-mock-draft-button').setAttribute('aria-pressed', String(currentDraftMode === 'interactive-mock'));
+      byId('mock-draft-panel').hidden = currentDraftMode !== 'interactive-mock';
+    };
+
+    const renderMockBatchResults = report => {
+      const root = byId('mock-batch-results');
+      latestMockBatchReport = report || latestMockBatchReport;
+      if (!latestMockBatchReport) {
+        root.replaceChildren(mockDraftItem('No batch run yet', 'Run mocks to compare AI-only team outcomes for the selected strategy.'));
+        return;
+      }
+
+      const cam = latestMockBatchReport.cam;
+      const items = [
+        mockDraftItem(
+          'Batch mocks',
+          latestMockBatchReport.summary.runCount + ' runs - ' + latestMockBatchReport.options.strategyKey + ' - expected keepers'
+        )
+      ];
+
+      if (cam) {
+        items.push(mockDraftItem(
+          'Cam average roster',
+          money(cam.averageSpend) + ' spend / ' + money(cam.averageBudgetRemaining) + ' left / ' + cam.averageWeeks1To4Score + ' Weeks 1-4'
+        ));
+      }
+
+      const exposures = (latestMockBatchReport.camTopExposures || []).slice(0, 5);
+      if (exposures.length) {
+        items.push(mockDraftItem(
+          'Likely Cam targets',
+          exposures.map(exposure => exposure.player + ' ' + Math.round(exposure.draftedRate * 100) + '% at ' + money(exposure.averagePrice)).join(' / ')
+        ));
+      }
+
+      const topPlayers = (latestMockBatchReport.topPlayers || []).slice(0, 4);
+      if (topPlayers.length) {
+        items.push(mockDraftItem(
+          'Top room prices',
+          topPlayers.map(player => player.name + ' ' + money(player.averageSalePrice)).join(' / ')
+        ));
+      }
+
+      root.replaceChildren(...items);
     };
 
     const targetMatchesQuery = (target, query) => {
@@ -1469,12 +1606,18 @@ export const liveDraftHtml = `<!doctype html>
 
     const renderMockDraft = mockDraft => {
       const details = byId('mock-draft-details');
+      const isMockMode = currentDraftMode === 'interactive-mock';
       const phase = mockDraft ? mockDraft.phase : '';
       const camBidButton = byId('mock-cam-win-button');
-      byId('mock-advance-button').disabled = phase !== 'ai-sale';
-      camBidButton.disabled = phase !== 'human-decision' || !mockDraft.camDecision;
+      byId('mock-advance-button').disabled = !isMockMode || phase !== 'ai-sale';
+      camBidButton.disabled = !isMockMode || phase !== 'human-decision' || !mockDraft.camDecision;
       camBidButton.textContent = mockDraft && mockDraft.camDecision ? 'Bid ' + money(mockDraft.camDecision.recommendedBid) : 'Bid';
-      byId('mock-pass-button').disabled = phase !== 'human-decision';
+      byId('mock-pass-button').disabled = !isMockMode || phase !== 'human-decision';
+
+      if (!isMockMode) {
+        details.replaceChildren(mockDraftItem('Mock draft', 'Start mock draft to enter the practice room.'));
+        return;
+      }
 
       if (!mockDraft) {
         details.replaceChildren(mockDraftItem('Mock draft', 'Loading interactive state.'));
@@ -1705,6 +1848,7 @@ export const liveDraftHtml = `<!doctype html>
     const render = state => {
       currentState = state;
       syncStrategy(state);
+      renderDraftMode(state);
       if (!state.owners.some(owner => owner.owner === selectedRosterOwner)) selectedRosterOwner = 'Cam';
       syncOwnerSelects(state);
       syncBoardFilterOptions(state);
@@ -1720,9 +1864,15 @@ export const liveDraftHtml = `<!doctype html>
       renderEvents(state);
       renderErrors(state);
       if (state.mockDraft) renderMockDraft(state.mockDraft);
+      else renderMockDraft(null);
+      renderMockBatchResults(latestMockBatchReport);
     };
 
     const refreshMockDraft = async () => {
+      if (currentDraftMode !== 'interactive-mock') {
+        renderMockDraft(null);
+        return null;
+      }
       renderMockDraft(null);
       try {
         const response = await fetch(mockDraftUrl());
@@ -1753,6 +1903,41 @@ export const liveDraftHtml = `<!doctype html>
       return state;
     };
 
+    const setDraftMode = async mode => {
+      currentDraftMode = draftModes.includes(mode) ? mode : 'real';
+      selectedTargetName = null;
+      await refreshDraftRoom();
+      focusCommandInput();
+    };
+
+    const runMockBatch = async () => {
+      const button = byId('run-mock-batch-button');
+      const runs = Number(byId('mock-batch-runs').value || 25);
+      button.disabled = true;
+      button.textContent = 'Running';
+      try {
+        const response = await fetch('/api/mock-batch', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            strategyKey: currentStrategyKey,
+            runs,
+            seedPrefix: 'live-ui-' + currentStrategyKey
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not run mock batch.');
+        renderMockBatchResults(data);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not run mock batch.';
+        byId('mock-batch-results').replaceChildren(mockDraftItem('Mock batch failed', message));
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Run mocks';
+        focusCommandInput();
+      }
+    };
+
     const postJsonAndRefresh = async (url, body) => {
       const data = await postJson(url, body);
       await refreshMockDraft();
@@ -1772,8 +1957,12 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const advanceMockDraft = async action => {
+      if (currentDraftMode !== 'interactive-mock') {
+        await setDraftMode('interactive-mock');
+      }
       const data = await postJson('/api/mock/advance', {
         strategyKey: currentStrategyKey,
+        mode: 'interactive-mock',
         seed: 'live-ui',
         action
       });
@@ -1795,7 +1984,7 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const exportLog = async format => {
-      const response = await fetch('/api/export?format=' + format);
+      const response = await fetch('/api/export?mode=' + currentDraftMode + '&format=' + format);
       const content = await response.text();
       if (!response.ok) {
         if (currentState) render({ ...currentState, errors: [{ input: '', message: content || 'Could not export draft log.' }] });
@@ -1805,7 +1994,7 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       downloadText(
-        'mockd-live-draft-log.' + format,
+        'mockd-' + currentDraftMode + '-draft-log.' + format,
         content,
         format === 'csv' ? 'text/csv' : 'application/json'
       );
@@ -1919,6 +2108,9 @@ export const liveDraftHtml = `<!doctype html>
     byId('export-csv-button').addEventListener('click', () => exportLog('csv'));
     byId('import-log-button').addEventListener('click', () => byId('import-log-file').click());
     byId('import-log-file').addEventListener('change', event => importDraftLogFile(event.target.files[0]));
+    byId('start-real-draft-button').addEventListener('click', () => setDraftMode('real'));
+    byId('start-mock-draft-button').addEventListener('click', () => setDraftMode('interactive-mock'));
+    byId('run-mock-batch-button').addEventListener('click', () => runMockBatch());
     byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
     byId('reset-button').addEventListener('click', () => postJsonAndRefresh('/api/reset'));
     byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
