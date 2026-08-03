@@ -51,6 +51,32 @@ export interface LiveDraftEvent {
   playerSource: LiveDraftPlayerSource;
 }
 
+export interface LiveDraftSaleMockRange {
+  draftedRate: number;
+  averageSalePrice: number;
+  minimumSalePrice: number;
+  maximumSalePrice: number;
+}
+
+export type LiveDraftSaleAuditVerdict = "deal" | "fair" | "overpay";
+
+export interface LiveDraftSaleAudit {
+  input: string;
+  owner: Owner;
+  player: string;
+  normalizedPlayerName: string;
+  position: Position;
+  price: number;
+  expectedPrice: number;
+  liveExpectedPrice: number;
+  personalValue: number;
+  expectedDelta: number;
+  liveDelta: number;
+  personalDelta: number;
+  verdict: LiveDraftSaleAuditVerdict;
+  mockRange?: LiveDraftSaleMockRange;
+}
+
 export interface LiveDraftCommandError {
   input: string;
   message: string;
@@ -209,6 +235,7 @@ export interface LiveDraftState {
   owners: LiveDraftOwnerState[];
   events: LiveDraftEvent[];
   errors: LiveDraftCommandError[];
+  postDraftAudit: LiveDraftSaleAudit[];
   availableTargets: LiveDraftTarget[];
   draftPath: LiveDraftPathRecommendation;
   shortlist: LiveDraftShortlistTarget[];
@@ -751,6 +778,91 @@ const personalPremiumFor = (
   return premium;
 };
 
+const personalValueForStrategy = ({
+  player,
+  watchOwner,
+  liveExpectedPrice,
+  strategy,
+  pricingConfig,
+}: {
+  player: LiveDraftPlayerRecord;
+  watchOwner: LiveDraftOwnerState;
+  liveExpectedPrice: number;
+  strategy: LiveDraftStrategyDefinition;
+  pricingConfig: PricingConfig;
+}): number => {
+  const positionCeiling = pricingConfig.hardPriceCeilings[player.position];
+  const uncappedPersonalValue = roundPrice(
+    liveExpectedPrice + personalPremiumFor(player, watchOwner, strategy),
+  );
+
+  return Math.min(
+    watchOwner.maxBid,
+    positionCeiling,
+    player.expectedPrice + 12,
+    Math.max(1, uncappedPersonalValue),
+  );
+};
+
+const saleAuditVerdictFor = ({
+  price,
+  expectedPrice,
+  liveExpectedPrice,
+  personalValue,
+}: {
+  price: number;
+  expectedPrice: number;
+  liveExpectedPrice: number;
+  personalValue: number;
+}): LiveDraftSaleAuditVerdict => {
+  const benchmarks = [
+    expectedPrice,
+    liveExpectedPrice,
+    ...(personalValue > 0 ? [personalValue] : []),
+  ];
+  const lowestBenchmark = Math.min(...benchmarks);
+  const highestBenchmark = Math.max(...benchmarks);
+
+  if (price <= lowestBenchmark - 3) return "deal";
+  if (price >= highestBenchmark + 6) return "overpay";
+  return "fair";
+};
+
+const saleAuditFor = ({
+  input,
+  sale,
+  liveExpectedPrice,
+  personalValue,
+}: {
+  input: string;
+  sale: ResolvedSale;
+  liveExpectedPrice: number;
+  personalValue: number;
+}): LiveDraftSaleAudit => {
+  const price = sale.parsed.price;
+
+  return {
+    input,
+    owner: sale.owner,
+    player: sale.player.name,
+    normalizedPlayerName: sale.player.normalizedName,
+    position: sale.player.position,
+    price,
+    expectedPrice: sale.player.expectedPrice,
+    liveExpectedPrice,
+    personalValue,
+    expectedDelta: price - sale.player.expectedPrice,
+    liveDelta: price - liveExpectedPrice,
+    personalDelta: price - personalValue,
+    verdict: saleAuditVerdictFor({
+      price,
+      expectedPrice: sale.player.expectedPrice,
+      liveExpectedPrice,
+      personalValue,
+    }),
+  };
+};
+
 const priceBandText = ({
   minimumPrice,
   maximumPrice,
@@ -792,6 +904,7 @@ const buildTargets = ({
   room,
   targetLimit,
   strategy,
+  pricingConfig,
 }: {
   records: readonly LiveDraftPlayerRecord[];
   soldNames: ReadonlySet<string>;
@@ -799,6 +912,7 @@ const buildTargets = ({
   room: LiveDraftRoomState;
   targetLimit: number;
   strategy: LiveDraftStrategyDefinition;
+  pricingConfig: PricingConfig;
 }): LiveDraftTarget[] =>
   records
     .filter(player => !soldNames.has(player.normalizedName))
@@ -806,22 +920,16 @@ const buildTargets = ({
     .map(player => {
       const liveExpectedPrice = roundPrice(player.expectedPrice * room.liveInflationFactor);
       const needMultiplier = positionNeedMultiplierFor(player, watchOwner, strategy);
-      const positionCeiling = defaultPricingConfig.hardPriceCeilings[player.position];
-      const personalValueForStrategy = (candidateStrategy: LiveDraftStrategyDefinition): number => {
-        const uncappedPersonalValue = roundPrice(
-          liveExpectedPrice + personalPremiumFor(player, watchOwner, candidateStrategy),
-        );
-        return Math.min(
-          watchOwner.maxBid,
-          positionCeiling,
-          player.expectedPrice + 12,
-          Math.max(1, uncappedPersonalValue),
-        );
-      };
       const strategyValues = Object.fromEntries(
         Object.values(liveDraftStrategies).map(candidateStrategy => [
           candidateStrategy.key,
-          personalValueForStrategy(candidateStrategy),
+          personalValueForStrategy({
+            player,
+            watchOwner,
+            liveExpectedPrice,
+            strategy: candidateStrategy,
+            pricingConfig,
+          }),
         ]),
       ) as Record<LiveDraftStrategyKey, number>;
       const strategyPathMaxBid = strategyPathMaxBidFor(player, watchOwner, strategy);
@@ -1176,6 +1284,7 @@ export const buildLiveDraftState = ({
   const initialKeeperSpend = totalKeeperSpend(rostersByOwner);
   const soldNames = new Set(unavailableKeeperNames);
   const events: LiveDraftEvent[] = [];
+  const postDraftAudit: LiveDraftSaleAudit[] = [];
   const errors: LiveDraftCommandError[] = [];
 
   for (const input of commands) {
@@ -1187,6 +1296,27 @@ export const buildLiveDraftState = ({
 
       const roster = rostersByOwner.get(sale.owner) ?? [];
       validateSaleFitsOwner(sale, ownerStateFor(sale.owner, roster));
+      const ownerStatesBeforeSale = buildOwnerStates(rostersByOwner);
+      const roomBeforeSale = buildRoomState({
+        scenario,
+        owners: ownerStatesBeforeSale,
+        events,
+        records,
+        soldNames,
+        initialKeeperSpend,
+      });
+      const watchOwnerBeforeSale = ownerStatesBeforeSale.find(owner => owner.owner === watchOwner);
+      if (!watchOwnerBeforeSale) throw new Error(`Unknown watch owner "${watchOwner}".`);
+      const liveExpectedPrice = roundPrice(sale.player.expectedPrice * roomBeforeSale.liveInflationFactor);
+      const personalValue = canWatchOwnerRosterPlayer(sale.player, watchOwnerBeforeSale)
+        ? personalValueForStrategy({
+          player: sale.player,
+          watchOwner: watchOwnerBeforeSale,
+          liveExpectedPrice,
+          strategy,
+          pricingConfig,
+        })
+        : 0;
       roster.push(livePlayerForRoster(sale.player, sale.parsed.price));
       rostersByOwner.set(sale.owner, roster);
       soldNames.add(sale.player.normalizedName);
@@ -1201,6 +1331,7 @@ export const buildLiveDraftState = ({
         saleVsExpected: sale.parsed.price - sale.player.expectedPrice,
         playerSource: sale.player.source,
       });
+      postDraftAudit.push(saleAuditFor({ input, sale, liveExpectedPrice, personalValue }));
     } catch (error) {
       errors.push({
         input,
@@ -1228,6 +1359,7 @@ export const buildLiveDraftState = ({
     room,
     targetLimit,
     strategy,
+    pricingConfig,
   });
   const draftPath = buildDraftPath(strategy, currentWatchOwner, availableTargets);
 
@@ -1239,6 +1371,7 @@ export const buildLiveDraftState = ({
     owners,
     events,
     errors,
+    postDraftAudit,
     availableTargets,
     draftPath,
     shortlist: buildShortlist(availableTargets),

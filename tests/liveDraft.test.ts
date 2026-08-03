@@ -68,6 +68,24 @@ describe("live draft room", () => {
     expect(updatedState.room.saleVsExpected).toBe(26);
     expect(updatedState.room.liveInflationFactor).toBeLessThan(initialState.room.liveInflationFactor);
     expect(updatedState.availableTargets[0]?.recommendedMaxBid).toBeLessThanOrEqual(updatedState.watchOwner.maxBid);
+    expect(updatedState.postDraftAudit).toHaveLength(1);
+    expect(updatedState.postDraftAudit[0]).toMatchObject({
+      input: "jakub drafted kittle for 28",
+      owner: "Jakub",
+      player: "George Kittle",
+      position: "TE",
+      price: 28,
+      expectedPrice: 2,
+      expectedDelta: 26,
+      liveExpectedPrice: expect.any(Number),
+      liveDelta: expect.any(Number),
+      personalValue: expect.any(Number),
+      personalDelta: expect.any(Number),
+      verdict: "overpay",
+    });
+    expect(updatedState.postDraftAudit[0]?.personalDelta).toBe(
+      28 - (updatedState.postDraftAudit[0]?.personalValue ?? 0),
+    );
   });
 
   it("rejects impossible sale commands before changing the live draft state", async () => {

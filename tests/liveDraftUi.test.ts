@@ -47,6 +47,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"owner-needs\"");
     expect(liveDraftHtml).toContain("id=\"position-market\"");
     expect(liveDraftHtml).toContain("id=\"readiness-checks\"");
+    expect(liveDraftHtml).toContain("id=\"post-draft-audit\"");
     expect(liveDraftHtml).toContain("id=\"draft-path\"");
     expect(liveDraftHtml).toContain("id=\"shortlist\"");
     expect(liveDraftHtml).toContain("id=\"position-context\"");
@@ -147,6 +148,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderShortlist = state =>");
     expect(liveDraftHtml).toContain("const renderPositionContext = state =>");
     expect(liveDraftHtml).toContain("const renderReadiness = state =>");
+    expect(liveDraftHtml).toContain("const renderPostDraftAudit = state =>");
+    expect(liveDraftHtml).toContain("state.postDraftAudit");
+    expect(liveDraftHtml).toContain("'Mock ' + mockRangeText(audit.mockRange)");
+    expect(liveDraftHtml).toContain("audit.verdict");
     expect(liveDraftHtml).toContain("const renderImportConflictReview = state =>");
     expect(liveDraftHtml).toContain("state.conflictReview");
     expect(liveDraftHtml).toContain("issue.matchOptions");

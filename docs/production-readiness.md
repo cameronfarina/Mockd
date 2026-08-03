@@ -20,16 +20,16 @@ This does not need a database for the first real draft night. A database becomes
 4. Run `npm run smoke -- --scenario=expected --runs=2 --seed=smoke` and inspect the first two rounds for obviously unrealistic prices.
 5. Keep the ESPN projection input and checked-in player evidence unchanged during the draft unless a correction is intentional.
 
-## Next Local Slices
+## Completed Local Slices
 
-1. Add named session controls in the UI for `live`, `practice-3rb`, `practice-wr-heavy`, and custom scratch rooms.
-2. Add a draft-night lock mode that hides or disables mock advance buttons in the real live session.
-3. Add a one-click session export bundle containing current snapshot, backup, JSON commands, CSV commands, and readiness status.
-4. Add a compact command conflict review screen for invalid imports and ambiguous player names.
-5. Add direct "nominate for Cam" support in the interactive mock when the snake turn reaches Cam.
-6. Add mock speed controls: next AI sale, next Cam decision, next round, and complete mock.
-7. Add strategy comparison rows so one player can show Balanced / 3RB / Hero RB / WR Heavy personal values side by side.
-8. Add a post-draft audit that compares actual sale prices to expected, live, personal, and mock ranges.
+1. Named session controls in the UI for `live`, `practice-3rb`, `practice-wr-heavy`, and custom scratch rooms.
+2. Draft-night lock mode that blocks mock advance actions in the real live session.
+3. One-click session export bundle containing current snapshot, backup, JSON commands, CSV commands, and readiness status.
+4. Compact command conflict review for invalid imports and ambiguous player names.
+5. Direct "nominate for Cam" support in the interactive mock when the snake turn reaches Cam.
+6. Mock speed controls: next AI sale, next Cam decision, next round, and complete mock.
+7. Strategy comparison rows so one player can show Balanced / 3RB / Hero RB / WR Heavy personal values side by side.
+8. Post-draft audit that compares actual sale prices to expected, live, personal, and mock ranges.
 
 ## Hosted Product Slices
 

@@ -366,6 +366,15 @@ describe("live draft server", () => {
         .then(response => response.json());
       expect(realAfterBatch.session.commandCount).toBe(1);
       expect(practiceAfterBatch.session.commandCount).toBe(1);
+      expect(practiceAfterBatch.postDraftAudit[0]).toMatchObject({
+        player: "Jahmyr Gibbs",
+        mockRange: {
+          averageSalePrice: 77,
+          minimumSalePrice: 76,
+          maximumSalePrice: 78,
+          draftedRate: 1,
+        },
+      });
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

@@ -1473,6 +1473,8 @@ export const liveDraftHtml = `<!doctype html>
               <span class="subtle">Run mocks to compare AI-only team outcomes for the selected strategy.</span>
             </div>
           </div>
+          <div class="section-label">Post Draft Audit</div>
+          <div class="summary-list" id="post-draft-audit"></div>
           <div class="section-label">Readiness</div>
           <div class="summary-list" id="readiness-checks"></div>
           <div class="section-label">Draft Path</div>
@@ -2260,6 +2262,39 @@ export const liveDraftHtml = `<!doctype html>
       }));
     };
 
+    const mockRangeText = mockRange => {
+      if (!mockRange) return '-';
+      return money(mockRange.minimumSalePrice) + '-' + money(mockRange.maximumSalePrice) +
+        ' avg ' + money(mockRange.averageSalePrice) +
+        ' / ' + Math.round(Number(mockRange.draftedRate || 0) * 100) + '% drafted';
+    };
+
+    const auditClassFor = audit => {
+      if (audit.verdict === 'overpay') return 'summary-item warn';
+      if (audit.verdict === 'deal') return 'summary-item';
+      return 'summary-item';
+    };
+
+    const renderPostDraftAudit = state => {
+      const audits = Array.isArray(state.postDraftAudit) ? state.postDraftAudit.slice().reverse() : [];
+      if (!audits.length) {
+        byId('post-draft-audit').replaceChildren(mockDraftItem('No sales yet', 'Audit appears after purchases are logged.'));
+        return;
+      }
+
+      byId('post-draft-audit').replaceChildren(...audits.slice(0, 8).map(audit => {
+        const item = document.createElement('div');
+        item.className = auditClassFor(audit);
+        const mockLine = 'Mock ' + mockRangeText(audit.mockRange);
+        item.replaceChildren(
+          textElement('strong', audit.player + ' - ' + audit.owner + ' ' + money(audit.price) + ' - ' + audit.verdict),
+          textElement('span', 'Exp ' + deltaMoney(audit.expectedDelta) + ' / Live ' + deltaMoney(audit.liveDelta) + ' / Our ' + deltaMoney(audit.personalDelta), 'subtle'),
+          textElement('span', mockLine, 'subtle')
+        );
+        return item;
+      }));
+    };
+
     const renderImportConflictReview = state => {
       const root = byId('import-conflict-review');
       const review = state.conflictReview;
@@ -2689,6 +2724,7 @@ export const liveDraftHtml = `<!doctype html>
       renderBoard(state);
       renderSelected(state);
       renderReadiness(state);
+      renderPostDraftAudit(state);
       renderDraftPath(state);
       renderShortlist(state);
       renderRoster(state);

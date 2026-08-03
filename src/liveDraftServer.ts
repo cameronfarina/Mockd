@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { keepers } from "../config/keepers.js";
 import { ownerOrder } from "../config/league.js";
+import { normalizePlayerName } from "./data/normalizePlayerName.js";
 import {
   loadHistoricalAuctionRecords,
   type HistoricalAuctionRecord,
@@ -22,6 +23,7 @@ import {
   type LiveDraftReadiness,
   type LiveDraftReadinessCheck,
   type LiveDraftReadinessStatus,
+  type LiveDraftSaleMockRange,
   type LiveDraftState,
 } from "./modeling/liveDraft.js";
 import { strategyAuctionOverridesFor } from "./modeling/interactiveMockDraft.js";
@@ -590,6 +592,39 @@ export const createLiveDraftServer = async (
     return mode === "interactive-mock" ? pair.interactiveMock : pair.real;
   };
   await storePairFor(defaultLiveDraftSessionKey);
+  const mockBatchJobs = new Map<string, MockBatchJob>();
+  let latestMockBatchJobId: string | undefined;
+
+  const latestCompleteMockBatchReport = (): MockResultsReport | undefined => {
+    const job = latestMockBatchJobId === undefined ? undefined : mockBatchJobs.get(latestMockBatchJobId);
+    return job?.status === "complete" ? job.result : undefined;
+  };
+
+  const mockRangesFor = (report: MockResultsReport): Map<string, LiveDraftSaleMockRange> =>
+    new Map(report.summary.players.map(player => [
+      normalizePlayerName(player.name),
+      {
+        draftedRate: player.draftedRate,
+        averageSalePrice: player.averageSalePrice,
+        minimumSalePrice: player.minimumSalePrice,
+        maximumSalePrice: player.maximumSalePrice,
+      },
+    ]));
+
+  const stateWithLatestMockRanges = (state: LiveDraftState): LiveDraftState => {
+    const report = latestCompleteMockBatchReport();
+    if (!report || !state.postDraftAudit.length) return state;
+
+    const ranges = mockRangesFor(report);
+    return {
+      ...state,
+      postDraftAudit: state.postDraftAudit.map(audit => {
+        const mockRange = ranges.get(audit.normalizedPlayerName);
+        return mockRange ? { ...audit, mockRange } : audit;
+      }),
+    };
+  };
+
   const stateFor = async ({
     draftSessionKey = defaultLiveDraftSessionKey,
     mode = defaultLiveDraftSessionMode,
@@ -602,7 +637,7 @@ export const createLiveDraftServer = async (
     strategyKey?: LiveDraftStrategyKey;
   } = {}): Promise<LiveDraftStateResponse> => {
     const store = await storeFor(draftSessionKey, mode);
-    const state = buildLiveDraftState({
+    const state = stateWithLatestMockRanges(buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
@@ -611,7 +646,7 @@ export const createLiveDraftServer = async (
       strategyKey,
       commands: commands ?? store.currentCommands(),
       targetLimit: liveTargetLimit,
-    });
+    }));
     const session = store.status();
     return {
       ...state,
@@ -813,9 +848,6 @@ export const createLiveDraftServer = async (
       body: await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
     };
   };
-  const mockBatchJobs = new Map<string, MockBatchJob>();
-  let latestMockBatchJobId: string | undefined;
-
   const mockBatchJobResponseFor = (job: MockBatchJob): MockBatchJob => ({
     jobId: job.jobId,
     status: job.status,
