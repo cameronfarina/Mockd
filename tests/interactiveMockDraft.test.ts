@@ -86,7 +86,7 @@ describe("interactive mock draft", () => {
     expect(state.camDecision).toMatchObject({
       maxBid: 46,
       recommendedBid: 40,
-      topAiBid: 41,
+      topAiBid: 46,
       topAiBidOwner: "Russ",
     });
     expect(state.auction).toMatchObject({

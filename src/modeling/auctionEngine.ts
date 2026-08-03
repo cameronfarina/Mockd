@@ -70,6 +70,15 @@ export interface RoomPressureConfig {
   maximumPlayerPrice: number;
 }
 
+export interface CompetitionPressureConfig {
+  minimumPlayerPrice: number;
+  anchorPriceRatio: number;
+  missingStarterSlope: number;
+  missingFlexSlope: number;
+  maxRivalAnchors: number;
+  maxMultiplier: number;
+}
+
 export interface BudgetPacingConfig {
   targetBudgetPerSlotAfterPurchase: number;
   slope: number;
@@ -162,6 +171,7 @@ export interface AuctionEngineConfig {
   nomination: NominationConfig;
   endgameSpend: EndgameSpendConfig;
   roomPressure: RoomPressureConfig;
+  competitionPressure: CompetitionPressureConfig;
   budgetPacing: BudgetPacingConfig;
   bidVariance: BidVarianceConfig;
   lateOpeningBid: LateOpeningBidConfig;
@@ -173,7 +183,7 @@ export interface AuctionEngineConfig {
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "ownerPositionAnchorTargets" | "ownerPositionCoreTargets" | "ownerPositionCoreMaxBids" | "ownerPositionSlotMaxBids" | "ownerPositionCoreBudgetEnvelopes" | "ownerPlayerTargetMaxBids" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "roomPressure" | "budgetPacing" | "bidVariance" | "lateOpeningBid" | "topEndOverbidDamping" | "contextPenaltyBidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "ownerPositionAnchorTargets" | "ownerPositionCoreTargets" | "ownerPositionCoreMaxBids" | "ownerPositionSlotMaxBids" | "ownerPositionCoreBudgetEnvelopes" | "ownerPlayerTargetMaxBids" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "roomPressure" | "competitionPressure" | "budgetPacing" | "bidVariance" | "lateOpeningBid" | "topEndOverbidDamping" | "contextPenaltyBidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
     ownerRosterMaximums?: OwnerRosterMaximums;
@@ -189,6 +199,7 @@ export type AuctionEngineConfigOverrides =
     nomination?: Partial<NominationConfig>;
     endgameSpend?: Partial<EndgameSpendConfig>;
     roomPressure?: Partial<RoomPressureConfig>;
+    competitionPressure?: Partial<CompetitionPressureConfig>;
     budgetPacing?: Partial<BudgetPacingConfig>;
     bidVariance?: Partial<BidVarianceConfig>;
     lateOpeningBid?: Partial<LateOpeningBidConfig>;
@@ -224,6 +235,7 @@ export interface AuctionBid {
   replacementPatienceMultiplier: number;
   endgamePressureMultiplier: number;
   roomPressureMultiplier: number;
+  competitionPressureMultiplier: number;
   budgetPacingMultiplier: number;
   bidVarianceMultiplier: number;
   topEndDampingMultiplier: number;
@@ -517,6 +529,14 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     minimumPlayerPrice: 30,
     maximumPlayerPrice: 60,
   },
+  competitionPressure: {
+    minimumPlayerPrice: 30,
+    anchorPriceRatio: 0.8,
+    missingStarterSlope: 0.08,
+    missingFlexSlope: 0.04,
+    maxRivalAnchors: 2,
+    maxMultiplier: 1.12,
+  },
   budgetPacing: {
     targetBudgetPerSlotAfterPurchase: 4,
     slope: 0.85,
@@ -631,6 +651,10 @@ export const buildAuctionConfig = (
   roomPressure: {
     ...defaultAuctionEngineConfig.roomPressure,
     ...overrides.roomPressure,
+  },
+  competitionPressure: {
+    ...defaultAuctionEngineConfig.competitionPressure,
+    ...overrides.competitionPressure,
   },
   budgetPacing: {
     ...defaultAuctionEngineConfig.budgetPacing,
@@ -1066,6 +1090,72 @@ const roomPressureMultiplierFor = (
   );
 };
 
+const positionNeedTypeFor = (
+  state: AuctionOwnerState,
+  position: Position,
+  config: AuctionEngineConfig,
+): "starter" | "flex" | undefined => {
+  const counts = countPositions(state.roster);
+  if (counts[position] < config.starterMinimums[position]) return "starter";
+  if (isFlexEligible(position) && flexEligibleCount(counts) < minimumFlexEligibleCount(config)) return "flex";
+
+  return undefined;
+};
+
+const rivalAnchorCountFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): number => {
+  const pressure = config.competitionPressure;
+  const anchorPrice = Math.max(
+    pressure.minimumPlayerPrice,
+    Math.ceil(player.price * pressure.anchorPriceRatio),
+  );
+
+  return ownerStates.filter(rival =>
+    rival.owner !== state.owner &&
+    rival.roster.some(rosteredPlayer =>
+      rosteredPlayer.position === player.position &&
+      rosteredPlayer.price >= anchorPrice
+    ) &&
+    ownerCanBidOnPlayer(rival, player, ownerStates, remainingPlayers, config)
+  ).length;
+};
+
+const competitionPressureMultiplierFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): number => {
+  const pressure = config.competitionPressure;
+  if (!isPremiumPosition(player.position)) return 1;
+  if (player.price < pressure.minimumPlayerPrice) return 1;
+
+  const needType = positionNeedTypeFor(state, player.position, config);
+  if (!needType) return 1;
+
+  const rivalAnchors = Math.min(
+    pressure.maxRivalAnchors,
+    rivalAnchorCountFor(state, player, ownerStates, remainingPlayers, config),
+  );
+  if (rivalAnchors <= 0) return 1;
+
+  const slope = needType === "starter"
+    ? pressure.missingStarterSlope
+    : pressure.missingFlexSlope;
+
+  return clamp(
+    1 + rivalAnchors * slope,
+    1,
+    pressure.maxMultiplier,
+  );
+};
+
 const budgetPacingMultiplierFor = (
   state: AuctionOwnerState,
   player: Player,
@@ -1319,6 +1409,8 @@ const buildStyleMultiplierFor = (
 const bidForOwner = (
   state: AuctionOwnerState,
   player: Player,
+  ownerStates: readonly AuctionOwnerState[],
+  remainingPlayers: readonly Player[],
   scarcityMultiplier: number,
   config: AuctionEngineConfig,
   openingBid = 0,
@@ -1333,6 +1425,13 @@ const bidForOwner = (
     : 1;
   const endgamePressureMultiplier = endgamePressureMultiplierFor(state, config);
   const roomPressureMultiplier = roomPressureMultiplierFor(state, player, config);
+  const competitionPressureMultiplier = competitionPressureMultiplierFor(
+    state,
+    player,
+    ownerStates,
+    remainingPlayers,
+    config,
+  );
   const budgetPacingMultiplier = budgetPacingMultiplierFor(state, player, config);
   const bidVarianceMultiplier = bidVarianceMultiplierFor(state, player, config);
   const rawBidMultiplier =
@@ -1344,6 +1443,7 @@ const bidForOwner = (
     replacementPatienceMultiplier *
     endgamePressureMultiplier *
     roomPressureMultiplier *
+    competitionPressureMultiplier *
     budgetPacingMultiplier *
     bidVarianceMultiplier;
   const topEndDampingMultiplier = topEndDampingMultiplierFor(player, rawBidMultiplier, config);
@@ -1400,6 +1500,7 @@ const bidForOwner = (
     replacementPatienceMultiplier,
     endgamePressureMultiplier,
     roomPressureMultiplier,
+    competitionPressureMultiplier,
     budgetPacingMultiplier,
     bidVarianceMultiplier,
     topEndDampingMultiplier,
@@ -1430,6 +1531,7 @@ const bidDriversFor = (bid: AuctionBid): AuctionBidDriver[] => {
     { key: "replacement_patience", multiplier: bid.replacementPatienceMultiplier },
     { key: "endgame_pressure", multiplier: bid.endgamePressureMultiplier },
     { key: "room_pressure", multiplier: bid.roomPressureMultiplier },
+    { key: "competition_pressure", multiplier: bid.competitionPressureMultiplier },
     { key: "budget_pacing", multiplier: bid.budgetPacingMultiplier },
     { key: "bid_variance", multiplier: bid.bidVarianceMultiplier },
     { key: "top_end_damping", multiplier: bid.topEndDampingMultiplier },
@@ -1616,6 +1718,8 @@ export const resolveAuctionSale = (
     .map(state => bidForOwner(
       state,
       player,
+      ownerStates,
+      remainingPlayers,
       scarcityMultiplier,
       config,
       state.owner === options.nominator ? nominatorOpeningBid : 0,

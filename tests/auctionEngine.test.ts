@@ -1157,6 +1157,105 @@ describe("auction engine economics", () => {
     expect(beatonBid?.uncappedAmount).toBeLessThan(target.price);
   });
 
+  it("raises unmet starter bids when a rival can consolidate a scarce anchor", () => {
+    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 200,
+      rosterSize: 16,
+      rosterMaximums: positionAmounts(16),
+      starterMinimums: {
+        ...positionAmounts(0),
+        RB: 1,
+      },
+      flexMinimum: 0,
+      ownerDemandMultipliers: {},
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1,
+          scarcityChase: 1,
+          replacementPatience: 1,
+          anchorAggression: 1,
+          depthAggression: 1,
+        },
+        Hoody: {
+          priceAggression: 1,
+          scarcityChase: 1,
+          replacementPatience: 1,
+          anchorAggression: 1,
+          depthAggression: 1,
+        },
+        PJ: {
+          priceAggression: 1,
+          scarcityChase: 1,
+          replacementPatience: 1,
+          anchorAggression: 1,
+          depthAggression: 1,
+        },
+      },
+      bidVariance: {
+        maxDiscount: 0,
+        maxPremium: 0,
+      },
+      budgetPacing: {
+        maxDiscount: 0,
+      },
+      roomPressure: {
+        slope: 0,
+      },
+      scarcity: {
+        slope: 0,
+      },
+      topEndOverbidDamping: {
+        maxOverbidDiscount: 0,
+      },
+      positionOverbidDamping: {},
+      contextPenaltyBidDamping: {
+        maxOverbidDiscount: 0,
+      },
+      seed: "rival-anchor-pressure",
+    });
+    const target = player("Jahmyr Gibbs", "RB", 70);
+    const remainingRunningBacks = [
+      player("Fallback RB 1", "RB", 1),
+      player("Fallback RB 2", "RB", 1),
+      player("Fallback RB 3", "RB", 1),
+    ];
+    const openRoomSale = resolveAuctionSale(
+      target,
+      createAuctionOwnerStates({ config }),
+      remainingRunningBacks,
+      config,
+    );
+    const rivalAnchorSale = resolveAuctionSale(
+      target,
+      createAuctionOwnerStates({
+        config,
+        initialRostersByOwner: {
+          Beaton: [player("Bijan Robinson", "RB", 70)],
+        },
+      }),
+      remainingRunningBacks,
+      config,
+    );
+
+    expect(openRoomSale).toBeDefined();
+    expect(rivalAnchorSale).toBeDefined();
+    if (!openRoomSale) throw new Error("Expected open room sale to resolve.");
+    if (!rivalAnchorSale) throw new Error("Expected rival-anchor sale to resolve.");
+
+    const openHoodyBid = openRoomSale.bids.find(bid => bid.owner === "Hoody");
+    const pressuredHoodyBid = rivalAnchorSale.bids.find(bid => bid.owner === "Hoody");
+    const beatonBid = rivalAnchorSale.bids.find(bid => bid.owner === "Beaton");
+
+    expect(openHoodyBid).toBeDefined();
+    expect(pressuredHoodyBid).toBeDefined();
+    expect(beatonBid).toBeDefined();
+    expect(pressuredHoodyBid?.competitionPressureMultiplier).toBeGreaterThan(1);
+    expect(pressuredHoodyBid?.uncappedAmount).toBeGreaterThan(openHoodyBid?.uncappedAmount ?? 0);
+    expect(beatonBid?.competitionPressureMultiplier).toBe(1);
+  });
+
   it("damps tight end overbids without changing the TE anchor", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({

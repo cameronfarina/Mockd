@@ -83,6 +83,7 @@ describe("mock smoke report", () => {
           drivers: expect.any(Array),
           scarcityMultiplier: expect.any(Number),
           roomPressureMultiplier: expect.any(Number),
+          competitionPressureMultiplier: expect.any(Number),
           topEndDampingMultiplier: expect.any(Number),
           positionOverbidDampingMultiplier: expect.any(Number),
           contextPenaltyDampingMultiplier: expect.any(Number),
