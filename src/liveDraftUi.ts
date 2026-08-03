@@ -893,7 +893,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .mock-actions {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px;
     }
 
@@ -1438,6 +1438,9 @@ export const liveDraftHtml = `<!doctype html>
               <button type="button" id="mock-nominate-button" disabled>Nominate</button>
               <button type="button" id="mock-cam-win-button" disabled>Bid</button>
               <button type="button" id="mock-pass-button" disabled>Pass</button>
+              <button type="button" id="mock-next-decision-button" disabled>Next Cam</button>
+              <button type="button" id="mock-next-round-button" disabled>Next Round</button>
+              <button type="button" id="mock-complete-button" disabled>Complete</button>
             </div>
           </div>
           <div class="section-label">Mock Results</div>
@@ -2370,13 +2373,21 @@ export const liveDraftHtml = `<!doctype html>
       const phase = mockDraft ? mockDraft.phase : '';
       const camBidButton = byId('mock-cam-win-button');
       const nominateButton = byId('mock-nominate-button');
+      const nextDecisionButton = byId('mock-next-decision-button');
+      const nextRoundButton = byId('mock-next-round-button');
+      const completeButton = byId('mock-complete-button');
       const target = selectedTarget();
+      const terminal = phase === 'complete' || phase === 'blocked';
+      const humanStop = phase === 'human-decision' || phase === 'human-nomination';
       byId('mock-advance-button').disabled = !isMockMode || phase !== 'ai-sale';
       nominateButton.disabled = !isMockMode || phase !== 'human-nomination' || !target;
       nominateButton.textContent = target ? 'Nominate ' + shortPlayerName(target.name) : 'Nominate';
       camBidButton.disabled = !isMockMode || phase !== 'human-decision' || !mockDraft.camDecision;
       camBidButton.textContent = mockDraft && mockDraft.camDecision ? 'Bid ' + money(mockDraft.camDecision.recommendedBid) : 'Bid';
       byId('mock-pass-button').disabled = !isMockMode || phase !== 'human-decision';
+      nextDecisionButton.disabled = !isMockMode || terminal || humanStop;
+      nextRoundButton.disabled = !isMockMode || terminal || humanStop;
+      completeButton.disabled = !isMockMode || terminal;
 
       if (!isMockMode) {
         details.replaceChildren(mockDraftItem('Mock draft', 'Start mock draft to enter the practice room.'));
@@ -2663,6 +2674,9 @@ export const liveDraftHtml = `<!doctype html>
         byId('mock-nominate-button').disabled = true;
         byId('mock-cam-win-button').disabled = true;
         byId('mock-pass-button').disabled = true;
+        byId('mock-next-decision-button').disabled = true;
+        byId('mock-next-round-button').disabled = true;
+        byId('mock-complete-button').disabled = true;
         return null;
       }
     };
@@ -3074,6 +3088,9 @@ export const liveDraftHtml = `<!doctype html>
     byId('mock-nominate-button').addEventListener('click', () => advanceMockDraft('cam-nominate', selectedTargetName));
     byId('mock-cam-win-button').addEventListener('click', () => advanceMockDraft('cam-bid'));
     byId('mock-pass-button').addEventListener('click', () => advanceMockDraft('pass'));
+    byId('mock-next-decision-button').addEventListener('click', () => advanceMockDraft('next-cam-decision'));
+    byId('mock-next-round-button').addEventListener('click', () => advanceMockDraft('next-round'));
+    byId('mock-complete-button').addEventListener('click', () => advanceMockDraft('complete-mock'));
     byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign('/'));
     byId('mock-results-run-button').addEventListener('click', () => {
       const list = byId('mock-results-run-list');

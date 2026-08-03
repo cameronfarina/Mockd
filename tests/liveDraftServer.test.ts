@@ -16,23 +16,45 @@ type TestServer = Awaited<ReturnType<typeof createLiveDraftServer>>["server"];
 
 const mockSaleCommand = "Beaton drafted Jahmyr Gibbs for 74";
 const realSaleCommand = "Jakub drafted Christian McCaffrey for 80";
+const mockAiSaleCommands = [
+  mockSaleCommand,
+  "Mello drafted Puka Nacua for 74",
+] as const;
 
 const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiveMockDraft"]> = {
   buildInteractiveMockDraftState: options => ({
-    aiSaleCommand: mockSaleCommand,
+    phase: options.nominatedPlayer
+      ? "human-decision"
+      : options.commands.length >= 3
+        ? "complete"
+        : options.commands.length >= 2
+          ? "human-decision"
+          : "ai-sale",
+    pickNumber: options.commands.length + 1,
+    aiSaleCommand: mockAiSaleCommands[options.commands.length] ?? mockAiSaleCommands[1],
+    nomination: options.nominatedPlayer ? { player: options.nominatedPlayer } : { player: "Breece Hall" },
+    camDecision: options.nominatedPlayer || options.commands.length >= 2
+      ? { recommendedBid: 42, maxBid: 44, topAiBid: 41, topAiBidOwner: "Chip" }
+      : undefined,
+    topTargets: [{ name: "Breece Hall" }],
     commandCount: options.commands.length,
     nominatedPlayer: options.nominatedPlayer,
     seed: options.seed,
     strategyKey: options.strategyKey,
   }),
   resolveInteractiveMockDraftAction: (mockDraft, action) => {
+    const draft = mockDraft as {
+      aiSaleCommand?: string;
+      nominatedPlayer?: string;
+      nomination?: { player?: string };
+    };
     if (action === "cam-bid") {
-      const nominatedPlayer = (mockDraft as { nominatedPlayer?: string }).nominatedPlayer ?? "Breece Hall";
+      const nominatedPlayer = draft.nominatedPlayer ?? draft.nomination?.player ?? "Breece Hall";
       return { command: `Cam drafted ${nominatedPlayer} for 42` };
     }
     if (action !== "advance") throw new Error(`Unexpected test action: ${action}`);
 
-    return { command: mockSaleCommand };
+    return { command: draft.aiSaleCommand ?? mockSaleCommand };
   },
 };
 
@@ -576,6 +598,48 @@ describe("live draft server", () => {
       expect(camBid.data.events.map((event: { input: string }) => event.input)).toEqual([
         "Cam drafted Breece Hall for 42",
       ]);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("runs interactive mock speed controls through persisted sale commands", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const nextCamDecision = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "practice-wr-heavy",
+        strategyKey: "wr-heavy",
+        seed: "server-speed-controls",
+        action: "next-cam-decision",
+      });
+      expect(nextCamDecision.status).toBe(200);
+      expect(nextCamDecision.data.session.commandCount).toBe(2);
+      expect(nextCamDecision.data.events.map((event: { input: string }) => event.input)).toEqual([
+        mockAiSaleCommands[0],
+        mockAiSaleCommands[1],
+      ]);
+      expect(nextCamDecision.data.mockDraft.phase).toBe("human-decision");
+
+      const complete = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "practice-wr-heavy",
+        strategyKey: "wr-heavy",
+        seed: "server-speed-controls",
+        action: "complete-mock",
+      });
+      expect(complete.status).toBe(200);
+      expect(complete.data.session.commandCount).toBe(3);
+      expect(complete.data.events.map((event: { input: string }) => event.input)).toContain(
+        "Cam drafted Breece Hall for 42",
+      );
+      expect(complete.data.mockDraft.phase).toBe("complete");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

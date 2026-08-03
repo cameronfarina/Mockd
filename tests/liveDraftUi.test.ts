@@ -55,6 +55,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"mock-nominate-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-cam-win-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-pass-button\"");
+    expect(liveDraftHtml).toContain("id=\"mock-next-decision-button\"");
+    expect(liveDraftHtml).toContain("id=\"mock-next-round-button\"");
+    expect(liveDraftHtml).toContain("id=\"mock-complete-button\"");
     expect(liveDraftHtml).toContain("class=\"sidebar\"");
     expect(liveDraftHtml).toContain("class=\"workspace\"");
     expect(liveDraftHtml).toContain("class=\"sidebar-section\"");
@@ -108,6 +111,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("'Nominate ' + shortPlayerName(target.name)");
     expect(liveDraftHtml).toContain("advanceMockDraft('cam-bid')");
     expect(liveDraftHtml).toContain("advanceMockDraft('cam-nominate', selectedTargetName)");
+    expect(liveDraftHtml).toContain("advanceMockDraft('next-cam-decision')");
+    expect(liveDraftHtml).toContain("advanceMockDraft('next-round')");
+    expect(liveDraftHtml).toContain("advanceMockDraft('complete-mock')");
     expect(liveDraftHtml).toContain("'Bid ' + money(mockDraft.camDecision.recommendedBid)");
     expect(liveDraftHtml).toContain("mockDraftItem('Current nomination'");
     expect(liveDraftHtml).toContain("mockDraftItem('Top AI bids'");

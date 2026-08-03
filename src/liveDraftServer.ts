@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { keepers } from "../config/keepers.js";
+import { ownerOrder } from "../config/league.js";
 import {
   loadHistoricalAuctionRecords,
   type HistoricalAuctionRecord,
@@ -527,6 +528,33 @@ const mockBatchStrategySequence = (
   );
 };
 
+const mockSpeedActions = new Set(["next-ai-sale", "next-cam-decision", "next-round", "complete-mock"]);
+
+const mockDraftRecord = (mockDraft: unknown): Record<string, unknown> =>
+  mockDraft && typeof mockDraft === "object" ? mockDraft as Record<string, unknown> : {};
+
+const mockDraftPhaseFor = (mockDraft: unknown): string => {
+  const phase = mockDraftRecord(mockDraft).phase;
+  return typeof phase === "string" ? phase : "";
+};
+
+const mockDraftPickNumberFor = (mockDraft: unknown): number => {
+  const pickNumber = mockDraftRecord(mockDraft).pickNumber;
+  return typeof pickNumber === "number" && Number.isFinite(pickNumber) ? pickNumber : 1;
+};
+
+const mockDraftTopTargetNameFor = (mockDraft: unknown): string | undefined => {
+  const topTargets = mockDraftRecord(mockDraft).topTargets;
+  if (!Array.isArray(topTargets)) return undefined;
+  const candidate = topTargets[0];
+  if (!candidate || typeof candidate !== "object") return undefined;
+  const name = (candidate as Record<string, unknown>).name;
+  return typeof name === "string" && name.trim() ? name.trim() : undefined;
+};
+
+const mockDraftRoundForPick = (pickNumber: number): number =>
+  Math.floor((Math.max(1, pickNumber) - 1) / ownerOrder.length);
+
 export const createLiveDraftServer = async (
   options: CreateLiveDraftServerOptions = {},
 ): Promise<LiveDraftServerApp> => {
@@ -668,6 +696,121 @@ export const createLiveDraftServer = async (
       auditLogJsonl: await readTextFileIfPresent(state.session.paths.logPath),
       commandsJson: liveDraftCommandsJson(commands),
       commandsCsv: liveDraftCommandsCsv(commands),
+    };
+  };
+  const appendInteractiveMockCommand = async ({
+    store,
+    draftSessionKey,
+    strategyKey,
+    command,
+  }: {
+    store: FileBackedLiveDraftSessionStore;
+    draftSessionKey: string;
+    strategyKey: LiveDraftStrategyKey;
+    command: string;
+  }): Promise<{ input: string; message: string } | undefined> => {
+    const trialCommands = [...store.currentCommands(), command];
+    const trialState = await stateFor({
+      draftSessionKey,
+      mode: "interactive-mock",
+      commands: trialCommands,
+      strategyKey,
+    });
+    const commandError = trialState.errors.find(error => error.input === command);
+    if (commandError) return commandError;
+
+    await store.appendCommand(command);
+    return undefined;
+  };
+  const runMockSpeedAction = async ({
+    draftSessionKey,
+    strategyKey,
+    seed,
+    action,
+    nominatedPlayer,
+  }: {
+    draftSessionKey: string;
+    strategyKey: LiveDraftStrategyKey;
+    seed?: string;
+    action: string;
+    nominatedPlayer?: string;
+  }): Promise<{ status: number; body: LiveDraftStateResponse & { mockDraft: unknown; errors?: { input: string; message: string }[] } }> => {
+    const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
+    const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
+    const maximumSteps = ownerOrder.length * 20;
+    let appendedCount = 0;
+    let startRound: number | undefined;
+    let nextNominatedPlayer = nominatedPlayer;
+
+    for (let step = 0; step < maximumSteps; step += 1) {
+      const mockDraft = await mockDraftFor({
+        ...mockDraftRequestFor(strategyKey, seed, nextNominatedPlayer),
+        draftSessionKey,
+      });
+      const phase = mockDraftPhaseFor(mockDraft);
+      const pickNumber = mockDraftPickNumberFor(mockDraft);
+      startRound ??= mockDraftRoundForPick(pickNumber);
+
+      if (action === "next-ai-sale" && appendedCount > 0) break;
+      if ((action === "next-cam-decision" || action === "next-round") && (
+        phase === "human-decision" ||
+        phase === "human-nomination" ||
+        phase === "complete" ||
+        phase === "blocked"
+      )) break;
+      if (action === "next-round" && appendedCount > 0 && mockDraftRoundForPick(pickNumber) !== startRound) break;
+      if (action === "complete-mock" && (phase === "complete" || phase === "blocked")) break;
+
+      let command: string | undefined;
+      if (phase === "ai-sale") {
+        command = commandFromInteractiveMockAction(
+          interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, "advance"),
+        );
+      } else if (phase === "human-decision" && action === "complete-mock") {
+        command = commandFromInteractiveMockAction(
+          interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, "cam-bid"),
+        );
+      } else if (phase === "human-nomination" && action === "complete-mock") {
+        const automaticNomination = mockDraftTopTargetNameFor(mockDraft);
+        if (!automaticNomination) break;
+        const nominatedMockDraft = await mockDraftFor({
+          ...mockDraftRequestFor(strategyKey, seed, automaticNomination),
+          draftSessionKey,
+        });
+        const nominatedPhase = mockDraftPhaseFor(nominatedMockDraft);
+        command = commandFromInteractiveMockAction(
+          interactiveMockDraft.resolveInteractiveMockDraftAction(
+            nominatedMockDraft,
+            nominatedPhase === "human-decision" ? "cam-bid" : "advance",
+          ),
+        );
+      } else {
+        break;
+      }
+
+      const commandError = await appendInteractiveMockCommand({
+        store: interactiveMockStore,
+        draftSessionKey,
+        strategyKey,
+        command,
+      });
+      if (commandError) {
+        return {
+          status: 422,
+          body: {
+            ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed, nextNominatedPlayer), draftSessionKey }),
+            errors: [commandError],
+          },
+        };
+      }
+
+      appendedCount += 1;
+      nextNominatedPlayer = undefined;
+    }
+
+    return {
+      status: 200,
+      body: await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
     };
   };
   const mockBatchJobs = new Map<string, MockBatchJob>();
@@ -890,6 +1033,18 @@ export const createLiveDraftServer = async (
             ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer), draftSessionKey }),
             errors: [{ input: "", message: "Mock draft action is required." }],
           });
+          return;
+        }
+
+        if (mockSpeedActions.has(action)) {
+          const result = await runMockSpeedAction({
+            draftSessionKey,
+            strategyKey,
+            action,
+            ...(seed === undefined ? {} : { seed }),
+            ...(nominatedPlayer === undefined ? {} : { nominatedPlayer }),
+          });
+          sendJson(response, result.status, result.body);
           return;
         }
 
