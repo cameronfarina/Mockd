@@ -27,6 +27,13 @@ export const liveDraftHtml = `<!doctype html>
       --amber: #f2a93b;
       --danger: #ff716a;
       --purple: #a78bfa;
+      --pos-rb: #63a8ff;
+      --pos-wr: #a78bfa;
+      --pos-te: #1fcf8f;
+      --pos-qb: #ff8a4c;
+      --pos-k: #f8d866;
+      --pos-dst: #ff5c7a;
+      --pos-flex: #22d3ee;
       --shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
       --nav-rail-width: 356px;
       --global-menu-width: 260px;
@@ -39,6 +46,48 @@ export const liveDraftHtml = `<!doctype html>
 
     [hidden] {
       display: none !important;
+    }
+
+    .position-rb {
+      --position-accent: var(--pos-rb);
+      --position-accent-soft: rgba(99, 168, 255, 0.11);
+      --position-accent-line: rgba(99, 168, 255, 0.46);
+    }
+
+    .position-wr {
+      --position-accent: var(--pos-wr);
+      --position-accent-soft: rgba(167, 139, 250, 0.11);
+      --position-accent-line: rgba(167, 139, 250, 0.46);
+    }
+
+    .position-te {
+      --position-accent: var(--pos-te);
+      --position-accent-soft: rgba(31, 207, 143, 0.1);
+      --position-accent-line: rgba(31, 207, 143, 0.42);
+    }
+
+    .position-qb {
+      --position-accent: var(--pos-qb);
+      --position-accent-soft: rgba(255, 138, 76, 0.1);
+      --position-accent-line: rgba(255, 138, 76, 0.42);
+    }
+
+    .position-k {
+      --position-accent: var(--pos-k);
+      --position-accent-soft: rgba(248, 216, 102, 0.09);
+      --position-accent-line: rgba(248, 216, 102, 0.38);
+    }
+
+    .position-dst {
+      --position-accent: var(--pos-dst);
+      --position-accent-soft: rgba(255, 92, 122, 0.1);
+      --position-accent-line: rgba(255, 92, 122, 0.42);
+    }
+
+    .position-flex {
+      --position-accent: var(--pos-flex);
+      --position-accent-soft: rgba(34, 211, 238, 0.1);
+      --position-accent-line: rgba(34, 211, 238, 0.42);
     }
 
     html {
@@ -83,7 +132,7 @@ export const liveDraftHtml = `<!doctype html>
 
     button.primary {
       border-color: rgba(99, 168, 255, 0.72);
-      background: #63a8ff;
+      background: linear-gradient(135deg, #63a8ff 0%, #8ecbff 100%);
       color: #06101a;
       font-weight: 750;
     }
@@ -621,6 +670,7 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .sidebar-section {
+      position: relative;
       display: grid;
       gap: 8px;
       min-width: 0;
@@ -628,6 +678,34 @@ export const liveDraftHtml = `<!doctype html>
       border: 1px solid rgba(21, 50, 77, 0.82);
       border-radius: 8px;
       background: rgba(8, 24, 38, 0.68);
+    }
+
+    .sidebar-section::before {
+      content: "";
+      position: absolute;
+      top: 12px;
+      bottom: 12px;
+      left: -1px;
+      width: 2px;
+      border-radius: 999px;
+      background: var(--section-accent, var(--accent));
+      opacity: 0.76;
+    }
+
+    .sidebar-section:nth-of-type(1) {
+      --section-accent: var(--accent);
+    }
+
+    .sidebar-section:nth-of-type(2) {
+      --section-accent: var(--purple);
+    }
+
+    .sidebar-section:nth-of-type(3) {
+      --section-accent: var(--green);
+    }
+
+    .sidebar-section:nth-of-type(4) {
+      --section-accent: var(--amber);
     }
 
     .sidebar-section .section-label {
@@ -666,12 +744,53 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .metric {
+      --metric-accent: var(--accent);
+      --metric-wash: rgba(99, 168, 255, 0.1);
+      --metric-line: rgba(99, 168, 255, 0.28);
+      position: relative;
+      overflow: hidden;
       min-width: 0;
       padding: 12px 14px;
-      border: 1px solid var(--line);
+      border: 1px solid var(--metric-line);
       border-radius: 8px;
-      background: rgba(8, 24, 38, 0.92);
+      background: linear-gradient(180deg, var(--metric-wash) 0%, rgba(8, 24, 38, 0.92) 62%);
       box-shadow: var(--shadow);
+    }
+
+    .metric::before {
+      content: "";
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--metric-accent);
+      box-shadow: 0 0 16px var(--metric-accent);
+    }
+
+    .metric:nth-child(2) {
+      --metric-accent: var(--purple);
+      --metric-wash: rgba(167, 139, 250, 0.1);
+      --metric-line: rgba(167, 139, 250, 0.26);
+    }
+
+    .metric:nth-child(3) {
+      --metric-accent: var(--amber);
+      --metric-wash: rgba(242, 169, 59, 0.1);
+      --metric-line: rgba(242, 169, 59, 0.28);
+    }
+
+    .metric:nth-child(4) {
+      --metric-accent: var(--green);
+      --metric-wash: rgba(31, 207, 143, 0.1);
+      --metric-line: rgba(31, 207, 143, 0.28);
+    }
+
+    .metric:nth-child(5) {
+      --metric-accent: var(--pos-qb);
+      --metric-wash: rgba(255, 138, 76, 0.09);
+      --metric-line: rgba(255, 138, 76, 0.26);
     }
 
     .metric span {
@@ -770,6 +889,12 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .filter-chip {
+      --chip-accent: var(--accent);
+      --chip-wash: rgba(99, 168, 255, 0.14);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       height: 28px;
       padding: 0 9px;
       border-color: var(--line);
@@ -779,9 +904,53 @@ export const liveDraftHtml = `<!doctype html>
       font-weight: 650;
     }
 
+    .filter-chip[data-position-filter="RB"] {
+      --chip-accent: var(--pos-rb);
+      --chip-wash: rgba(99, 168, 255, 0.16);
+    }
+
+    .filter-chip[data-position-filter="WR"] {
+      --chip-accent: var(--pos-wr);
+      --chip-wash: rgba(167, 139, 250, 0.16);
+    }
+
+    .filter-chip[data-position-filter="TE"] {
+      --chip-accent: var(--pos-te);
+      --chip-wash: rgba(31, 207, 143, 0.16);
+    }
+
+    .filter-chip[data-position-filter="QB"] {
+      --chip-accent: var(--pos-qb);
+      --chip-wash: rgba(255, 138, 76, 0.15);
+    }
+
+    .filter-chip[data-position-filter="K"] {
+      --chip-accent: var(--pos-k);
+      --chip-wash: rgba(248, 216, 102, 0.14);
+    }
+
+    .filter-chip[data-position-filter="DST"] {
+      --chip-accent: var(--pos-dst);
+      --chip-wash: rgba(255, 92, 122, 0.14);
+    }
+
+    .filter-chip[data-position-filter="FLEX"] {
+      --chip-accent: var(--pos-flex);
+      --chip-wash: rgba(34, 211, 238, 0.14);
+    }
+
+    .filter-chip:not([data-position-filter="ALL"])::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--chip-accent);
+      box-shadow: 0 0 12px var(--chip-accent);
+    }
+
     .filter-chip[aria-pressed="true"] {
-      border-color: var(--accent);
-      background: rgba(99, 168, 255, 0.18);
+      border-color: var(--chip-accent);
+      background: linear-gradient(180deg, var(--chip-wash) 0%, rgba(5, 11, 18, 0.5) 100%);
       color: #e7f2ff;
     }
 
@@ -823,12 +992,22 @@ export const liveDraftHtml = `<!doctype html>
       gap: 5px;
       align-items: baseline;
       padding: 4px 8px;
-      border: 1px solid rgba(21, 50, 77, 0.86);
+      border: 1px solid var(--position-accent-line, rgba(99, 168, 255, 0.42));
       border-radius: 6px;
-      background: rgba(12, 32, 51, 0.64);
+      background: linear-gradient(135deg, var(--position-accent-soft, rgba(99, 168, 255, 0.1)) 0%, rgba(12, 32, 51, 0.64) 58%);
       color: var(--muted);
       font-size: 11px;
       white-space: nowrap;
+    }
+
+    .market-pill::before {
+      content: "";
+      align-self: center;
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--position-accent, var(--accent));
+      box-shadow: 0 0 12px var(--position-accent, var(--accent));
     }
 
     .market-pill strong {
@@ -930,6 +1109,13 @@ export const liveDraftHtml = `<!doctype html>
       border-bottom: 1px solid var(--line-soft);
     }
 
+    .target-card[class*="position-"] {
+      padding-left: 8px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--position-accent-soft, rgba(99, 168, 255, 0.08)) 0%, transparent 34%);
+      box-shadow: inset 3px 0 0 var(--position-accent, var(--accent));
+    }
+
     .target-card:last-child {
       border-bottom: 0;
     }
@@ -955,7 +1141,7 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .target-card-meta {
-      color: var(--muted);
+      color: var(--position-accent, var(--muted));
       font-size: 12px;
       line-height: 1.25;
       white-space: nowrap;
@@ -1074,6 +1260,23 @@ export const liveDraftHtml = `<!doctype html>
       background: #0a1825;
     }
 
+    .board-table tbody tr[class*="position-"] td:first-child {
+      box-shadow: inset 3px 0 0 var(--position-accent);
+    }
+
+    .board-table tbody tr[class*="position-"] td:nth-child(3) {
+      color: var(--position-accent);
+      font-weight: 850;
+    }
+
+    .board-table tbody tr[class*="position-"]:hover {
+      background: linear-gradient(90deg, var(--position-accent-soft) 0%, rgba(99, 168, 255, 0.045) 48%, transparent 100%);
+    }
+
+    .board-table tbody tr[class*="position-"].is-selected {
+      background: linear-gradient(90deg, var(--position-accent-soft) 0%, rgba(99, 168, 255, 0.1) 52%, transparent 100%);
+    }
+
     th, td {
       padding: 8px 10px;
       border-bottom: 1px solid var(--line-soft);
@@ -1117,14 +1320,15 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .sort-heading {
-      display: inline-flex;
+      display: flex;
       align-items: center;
       justify-content: flex-start;
-      width: 100%;
-      min-height: 28px;
-      padding: 4px 8px;
-      border: 1px solid transparent;
-      border-radius: 6px;
+      width: calc(100% + 20px);
+      min-height: 36px;
+      margin: -8px -10px;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: 0;
       background: transparent;
       color: inherit;
       font: inherit;
@@ -1144,15 +1348,14 @@ export const liveDraftHtml = `<!doctype html>
 
     .sort-heading:hover,
     .sort-heading[data-active-sort="true"] {
-      border-color: rgba(99, 168, 255, 0.38);
-      background: rgba(99, 168, 255, 0.14);
+      background: rgba(99, 168, 255, 0.08);
+      box-shadow: inset 0 -2px 0 rgba(99, 168, 255, 0.72);
       color: #d9e7f5;
     }
 
     .sort-heading:focus-visible {
       outline: 0;
-      border-color: rgba(99, 168, 255, 0.82);
-      box-shadow: 0 0 0 3px rgba(99, 168, 255, 0.12);
+      box-shadow: inset 0 -2px 0 rgba(99, 168, 255, 0.82), 0 0 0 3px rgba(99, 168, 255, 0.12);
     }
 
     td.money, th.money, td.center, th.center {
@@ -1214,6 +1417,21 @@ export const liveDraftHtml = `<!doctype html>
       color: #7af0bd;
     }
 
+    .tag.need {
+      background: rgba(99, 168, 255, 0.16);
+      color: #b8dcff;
+    }
+
+    .tag.flex {
+      background: rgba(34, 211, 238, 0.13);
+      color: #9bedff;
+    }
+
+    .tag.strategy {
+      background: rgba(167, 139, 250, 0.15);
+      color: #d8ccff;
+    }
+
     .tag.warning {
       background: rgba(242, 169, 59, 0.16);
       color: var(--amber);
@@ -1230,15 +1448,38 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .strategy-value {
+      --strategy-accent: var(--accent);
+      --strategy-wash: rgba(99, 168, 255, 0.1);
       padding: 2px 5px;
-      border: 1px solid var(--line-soft);
+      border: 1px solid rgba(21, 50, 77, 0.76);
       border-radius: 4px;
       background: rgba(5, 11, 18, 0.32);
       white-space: nowrap;
     }
 
+    .strategy-balanced {
+      --strategy-accent: var(--pos-rb);
+      --strategy-wash: rgba(99, 168, 255, 0.12);
+    }
+
+    .strategy-three-rb {
+      --strategy-accent: var(--green);
+      --strategy-wash: rgba(31, 207, 143, 0.12);
+    }
+
+    .strategy-hero-rb {
+      --strategy-accent: var(--amber);
+      --strategy-wash: rgba(242, 169, 59, 0.13);
+    }
+
+    .strategy-wr-heavy {
+      --strategy-accent: var(--purple);
+      --strategy-wash: rgba(167, 139, 250, 0.13);
+    }
+
     .strategy-value.active {
-      border-color: rgba(99, 168, 255, 0.5);
+      border-color: var(--strategy-accent);
+      background: var(--strategy-wash);
       color: #e7f2ff;
     }
 
@@ -1318,9 +1559,9 @@ export const liveDraftHtml = `<!doctype html>
       grid-column: 1 / -1;
       min-height: 38px;
       padding: 10px;
-      border: 1px solid var(--line-soft);
+      border: 1px solid var(--position-accent-line, rgba(99, 168, 255, 0.34));
       border-radius: 6px;
-      background: rgba(5, 11, 18, 0.42);
+      background: linear-gradient(135deg, var(--position-accent-soft, rgba(99, 168, 255, 0.08)) 0%, rgba(5, 11, 18, 0.42) 58%);
     }
 
     .selected-player strong {
@@ -1426,10 +1667,10 @@ export const liveDraftHtml = `<!doctype html>
 
     .need-chip {
       padding: 3px 6px;
-      border: 1px solid var(--line);
+      border: 1px solid var(--position-accent-line, rgba(127, 154, 181, 0.28));
       border-radius: 5px;
-      background: rgba(12, 32, 51, 0.7);
-      color: var(--muted);
+      background: var(--position-accent-soft, rgba(127, 154, 181, 0.1));
+      color: #d9e7f5;
       font-size: 11px;
       font-weight: 650;
       line-height: 1.1;
@@ -1451,9 +1692,9 @@ export const liveDraftHtml = `<!doctype html>
       gap: 2px;
       min-width: 0;
       padding: 8px 9px;
-      border: 1px solid var(--line-soft);
+      border: 1px solid var(--position-accent-line, rgba(99, 168, 255, 0.26));
       border-radius: 6px;
-      background: rgba(5, 11, 18, 0.32);
+      background: linear-gradient(135deg, var(--position-accent-soft, rgba(99, 168, 255, 0.08)) 0%, rgba(5, 11, 18, 0.32) 56%);
     }
 
     .summary-item strong {
@@ -3168,6 +3409,8 @@ export const liveDraftHtml = `<!doctype html>
     };
     const cleanText = value => String(value == null ? '' : value);
     const safeFilePart = value => cleanText(value).replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '') || 'draft';
+    const safeClassPart = value => cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'unknown';
+    const positionClassFor = position => 'position-' + safeClassPart(position || 'unknown');
     const valueGapFor = target => target.personalValue - target.liveExpectedPrice;
     const activeBidPriceFor = target => {
       const price = priceInputValue();
@@ -3183,6 +3426,17 @@ export const liveDraftHtml = `<!doctype html>
     const priceInputValue = () => Number(byId('add-price').value);
     const gapClassFor = gap => gap > 0 ? 'gap-positive' : gap < 0 ? 'gap-negative' : '';
     const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession);
+    const positionForRosterNeed = need => {
+      const normalized = cleanText(need).toUpperCase();
+      if (normalized.startsWith('RB')) return 'RB';
+      if (normalized.startsWith('WR')) return 'WR';
+      if (normalized.startsWith('TE')) return 'TE';
+      if (normalized.startsWith('QB')) return 'QB';
+      if (normalized.startsWith('K')) return 'K';
+      if (normalized.startsWith('DST')) return 'DST';
+      if (normalized.startsWith('FLEX') || normalized.startsWith('BENCH')) return 'FLEX';
+      return '';
+    };
     const stateUrl = () => '/api/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery();
     const mockDraftUrl = () =>
       '/api/mock/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery() + '&seed=live-ui' +
@@ -3749,13 +4003,22 @@ export const liveDraftHtml = `<!doctype html>
       if (target.draftable === false) {
         return target.tags.map(label => ({ label, className: 'tag warning' }));
       }
-      const tags = target.tags.map(label => ({ label, className: label === 'not affordable' ? 'tag warning' : 'tag' }));
+      const tags = target.tags.map(label => ({ label, className: tagClassFor(label) }));
       const gap = valueGapFor(target);
       if (gap >= 6) tags.unshift({ label: 'value ' + deltaMoney(gap), className: 'tag value' });
       if (gap <= -6) tags.unshift({ label: 'tax ' + deltaMoney(gap), className: 'tag warning' });
       if (tierDrop >= 6) tags.push({ label: 'next ' + target.position + ' -' + money(tierDrop), className: 'tag warning' });
       if (target.recommendedMaxBid >= currentOwner().maxBid) tags.push({ label: 'max bid cap', className: 'tag warning' });
       return tags.slice(0, 5);
+    };
+
+    const tagClassFor = label => {
+      const lower = cleanText(label).toLowerCase();
+      if (lower.includes('not affordable')) return 'tag warning';
+      if (lower.includes('starter')) return 'tag need';
+      if (lower.includes('flex')) return 'tag flex';
+      if (lower.includes('3rb')) return 'tag strategy';
+      return 'tag';
     };
 
     const targetTags = (target, tierDrop) => {
@@ -3779,7 +4042,7 @@ export const liveDraftHtml = `<!doctype html>
       row.replaceChildren(...strategyKeys.map(strategyKey => {
         const value = target.strategyValues[strategyKey];
         const item = document.createElement('span');
-        item.className = 'strategy-value' + (strategyKey === currentStrategyKey ? ' active' : '');
+        item.className = 'strategy-value strategy-' + strategyKey + (strategyKey === currentStrategyKey ? ' active' : '');
         item.textContent = strategyValueLabels[strategyKey] + ' ' + money(value);
         return item;
       }));
@@ -5043,7 +5306,7 @@ export const liveDraftHtml = `<!doctype html>
         const factor = expected > 0 ? (live / expected).toFixed(2) + 'x' : '-';
         const delta = saleDeltaByPosition.get(position) || 0;
         const pill = document.createElement('div');
-        pill.className = 'market-pill';
+        pill.className = 'market-pill ' + positionClassFor(position);
         pill.append(
           textElement('strong', position),
           document.createTextNode(factor + ' - ' + targets.length + ' left' + (delta ? ' - ' + deltaMoney(delta) : ''))
@@ -5222,7 +5485,7 @@ export const liveDraftHtml = `<!doctype html>
     const renderPositionContext = state => {
       const rows = (state.positionContexts || []).map(context => {
         const item = document.createElement('div');
-        item.className = 'summary-item';
+        item.className = 'summary-item ' + positionClassFor(context.position);
         item.replaceChildren(
           textElement('strong', context.position + ' - ' + context.ownersNeeding.length + ' need'),
           textElement(
@@ -5511,6 +5774,7 @@ export const liveDraftHtml = `<!doctype html>
       const rows = matches.map(target => {
         const tierDrop = tierDrops.get(target.name) || 0;
         const row = document.createElement('tr');
+        row.classList.add(positionClassFor(target.position));
         if (target.name === selectedTargetName) row.classList.add('is-selected');
         if (currentMockDraft && currentMockDraft.auction && target.name === currentMockDraft.auction.player) row.classList.add('is-nominated');
         if (target.draftable === false) row.classList.add('keeper-row');
@@ -5547,7 +5811,7 @@ export const liveDraftHtml = `<!doctype html>
       byId('board-cards').replaceChildren(...matches.map(target => {
         const tierDrop = tierDrops.get(target.name) || 0;
         const card = document.createElement('div');
-        card.className = 'target-card';
+        card.className = 'target-card ' + positionClassFor(target.position);
         if (currentMockDraft && currentMockDraft.auction && target.name === currentMockDraft.auction.player) card.classList.add('is-nominated');
         const add = document.createElement('div');
         add.appendChild(addTargetButton(target, 'icon'));
@@ -5643,6 +5907,7 @@ export const liveDraftHtml = `<!doctype html>
         return;
       }
 
+      root.className = 'selected-player ' + positionClassFor(target.position);
       const meta = textElement(
         'span',
         target.position + ' ' + (target.teamAbbreviation || '-') + ' - bye ' + (target.byeWeek || '-'),
@@ -5671,7 +5936,11 @@ export const liveDraftHtml = `<!doctype html>
 
     const renderOwnerNeeds = state => {
       const owner = currentOwner();
-      byId('owner-needs').replaceChildren(...ownerNeedsFor(owner).map(need => textElement('span', need, 'need-chip')));
+      byId('owner-needs').replaceChildren(...ownerNeedsFor(owner).map(need => {
+        const position = positionForRosterNeed(need);
+        const className = 'need-chip' + (position ? ' ' + positionClassFor(position) : '');
+        return textElement('span', need, className);
+      }));
     };
 
     const renderRoster = state => {

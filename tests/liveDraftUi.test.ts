@@ -148,7 +148,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("button.dataset.activeSort = String(isActive);");
     expect(liveDraftHtml).toContain("button.setAttribute('aria-pressed', String(isActive));");
     expect(liveDraftHtml).toContain("return (rightValue - leftValue) || defaultTieBreak;");
-    expect(liveDraftHtml).toContain("padding: 4px 8px;");
+    expect(liveDraftHtml).toContain("margin: -8px -10px;");
+    expect(liveDraftHtml).toContain("border: 0;");
+    expect(liveDraftHtml).toContain("box-shadow: inset 0 -2px 0 rgba(99, 168, 255, 0.72);");
     expect(liveDraftHtml).toContain(".sort-heading:hover,");
     expect(liveDraftHtml).toContain(".sort-heading[data-active-sort=\"true\"]");
     expect(liveDraftHtml).not.toContain("let boardSortDirection");
@@ -506,6 +508,23 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("word-break: break-word;");
   });
 
+  it("adds purposeful dashboard color accents to draft-room controls", () => {
+    expect(liveDraftHtml).toContain("--pos-rb: #63a8ff;");
+    expect(liveDraftHtml).toContain("--pos-wr: #a78bfa;");
+    expect(liveDraftHtml).toContain("--pos-te: #1fcf8f;");
+    expect(liveDraftHtml).toContain("--pos-qb: #ff8a4c;");
+    expect(liveDraftHtml).toContain("const positionClassFor = position => 'position-' + safeClassPart(position || 'unknown');");
+    expect(liveDraftHtml).toContain("row.classList.add(positionClassFor(target.position));");
+    expect(liveDraftHtml).toContain("pill.className = 'market-pill ' + positionClassFor(position);");
+    expect(liveDraftHtml).toContain("item.className = 'strategy-value strategy-' + strategyKey");
+    expect(liveDraftHtml).toContain("const tagClassFor = label =>");
+    expect(liveDraftHtml).toContain(".board-table tbody tr[class*=\"position-\"] td:first-child");
+    expect(liveDraftHtml).toContain("border: 1px solid var(--position-accent-line, rgba(99, 168, 255, 0.42));");
+    expect(liveDraftHtml).toContain("background: linear-gradient(135deg, var(--position-accent-soft, rgba(99, 168, 255, 0.1)) 0%, rgba(12, 32, 51, 0.64) 58%);");
+    expect(liveDraftHtml).toContain(".filter-chip:not([data-position-filter=\"ALL\"])::before");
+    expect(liveDraftHtml).toContain(".metric:nth-child(4)");
+  });
+
   it("renders raw sale history and import/export draft-log actions", () => {
     expect(liveDraftHtml).toContain("className = 'raw-command'");
     expect(liveDraftHtml).toContain("event.input");
@@ -549,7 +568,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("@media (max-width: 760px)");
     expect(liveDraftHtml).toContain(".scroll {\n        display: none;\n      }");
     expect(liveDraftHtml).toContain(".board-cards {\n        display: block;\n      }");
-    expect(liveDraftHtml).toContain("className = 'target-card'");
+    expect(liveDraftHtml).toContain("className = 'target-card ' + positionClassFor(target.position)");
     expect(liveDraftHtml).toContain("className = 'target-card-values'");
   });
 });
