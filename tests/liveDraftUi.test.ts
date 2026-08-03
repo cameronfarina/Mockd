@@ -208,6 +208,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const toggleShortlist = target =>");
     expect(liveDraftHtml).toContain("const starTargetButton = target =>");
     expect(liveDraftHtml).toContain("className = 'star-button'");
+    expect(liveDraftHtml).toContain("justify-content: space-between;");
+    expect(liveDraftHtml).toContain("width: 100%;");
+    expect(liveDraftHtml).toContain("title.append(textElement('div', target.name, 'player-name'), starTargetButton(target));");
+    expect(liveDraftHtml).not.toContain("title.append(starTargetButton(target), textElement('div', target.name, 'player-name'));");
     expect(liveDraftHtml).toContain("const visibleBoardTargets = state =>");
     expect(liveDraftHtml).toContain("state.keeperTargets");
     expect(liveDraftHtml).toContain("const realDraftHasStarted = state => currentDraftMode === 'real' && state.events.length > 0");

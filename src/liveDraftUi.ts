@@ -758,6 +758,8 @@ export const liveDraftHtml = `<!doctype html>
       display: flex;
       gap: 7px;
       align-items: center;
+      justify-content: space-between;
+      width: 100%;
       min-width: 0;
     }
 
@@ -766,6 +768,10 @@ export const liveDraftHtml = `<!doctype html>
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .player-title .star-button {
+      flex: 0 0 auto;
     }
 
     .subtle {
@@ -2913,7 +2919,7 @@ export const liveDraftHtml = `<!doctype html>
         const playerCell = tableCell(row, '', '');
         const title = document.createElement('div');
         title.className = 'player-title';
-        title.append(starTargetButton(target), textElement('div', target.name, 'player-name'));
+        title.append(textElement('div', target.name, 'player-name'), starTargetButton(target));
         playerCell.appendChild(title);
         if (target.draftable === false) {
           playerCell.appendChild(textElement('div', target.keeperOwner + ' keeper' + ' at ' + money(target.keeperCost), 'subtle'));
@@ -2950,7 +2956,7 @@ export const liveDraftHtml = `<!doctype html>
         top.className = 'target-card-top';
         const title = document.createElement('div');
         title.className = 'player-title';
-        title.append(starTargetButton(target), textElement('div', target.name, 'player-name'));
+        title.append(textElement('div', target.name, 'player-name'), starTargetButton(target));
         top.append(
           title,
           textElement('div', target.position + ' ' + (target.teamAbbreviation || '-') + ' - bye ' + (target.byeWeek || '-'), 'target-card-meta')
