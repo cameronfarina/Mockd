@@ -30,6 +30,7 @@ This does not need a database for the first real draft night. A database becomes
 6. Mock speed controls: next AI sale, next Cam decision, next round, and complete mock.
 7. Strategy comparison rows so one player can show Balanced / 3RB / Hero RB / WR Heavy personal values side by side.
 8. Post-draft audit that compares actual sale prices to expected, live, personal, and mock ranges.
+9. Mock-results rankings that separate Week 1 lineup score from Season strength, where Season strength blends starter projection, bench depth, and consistency from the current projection horizon.
 
 ## Hosted Product Slices
 
