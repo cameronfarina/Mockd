@@ -25,6 +25,7 @@
     "evidence:coverage": "tsx src/cli.ts evidence-coverage",
     "mock": "tsx src/cli.ts mock",
     "mocks": "tsx src/cli.ts mocks",
+    "strategy:lab": "tsx src/cli.ts strategy-lab",
     "teams": "tsx src/cli.ts teams",
     "draft:ready": "tsx src/cli.ts draft-ready",
     "draft:ui": "tsx src/liveDraftServer.ts",

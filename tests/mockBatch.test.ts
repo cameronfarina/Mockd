@@ -122,6 +122,65 @@ describe("mock batch simulation", () => {
     })));
   }, 15000);
 
+  it("starts mocks from forced Cam purchases before AI owners fill the room", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const run = runMockBatch({
+      projections,
+      historicalRecords,
+      keepers,
+      scenarioKeys: ["expected"],
+      runsPerScenario: 1,
+      seedPrefix: "forced-sale",
+      diagnosticsMode: "summary",
+      forcedSales: [
+        { owner: "Cam", player: "Puka Nacua", price: 75 },
+      ],
+    }).runs[0];
+    const baselineRun = runMockBatch({
+      projections,
+      historicalRecords,
+      keepers,
+      scenarioKeys: ["expected"],
+      runsPerScenario: 1,
+      seedPrefix: "forced-sale-baseline",
+      diagnosticsMode: "summary",
+    }).runs[0];
+    if (!run) throw new Error("Expected a forced-sale mock run.");
+    if (!baselineRun) throw new Error("Expected a baseline mock run.");
+
+    const cam = run.rosters.find(roster => roster.owner === "Cam");
+    const puka = cam?.players.find(player => player.name === "Puka Nacua");
+
+    expect(puka).toMatchObject({
+      position: "WR",
+      price: 75,
+    });
+    expect(cam?.players.some(player => player.name === "De'Von Achane" && player.price === 50)).toBe(true);
+    expect(run.picks.some(pick => pick.player === "Puka Nacua")).toBe(false);
+    expect(run.inputCounts.auctionPlayers).toBe(baselineRun.inputCounts.auctionPlayers - 1);
+    expect(run.pickCount).toBe(217);
+    expect(cam?.valid).toBe(true);
+  }, 15000);
+
+  it("rejects forced purchases that Cam could not legally afford", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+
+    expect(() => runMockBatch({
+      projections,
+      historicalRecords,
+      keepers,
+      scenarioKeys: ["expected"],
+      runsPerScenario: 1,
+      seedPrefix: "forced-sale-over-max",
+      diagnosticsMode: "summary",
+      forcedSales: [
+        { owner: "Cam", player: "Puka Nacua", price: 190 },
+      ],
+    })).toThrow("Cam cannot force Puka Nacua for $190: max bid is $136.");
+  }, 15000);
+
   it("keeps owner personality profiles from locking the same elite RB pair every run", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();

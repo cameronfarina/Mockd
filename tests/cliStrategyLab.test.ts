@@ -1,0 +1,140 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { describe, expect, it } from "vitest";
+
+const execFileAsync = promisify(execFile);
+
+describe("CLI strategy lab", () => {
+  it("prints strategy-lab JSON for forced Cam draft experiments", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "strategy:lab",
+        "--",
+        "--runs=1",
+        "--seed-prefix=cli-strategy-lab-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 30 * 1024 * 1024,
+      },
+    );
+    const report = JSON.parse(stdout) as {
+      mode: string;
+      options: {
+        runsPerScenario: number;
+        seedPrefix: string;
+      };
+      leaderboard: {
+        key: string;
+        averageCamRank: number;
+      }[];
+      scenarios: {
+        key: string;
+        label: string;
+        camForcedStart: {
+          budgetRemaining: number;
+          maxBid: number;
+        };
+      }[];
+    };
+
+    expect(report.mode).toBe("strategy-lab");
+    expect(report.options).toMatchObject({
+      runsPerScenario: 1,
+      seedPrefix: "cli-strategy-lab-test",
+    });
+    expect(report.leaderboard.map(row => row.key)).toEqual(expect.arrayContaining([
+      "puka-75",
+      "puka-80",
+      "chase-70",
+      "value-wr-cook",
+    ]));
+    expect(report.leaderboard.every(row => row.averageCamRank >= 1 && row.averageCamRank <= 14)).toBe(true);
+    expect(report.scenarios.find(scenario => scenario.key === "puka-75")).toMatchObject({
+      label: "Puka $75",
+      camForcedStart: {
+        budgetRemaining: 75,
+        maxBid: 62,
+      },
+    });
+  }, 30000);
+
+  it("prints markdown strategy-lab rankings for fast review", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "strategy:lab",
+        "--",
+        "--runs=1",
+        "--format=markdown",
+        "--seed-prefix=cli-strategy-lab-markdown-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 30 * 1024 * 1024,
+      },
+    );
+
+    expect(stdout).toContain("# Cam Strategy Lab");
+    expect(stdout).toContain("## Leaderboard");
+    expect(stdout).toContain("| Puka $75 |");
+    expect(stdout).toContain("Budget after forced start");
+  }, 30000);
+
+  it("can run a custom forced Cam path instead of the default lab scenarios", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "strategy:lab",
+        "--",
+        "--runs=1",
+        "--label=Puka plus Walker",
+        "--strategy=three-rb",
+        "--force=Puka Nacua:75,Kenneth Walker III:36",
+        "--seed-prefix=cli-strategy-lab-custom-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 30 * 1024 * 1024,
+      },
+    );
+    const report = JSON.parse(stdout) as {
+      scenarios: {
+        key: string;
+        label: string;
+        strategyKey: string;
+        forcedSales: {
+          owner: string;
+          player: string;
+          price: number;
+        }[];
+        camForcedStart: {
+          budgetRemaining: number;
+          maxBid: number;
+        };
+      }[];
+    };
+
+    expect(report.scenarios).toHaveLength(1);
+    expect(report.scenarios[0]).toMatchObject({
+      key: "custom",
+      label: "Puka plus Walker",
+      strategyKey: "three-rb",
+      forcedSales: [
+        { owner: "Cam", player: "Puka Nacua", price: 75 },
+        { owner: "Cam", player: "Kenneth Walker III", price: 36 },
+      ],
+      camForcedStart: {
+        budgetRemaining: 39,
+        maxBid: 27,
+      },
+    });
+  }, 30000);
+});

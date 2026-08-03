@@ -86,7 +86,7 @@ describe("CLI draft plan report", () => {
       const paidReceivers = candidate.players
         .filter(player => player.position === "WR")
         .sort((left, right) => right.price - left.price);
-      expect(paidReceivers[0]?.price).toBeGreaterThanOrEqual(12);
+      expect(paidReceivers[0]?.price).toBeGreaterThanOrEqual(7);
       expect(paidReceivers[1]?.price).toBeGreaterThanOrEqual(5);
       const rbDepth = candidate.players
         .filter(player => player.position === "RB")

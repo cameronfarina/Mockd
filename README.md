@@ -18,6 +18,7 @@ This repository captures the reusable foundation behind the analysis previously 
 - confirmed-only, expected, and high-retention keeper inflation scenarios
 - deterministic owner-local auction simulation with scarcity pressure
 - strategy-specific team-plan mining from real mock batches, including a true three-RB build for Cam
+- strategy-lab comparisons for forced Cam starts like Achane keeper plus Puka, Chase, Cook, Walker, DeVonta, or Ladd paths
 - per-owner budget trajectory diagnostics after every sold pick
 - nomination decision diagnostics that show why each player was put up for auction
 - room-pressure diagnostics that show how deep the legal bidder market was for each sale
@@ -67,6 +68,8 @@ npm run scenarios:custom
 npm run scenarios:sensitivity -- --limit=60
 npm run mock
 npm run mocks
+npm run strategy:lab -- --runs=25 --format=markdown
+npm run strategy:lab -- --runs=25 --format=markdown --label="Puka plus Walker" --strategy=three-rb --force="Puka Nacua:75,Kenneth Walker III:36"
 npm run teams -- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --format=markdown
 npm run draft:ready -- --owner=Cam --strategy=three-rb --scenario=expected --runs=50 --qa-runs=2
 npm run draft:ui
@@ -203,6 +206,8 @@ npm run mock -- --scenario=expected --player-context=data/raw/player-context.exa
 npm run mock -- --scenario=expected --player-evidence=data/raw/player-evidence.example.csv
 npm run mock -- --scenario=expected --no-default-evidence
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
+npm run strategy:lab -- --scenario=expected --runs=25 --format=markdown --seed-prefix=strategy-lab
+npm run strategy:lab -- --scenario=expected --runs=25 --format=markdown --label="Puka plus Walker" --strategy=three-rb --force="Puka Nacua:75,Kenneth Walker III:36"
 npm run teams -- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --strategy-mode=force --format=markdown --seed-prefix=draft-prep
 npm run draft:ready -- --owner=Cam --strategy=three-rb --scenario=expected --runs=50 --qa-runs=2 --strategy-mode=force --seed-prefix=draft-ready
 npm run draft:ui -- --port=4317
@@ -236,6 +241,8 @@ TE spend uses the same shape with lighter defaults: elite TE overbids are dampen
 WR spend uses a very light position overbid damper so owner preferences can still chase receivers, while the above-anchor portion of those bids stays closer to the historical league spend mix.
 
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.
+
+`strategy:lab` compares named Cam draft experiments by forcing the chosen starts into each mock before the AI fills the rest of the auction room. The default lab assumes Cam keeps De'Von Achane and then tests paths such as Puka at `$75`, Puka at `$80`, Chase at `$70`, Puka plus Walker, DeVonta plus Ladd plus Cook, DeVonta plus Ladd plus Walker, and Cook plus Walker. Use `--force="Player Name:price,Other Player:price"` with `--strategy=balanced|three-rb|hero-rb|wr-heavy` to run a one-off path instead of the default lab. Each scenario reports the forced-start spend, remaining budget, current max bid, average Cam rank, Week 1 score, season-strength score, bench depth, dollar-player pressure, and sample builds with starter and bench prices so you can see whether a path is powerful or just too thin.
 
 `teams` mines complete rosters from real mock batches for an owner and strategy. With `--strategy-mode=force`, the selected strategy is pushed into the auction engine before filtering results; with `--strategy-mode=filter`, the command only finds naturally occurring matches. The Cam true-three-RB strategy targets three startable RBs inside a flexible RB budget envelope, so builds can range from balanced premium RBs to two expensive anchors plus a cheaper third RB when the board supports it. It still caps expensive fourth-RB depth, reserves room for paid WR starters, and reports the actual mock sale price plus the batch sale range for every player. Markdown reports include draft-path recommendations: max price bands, target clusters, pivot rules, and dead-zone warnings.
 

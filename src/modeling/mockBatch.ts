@@ -1,8 +1,9 @@
 import { leagueConfig, ownerOrder, positions, type Owner, type Position } from "../../config/league.js";
 import type { KeeperDeclaration } from "../../config/keepers.js";
+import { normalizePlayerName } from "../data/normalizePlayerName.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
 import type { ProjectionRecord } from "../projections.js";
-import type { MockRoster } from "../types.js";
+import type { MockRoster, Player } from "../types.js";
 import { validateRoster } from "../validateMocks.js";
 import {
   buildAuctionConfig,
@@ -20,6 +21,7 @@ import {
   type OwnerAuctionBehaviors,
   type OwnerDemandMultipliers,
   type OwnerPositionAnchorTargets,
+  type OwnerPositionCoreBudgetEnvelopes,
   type OwnerPositionCoreMaxBids,
   type OwnerPositionCoreTargets,
   type OwnerPositionSlotMaxBids,
@@ -36,6 +38,12 @@ import { buildOwnerProfiles } from "./ownerProfiles.js";
 
 type PositionAmounts = Record<Position, number>;
 
+export interface ForcedAuctionSale {
+  owner: Owner;
+  player: string;
+  price: number;
+}
+
 export interface RunMockOptions {
   projections: readonly ProjectionRecord[];
   historicalRecords: readonly HistoricalAuctionRecord[];
@@ -44,6 +52,7 @@ export interface RunMockOptions {
   seed?: string;
   pricingConfig?: PricingConfig;
   auctionConfigOverrides?: AuctionEngineConfigOverrides;
+  forcedSales?: readonly ForcedAuctionSale[];
   diagnosticsMode?: AuctionDiagnosticsMode;
 }
 
@@ -156,6 +165,7 @@ export interface MockBatch {
     runsPerScenario: number;
     seedPrefix: string;
     diagnosticsMode?: AuctionDiagnosticsMode;
+    forcedSales?: ForcedAuctionSale[];
   };
   runs: MockRun[];
   summary: MockBatchSummary;
@@ -203,6 +213,14 @@ const sumPositionSpend = (roster: MockRoster): PositionAmounts => {
   }
 
   return spend;
+};
+
+const countRosterPositions = (roster: readonly Player[]): PositionAmounts => {
+  const counts = emptyPositionSpend();
+
+  for (const player of roster) counts[player.position] += 1;
+
+  return counts;
 };
 
 const scenarioByKey = (
@@ -307,6 +325,109 @@ const mergeOwnerPositionMaps = <T extends OwnerDemandMultipliers | OwnerRosterMa
   return merged;
 };
 
+const mergeOwnerPositionCoreBudgetEnvelopes = (
+  base: OwnerPositionCoreBudgetEnvelopes,
+  overrides?: OwnerPositionCoreBudgetEnvelopes,
+): OwnerPositionCoreBudgetEnvelopes => {
+  if (!overrides) return base;
+
+  const merged: OwnerPositionCoreBudgetEnvelopes = { ...base };
+  const owners = new Set<Owner>([
+    ...(Object.keys(base) as Owner[]),
+    ...(Object.keys(overrides) as Owner[]),
+  ]);
+
+  for (const owner of owners) {
+    merged[owner] = {
+      ...(base[owner] ?? {}),
+      ...(overrides[owner] ?? {}),
+    };
+  }
+
+  return merged;
+};
+
+const assertForcedSalePrice = (sale: ForcedAuctionSale): void => {
+  if (!Number.isInteger(sale.price) || sale.price < 1) {
+    throw new Error(`Forced sale for ${sale.player} must use a positive whole-dollar price.`);
+  }
+};
+
+const maxBidForForcedSale = (roster: readonly Player[], minimumBid: number): number => {
+  const spent = roster.reduce((total, player) => total + player.price, 0);
+  const rosterSlotsRemaining = leagueConfig.rosterSize - roster.length;
+  const budgetRemaining = leagueConfig.auctionBudget - spent;
+
+  if (rosterSlotsRemaining <= 0) return 0;
+  return Math.max(0, budgetRemaining - Math.max(0, rosterSlotsRemaining - 1) * minimumBid);
+};
+
+const applyForcedSalesToPreparedScenario = (
+  preparedScenario: PreparedScenario,
+  forcedSales: readonly ForcedAuctionSale[],
+  minimumBid: number,
+): PreparedScenario => {
+  if (forcedSales.length === 0) return preparedScenario;
+
+  const initialRostersByOwner: InitialRostersByOwner = {};
+  for (const owner of ownerOrder) {
+    initialRostersByOwner[owner] = [...(preparedScenario.initialRostersByOwner[owner] ?? [])];
+  }
+
+  const auctionPlayers = [...preparedScenario.auctionPlayers];
+  const forcedNames = new Set<string>();
+
+  for (const sale of forcedSales) {
+    assertForcedSalePrice(sale);
+    const normalizedSaleName = normalizePlayerName(sale.player);
+    if (forcedNames.has(normalizedSaleName)) {
+      throw new Error(`Forced sale duplicates ${sale.player}.`);
+    }
+    forcedNames.add(normalizedSaleName);
+
+    const roster = initialRostersByOwner[sale.owner] ?? [];
+    if (roster.some(player => normalizePlayerName(player.name) === normalizedSaleName)) {
+      throw new Error(`${sale.player} is already on ${sale.owner}'s roster.`);
+    }
+
+    const playerIndex = auctionPlayers.findIndex(player => normalizePlayerName(player.name) === normalizedSaleName);
+    if (playerIndex < 0) {
+      throw new Error(`Forced sale player "${sale.player}" is not available in the auction pool.`);
+    }
+    const player = auctionPlayers[playerIndex];
+    if (!player) throw new Error(`Unable to resolve forced sale player "${sale.player}".`);
+
+    const positionCounts = countRosterPositions(roster);
+    const positionMaximum = leagueConfig.rosterMaximums[player.position];
+    if (positionCounts[player.position] >= positionMaximum) {
+      throw new Error(
+        `${sale.owner} cannot force ${player.name}: roster limit is ${positionMaximum} ${player.position}s.`,
+      );
+    }
+    if (roster.length >= leagueConfig.rosterSize) {
+      throw new Error(`${sale.owner} cannot force ${player.name}: roster is already full.`);
+    }
+
+    const maxBid = maxBidForForcedSale(roster, minimumBid);
+    if (sale.price > maxBid) {
+      throw new Error(`${sale.owner} cannot force ${player.name} for $${sale.price}: max bid is $${maxBid}.`);
+    }
+
+    auctionPlayers.splice(playerIndex, 1);
+    initialRostersByOwner[sale.owner] = [...roster, { ...player, price: sale.price }];
+  }
+
+  return {
+    ...preparedScenario,
+    initialRostersByOwner,
+    auctionPlayers,
+    inputCounts: {
+      ...preparedScenario.inputCounts,
+      auctionPlayers: auctionPlayers.length,
+    },
+  };
+};
+
 const mergeOwnerPositionPriceLadders = <
   T extends OwnerPositionCoreTargets | OwnerPositionCoreMaxBids | OwnerPositionSlotMaxBids,
 >(
@@ -381,6 +502,7 @@ const runPreparedScenario = (
   ownerRosterMaximums: ReturnType<typeof buildOwnerRosterMaximums>,
   seed: string,
   auctionConfigOverrides: AuctionEngineConfigOverrides = {},
+  forcedSales: readonly ForcedAuctionSale[] = [],
   diagnosticsMode: AuctionDiagnosticsMode = "full",
 ): MockRun => {
   const auctionConfig = buildAuctionConfig({
@@ -414,11 +536,20 @@ const runPreparedScenario = (
       {},
       auctionConfigOverrides.ownerPositionSlotMaxBids,
     ),
+    ownerPositionCoreBudgetEnvelopes: mergeOwnerPositionCoreBudgetEnvelopes(
+      {},
+      auctionConfigOverrides.ownerPositionCoreBudgetEnvelopes,
+    ),
   });
+  const runPrepared = applyForcedSalesToPreparedScenario(
+    preparedScenario,
+    forcedSales,
+    auctionConfig.minimumBid,
+  );
   const result = simulateAuction({
-    players: preparedScenario.auctionPlayers,
+    players: runPrepared.auctionPlayers,
     config: auctionConfig,
-    initialRostersByOwner: preparedScenario.initialRostersByOwner,
+    initialRostersByOwner: runPrepared.initialRostersByOwner,
     diagnosticsMode,
   });
   const rosters = ownerOrder.map(owner => {
@@ -429,8 +560,8 @@ const runPreparedScenario = (
 
   return {
     seed,
-    keeperScenario: preparedScenario.scenario,
-    inputCounts: preparedScenario.inputCounts,
+    keeperScenario: runPrepared.scenario,
+    inputCounts: runPrepared.inputCounts,
     pickCount: result.picks.length,
     picks: result.picks,
     budgetTrajectory: result.budgetTrajectory,
@@ -448,6 +579,7 @@ export const runMock = ({
   seed = "mockd-default",
   pricingConfig = defaultPricingConfig,
   auctionConfigOverrides = {},
+  forcedSales = [],
   diagnosticsMode = "full",
 }: RunMockOptions): MockRun => {
   const preparation = prepareMockInputs({
@@ -467,6 +599,7 @@ export const runMock = ({
     preparation.ownerRosterMaximums,
     seed,
     auctionConfigOverrides,
+    forcedSales,
     diagnosticsMode,
   );
 };
@@ -600,6 +733,7 @@ export const runMockBatch = ({
   seedPrefix = defaultSeedPrefix,
   pricingConfig = defaultPricingConfig,
   auctionConfigOverrides = {},
+  forcedSales = [],
   diagnosticsMode = "full",
 }: RunMockBatchOptions): MockBatch => {
   const normalizedScenarioKeys = [...scenarioKeys];
@@ -619,6 +753,7 @@ export const runMockBatch = ({
         preparation.ownerRosterMaximums,
         `${seedPrefix}:${preparedScenario.scenario.key}:${index + 1}`,
         auctionConfigOverrides,
+        forcedSales,
         diagnosticsMode,
       ),
     ),
@@ -630,6 +765,7 @@ export const runMockBatch = ({
       runsPerScenario,
       seedPrefix,
       ...(diagnosticsMode === "full" ? {} : { diagnosticsMode }),
+      ...(forcedSales.length === 0 ? {} : { forcedSales: [...forcedSales] }),
     },
     runs,
     summary: summarizeMockBatch(runs),
@@ -645,6 +781,7 @@ export const runMockBatchProgressively = async ({
   seedPrefix = defaultSeedPrefix,
   pricingConfig = defaultPricingConfig,
   auctionConfigOverrides = {},
+  forcedSales = [],
   auctionConfigOverridesForRun,
   diagnosticsMode = "full",
   onRunComplete,
@@ -676,6 +813,7 @@ export const runMockBatchProgressively = async ({
         preparation.ownerRosterMaximums,
         seed,
         auctionConfigOverridesForRun?.(runContext) ?? auctionConfigOverrides,
+        forcedSales,
         diagnosticsMode,
       );
       runs.push(run);
@@ -693,6 +831,7 @@ export const runMockBatchProgressively = async ({
       runsPerScenario,
       seedPrefix,
       ...(diagnosticsMode === "full" ? {} : { diagnosticsMode }),
+      ...(forcedSales.length === 0 ? {} : { forcedSales: [...forcedSales] }),
     },
     runs,
     summary: summarizeMockBatch(runs),
