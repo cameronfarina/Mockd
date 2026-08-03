@@ -85,8 +85,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("currentDraftMode === 'interactive-mock'");
     expect(liveDraftHtml).toContain("mode: currentDraftMode");
     expect(liveDraftHtml).toContain("mode=' + currentDraftMode");
-    expect(liveDraftHtml).toContain("Start real draft");
-    expect(liveDraftHtml).toContain("Start mock draft");
+    expect(liveDraftHtml).toContain("aria-label=\"Start real draft\">Real draft");
+    expect(liveDraftHtml).toContain("aria-label=\"Start mock draft\">Mock draft");
     expect(liveDraftHtml).toContain("Run mocks");
     expect(liveDraftHtml).toContain("See results");
     expect(liveDraftHtml).toContain("Mock Results");
@@ -114,6 +114,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain(".board-table {");
     expect(liveDraftHtml).toContain("min-width: 920px;");
     expect(liveDraftHtml).toContain("overflow-wrap: normal;");
+    expect(liveDraftHtml).toContain("white-space: nowrap;");
   });
 
   it("renders raw sale history and import/export draft-log actions", () => {

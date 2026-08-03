@@ -244,7 +244,12 @@ export const liveDraftHtml = `<!doctype html>
       min-height: 34px;
       padding: 0 10px;
       color: #b9cbe0;
+      font-size: 12px;
       font-weight: 650;
+      line-height: 1.1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .mode-actions button[aria-pressed="true"] {
@@ -1204,8 +1209,8 @@ export const liveDraftHtml = `<!doctype html>
       <div class="sidebar-section">
         <div class="section-label">Draft Actions</div>
         <div class="mode-actions">
-          <button type="button" id="start-real-draft-button" aria-pressed="true">Start real draft</button>
-          <button type="button" id="start-mock-draft-button" aria-pressed="false">Start mock draft</button>
+          <button type="button" id="start-real-draft-button" aria-pressed="true" aria-label="Start real draft">Real draft</button>
+          <button type="button" id="start-mock-draft-button" aria-pressed="false" aria-label="Start mock draft">Mock draft</button>
         </div>
         <div class="mock-batch-control">
           <input id="mock-batch-runs" inputmode="numeric" pattern="[0-9]*" value="25" aria-label="Mock draft run count">
