@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { keepers } from "../config/keepers.js";
+import { leagueConfig } from "../config/league.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
 import { buildLiveDraftState, parseLiveDraftSaleCommand } from "../src/modeling/liveDraft.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
@@ -89,14 +90,16 @@ describe("live draft room", () => {
       commands: [
         "cam drafted josh allen for 1",
         "cam drafted lamar jackson for 1",
+        "cam drafted jayden daniels for 1",
       ],
     });
 
+    expect(leagueConfig.rosterMaximums).toMatchObject({ QB: 3, RB: 6, WR: 6, TE: 2 });
     expect(overMaxBidState.events).toHaveLength(0);
     expect(overMaxBidState.errors[0]?.message).toContain("Cam can only bid up to $184");
     expect(overMaxBidState.availableTargets[0]?.name).toBe("Jahmyr Gibbs");
-    expect(overPositionLimitState.events).toHaveLength(1);
-    expect(overPositionLimitState.errors[0]?.message).toContain("Cam already has the maximum QB roster count");
+    expect(overPositionLimitState.events).toHaveLength(2);
+    expect(overPositionLimitState.errors[0]?.message).toBe("Cam cannot buy Jayden Daniels: roster limit is 3 QBs.");
   });
 
   it("rejects ambiguous quick-sale player names with explicit match options", async () => {

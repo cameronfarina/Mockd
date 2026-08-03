@@ -42,7 +42,7 @@ export const leagueConfig = {
     BENCH: 7,
   },
   rosterMaximums: {
-    QB: 2,
+    QB: 3,
     RB: 6,
     WR: 6,
     TE: 2,

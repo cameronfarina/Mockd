@@ -544,8 +544,9 @@ describe("auction engine economics", () => {
     const historicalRecords = await loadHistoricalAuctionRecords();
     const maximums = buildOwnerRosterMaximums(buildOwnerProfiles(historicalRecords));
 
+    expect(maximums.Beaton?.QB).toBe(2);
     expect(maximums.CJ?.QB).toBe(1);
-    expect(maximums.Tye?.QB).toBeUndefined();
+    expect(maximums.Tye?.QB).toBe(2);
     expect(maximums.Seth?.TE).toBe(1);
     expect(maximums.PJ?.TE).toBeUndefined();
   });
@@ -1851,6 +1852,7 @@ describe("auction engine economics", () => {
   it("builds valid full-roster mocks from expected keepers and owner-local budgets", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
+    const profiles = buildOwnerProfiles(historicalRecords);
     const prices = buildBasePrices(projections, historicalRecords);
     const expectedScenario = buildKeeperScenarios(keepers).find(scenario => scenario.key === "expected")!;
     const adjustedPrices = applyKeeperScenarioToPrices(prices, expectedScenario, keepers);
@@ -1871,8 +1873,9 @@ describe("auction engine economics", () => {
       players: auctionPlayers,
       initialRostersByOwner,
       config: buildAuctionConfig({
-        ownerDemandMultipliers: buildOwnerDemandMultipliers(buildOwnerProfiles(historicalRecords)),
-        ownerBehaviors: buildOwnerAuctionBehaviors(buildOwnerProfiles(historicalRecords)),
+        ownerDemandMultipliers: buildOwnerDemandMultipliers(profiles),
+        ownerBehaviors: buildOwnerAuctionBehaviors(profiles),
+        ownerRosterMaximums: buildOwnerRosterMaximums(profiles),
         seed: "economic-regression",
       }),
     });

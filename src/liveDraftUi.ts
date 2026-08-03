@@ -1,3 +1,7 @@
+import { leagueConfig } from "../config/league.js";
+
+const rosterMaximumsJson = JSON.stringify(leagueConfig.rosterMaximums);
+
 export const liveDraftHtml = `<!doctype html>
 <html lang="en">
 <head>
@@ -1357,12 +1361,12 @@ export const liveDraftHtml = `<!doctype html>
           <h2>Team</h2>
           <span class="subtle" id="sale-count"></span>
         </div>
-        <div id="errors"></div>
+        <div id="errors" role="alert"></div>
         <form class="add-form" id="add-form">
           <div class="selected-player" id="selected-player"></div>
           <select id="add-owner"></select>
           <input id="add-price" inputmode="numeric" pattern="[0-9]*">
-          <div class="sale-warning" id="sale-warning"></div>
+          <div class="sale-warning" id="sale-warning" role="alert"></div>
           <button class="primary" id="add-submit" type="submit">Add</button>
           <select id="roster-owner"></select>
         </form>
@@ -1475,7 +1479,7 @@ export const liveDraftHtml = `<!doctype html>
       }
     };
     const flexPositions = ['RB', 'WR', 'TE'];
-    const rosterMaximums = { QB: 2, RB: 6, WR: 6, TE: 2, K: 1, DST: 1 };
+    const rosterMaximums = ${rosterMaximumsJson};
     const positionOrder = { RB: 1, WR: 2, TE: 3, QB: 4, K: 5, DST: 6 };
     const sortLabels = {
       position: 'Pos',
@@ -1530,6 +1534,13 @@ export const liveDraftHtml = `<!doctype html>
       const data = await response.json();
       render(data);
       return data;
+    };
+
+    const alertCommandErrors = data => {
+      const messages = (data && Array.isArray(data.errors) ? data.errors : [])
+        .map(error => error && error.message)
+        .filter(Boolean);
+      if (messages.length) window.alert(messages.join('\\n'));
     };
 
     const tableCell = (row, text, className) => {
@@ -1592,7 +1603,7 @@ export const liveDraftHtml = `<!doctype html>
       if (owner.rosterSlotsRemaining <= 0) warnings.push(owner.owner + ' has no open roster slots.');
       if (price > owner.maxBid) warnings.push(owner.owner + ' can only bid up to ' + money(owner.maxBid) + '.');
       if (owner.positionCounts[target.position] >= rosterMaximums[target.position]) {
-        warnings.push(owner.owner + ' already has the maximum ' + target.position + ' roster count.');
+        warnings.push(owner.owner + ' cannot buy ' + target.name + ': roster limit is ' + rosterMaximums[target.position] + ' ' + target.position + 's.');
       }
       return warnings;
     };
@@ -2676,6 +2687,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const submitCommand = async command => {
       const data = await postJson('/api/events', { command });
+      alertCommandErrors(data);
       if (!data.errors.length) {
         selectedTargetName = data.availableTargets[0] ? data.availableTargets[0].name : null;
         render(data);

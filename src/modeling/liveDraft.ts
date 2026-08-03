@@ -608,7 +608,7 @@ const validateSaleFitsOwner = (
 
   const positionMaximum = leagueConfig.rosterMaximums[sale.player.position];
   if (ownerState.positionCounts[sale.player.position] >= positionMaximum) {
-    throw new Error(`${sale.owner} already has the maximum ${sale.player.position} roster count (${positionMaximum}).`);
+    throw new Error(`${sale.owner} cannot buy ${sale.player.name}: roster limit is ${positionMaximum} ${sale.player.position}s.`);
   }
 };
 

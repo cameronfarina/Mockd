@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { leagueConfig } from "../config/league.js";
 import { liveDraftHtml } from "../src/liveDraftUi.js";
 
 describe("live draft UI shell", () => {
@@ -64,6 +65,11 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const tierDropsFor = targets =>");
     expect(liveDraftHtml).toContain("'next ' + target.position + ' -' + money(tierDrop)");
     expect(liveDraftHtml).toContain("const saleWarningsFor = (target, owner, price) =>");
+    expect(liveDraftHtml).toContain(`const rosterMaximums = ${JSON.stringify(leagueConfig.rosterMaximums)};`);
+    expect(liveDraftHtml).toContain("role=\"alert\"");
+    expect(liveDraftHtml).toContain("' cannot buy ' + target.name + ': roster limit is '");
+    expect(liveDraftHtml).toContain("const alertCommandErrors = data =>");
+    expect(liveDraftHtml).toContain("window.alert(messages.join('\\n'))");
     expect(liveDraftHtml).toContain("const renderMockDraft = mockDraft =>");
     expect(liveDraftHtml).toContain("const renderDraftMode = state =>");
     expect(liveDraftHtml).toContain("const setDraftMode = async mode =>");
