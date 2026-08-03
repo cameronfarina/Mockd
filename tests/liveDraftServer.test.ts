@@ -398,6 +398,28 @@ describe("live draft server", () => {
       expect(latest.jobId).toBe(started.data.jobId);
       expect(latest.result.runs[1].label).toBe("Run 2: balanced");
       expect(latest.result.runStrategyKeys).toEqual(["three-rb", "balanced"]);
+      expect(latest.result.analytics.strategyLeaderboard).toEqual([
+        expect.objectContaining({
+          strategyKey: "balanced",
+          runCount: 1,
+          averageCamRank: completed.result.runs[1].camOutcome.rank,
+        }),
+        expect.objectContaining({
+          strategyKey: "three-rb",
+          runCount: 1,
+          averageCamRank: completed.result.runs[0].camOutcome.rank,
+        }),
+      ]);
+      expect(latest.result.analytics.camScoreRange).toEqual(expect.objectContaining({
+        minimumWeek1Score: completed.result.runs[0].camOutcome.week1Score,
+        maximumWeek1Score: completed.result.runs[1].camOutcome.week1Score,
+        minimumWeeks1To4Score: completed.result.runs[0].camOutcome.weeks1To4Score,
+        maximumWeeks1To4Score: completed.result.runs[1].camOutcome.weeks1To4Score,
+      }));
+      expect(latest.result.analytics.topCamRosterPaths[0]).toEqual(expect.objectContaining({
+        count: 2,
+        draftedRate: 1,
+      }));
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

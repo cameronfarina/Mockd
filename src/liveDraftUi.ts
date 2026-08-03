@@ -1019,7 +1019,7 @@ export const liveDraftHtml = `<!doctype html>
       align-items: stretch;
     }
 
-    .results-intelligence {
+    .results-analytics, .results-intelligence {
       display: grid;
       grid-template-columns: repeat(3, minmax(220px, 1fr));
       gap: 12px;
@@ -1441,6 +1441,7 @@ export const liveDraftHtml = `<!doctype html>
         </div>
         <div class="subtle" id="mock-results-status"></div>
       </div>
+      <div class="results-analytics" id="mock-results-analytics"></div>
       <div class="results-intelligence" id="mock-results-intelligence"></div>
       <div class="results-grid" id="mock-results-grid"></div>
     </main>
@@ -1788,6 +1789,55 @@ export const liveDraftHtml = `<!doctype html>
       );
     };
 
+    const strategyLabel = strategyKey => {
+      const labels = {
+        balanced: 'Balanced',
+        'three-rb': '3RB',
+        'hero-rb': 'Hero RB',
+        'wr-heavy': 'WR heavy'
+      };
+      return labels[strategyKey] || strategyKey;
+    };
+
+    const mockResultsAnalyticsPanel = report => {
+      const root = byId('mock-results-analytics');
+      if (!report || !report.analytics) {
+        root.replaceChildren();
+        return;
+      }
+
+      const strategyLeader = report.analytics.strategyLeaderboard[0];
+      const camScoreRange = report.analytics.camScoreRange;
+      const commonPath = report.analytics.topCamRosterPaths[0];
+      root.replaceChildren(
+        insightCard(
+          'Strategy edge',
+          strategyLeader
+            ? strategyLabel(strategyLeader.strategyKey) + ' avg rank ' + scoreText(strategyLeader.averageCamRank)
+            : 'No strategy data',
+          strategyLeader
+            ? strategyLeader.runCount + ' runs / W1 ' + scoreText(strategyLeader.averageCamWeek1Score) + ' / W1-4 ' + scoreText(strategyLeader.averageCamWeeks1To4Score)
+            : '-'
+        ),
+        insightCard(
+          'Cam score range',
+          camScoreRange
+            ? scoreText(camScoreRange.minimumWeek1Score) + '-' + scoreText(camScoreRange.maximumWeek1Score) + ' W1'
+            : 'No score range',
+          camScoreRange
+            ? scoreText(camScoreRange.minimumWeeks1To4Score) + '-' + scoreText(camScoreRange.maximumWeeks1To4Score) + ' W1-4 / best ' + camScoreRange.bestRunLabel
+            : '-'
+        ),
+        insightCard(
+          'Common Cam path',
+          commonPath ? commonPath.path : 'No common path yet',
+          commonPath
+            ? Math.round(commonPath.draftedRate * 100) + '% of runs / avg rank ' + scoreText(commonPath.averageRank)
+            : '-'
+        )
+      );
+    };
+
     const mockResultsPlayerRow = player => {
       const row = document.createElement('div');
       row.className = 'mock-results-player' + (player.starter ? '' : ' bench');
@@ -1914,6 +1964,7 @@ export const liveDraftHtml = `<!doctype html>
         byId('mock-results-status').textContent = 'Start a batch from the draft room.';
         byId('mock-results-run-button').textContent = 'Run results';
         byId('mock-results-run-list').replaceChildren();
+        byId('mock-results-analytics').replaceChildren();
         byId('mock-results-intelligence').replaceChildren();
         byId('mock-results-grid').replaceChildren(mockDraftItem('No results yet', 'Run mocks, wait for the progress bar, then come back here.'));
         return;
@@ -1928,6 +1979,7 @@ export const liveDraftHtml = `<!doctype html>
       byId('mock-results-status').textContent =
         run.label + ' / ' + run.scenarioLabel + ' / seed ' + run.seed;
       renderMockResultsRunSelector(latestMockBatchReport);
+      mockResultsAnalyticsPanel(latestMockBatchReport);
       renderMockResultsGrid(run);
     };
 
@@ -1938,6 +1990,7 @@ export const liveDraftHtml = `<!doctype html>
       byId('mock-results-status').textContent = String(job.percent || 0) + '% complete';
       byId('mock-results-run-button').textContent = 'Waiting for results';
       byId('mock-results-run-list').replaceChildren();
+      byId('mock-results-analytics').replaceChildren();
       byId('mock-results-intelligence').replaceChildren();
       byId('mock-results-grid').replaceChildren(mockDraftItem('Running mocks', String(job.percent || 0) + '% complete'));
     };
@@ -1949,6 +2002,7 @@ export const liveDraftHtml = `<!doctype html>
       byId('mock-results-status').textContent = message;
       byId('mock-results-run-button').textContent = 'Run results';
       byId('mock-results-run-list').replaceChildren();
+      byId('mock-results-analytics').replaceChildren();
       byId('mock-results-intelligence').replaceChildren();
       byId('mock-results-grid').replaceChildren(mockDraftItem('Could not load results', message));
     };

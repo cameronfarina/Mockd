@@ -73,6 +73,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderMockResultsGrid = run =>");
     expect(liveDraftHtml).toContain("const renderMockResultsRankingsCard = rankings =>");
     expect(liveDraftHtml).toContain("const mockResultsIntelligencePanel = run =>");
+    expect(liveDraftHtml).toContain("const mockResultsAnalyticsPanel = report =>");
+    expect(liveDraftHtml).toContain("report.analytics.strategyLeaderboard");
+    expect(liveDraftHtml).toContain("report.analytics.camScoreRange");
+    expect(liveDraftHtml).toContain("report.analytics.topCamRosterPaths");
     expect(liveDraftHtml).toContain("run.camOutcome");
     expect(liveDraftHtml).toContain("team.rankExplanation");
     expect(liveDraftHtml).toContain("ranking.explanation");

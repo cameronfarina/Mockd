@@ -67,6 +67,44 @@ export interface MockResultsCamOutcome extends MockResultsBuildSummary {
   risks: string[];
 }
 
+export interface MockResultsStrategyAnalytics {
+  strategyKey: LiveDraftStrategyKey;
+  runCount: number;
+  averageCamRank: number;
+  bestCamRank: number;
+  worstCamRank: number;
+  averageCamWeek1Score: number;
+  averageCamWeeks1To4Score: number;
+  averageCamSpend: number;
+}
+
+export interface MockResultsCamScoreRange {
+  minimumWeek1Score: number;
+  maximumWeek1Score: number;
+  averageWeek1Score: number;
+  minimumWeeks1To4Score: number;
+  maximumWeeks1To4Score: number;
+  averageWeeks1To4Score: number;
+  bestRunLabel: string;
+  worstRunLabel: string;
+}
+
+export interface MockResultsRosterPath {
+  path: string;
+  corePlayers: string[];
+  count: number;
+  draftedRate: number;
+  averageWeek1Score: number;
+  averageWeeks1To4Score: number;
+  averageRank: number;
+}
+
+export interface MockResultsAnalytics {
+  strategyLeaderboard: MockResultsStrategyAnalytics[];
+  camScoreRange: MockResultsCamScoreRange;
+  topCamRosterPaths: MockResultsRosterPath[];
+}
+
 export interface MockResultsRun {
   index: number;
   label: string;
@@ -88,6 +126,7 @@ export interface MockResultsReport {
   summary: MockBatchSummary;
   runStrategyKeys: LiveDraftStrategyKey[];
   runs: MockResultsRun[];
+  analytics: MockResultsAnalytics;
   cam?: MockBatchSummary["owners"][number];
   camTopExposures: MockBatchSummary["ownerPlayerExposure"];
   topPlayers: MockBatchSummary["players"];
@@ -123,6 +162,9 @@ const strategyShortName = (strategyKey: LiveDraftStrategyKey): string => {
 
 const roundToTwo = (value: number): number =>
   Math.round((value + Number.EPSILON) * 100) / 100;
+
+const average = (values: readonly number[]): number =>
+  values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
 
 const ordinal = (rank: number): string => {
   const lastTwo = rank % 100;
@@ -355,6 +397,100 @@ const camOutcomeFor = (
   };
 };
 
+const strategyLeaderboardFor = (runs: readonly MockResultsRun[]): MockResultsStrategyAnalytics[] => {
+  const runsByStrategy = new Map<LiveDraftStrategyKey, MockResultsRun[]>();
+  for (const run of runs) {
+    runsByStrategy.set(run.strategyKey, [...(runsByStrategy.get(run.strategyKey) ?? []), run]);
+  }
+
+  return [...runsByStrategy.entries()]
+    .map(([strategyKey, strategyRuns]) => {
+      const camOutcomes = strategyRuns.map(run => run.camOutcome);
+      const camRanks = camOutcomes.map(outcome => outcome.rank);
+      return {
+        strategyKey,
+        runCount: strategyRuns.length,
+        averageCamRank: roundToTwo(average(camRanks)),
+        bestCamRank: Math.min(...camRanks),
+        worstCamRank: Math.max(...camRanks),
+        averageCamWeek1Score: roundToTwo(average(camOutcomes.map(outcome => outcome.week1Score))),
+        averageCamWeeks1To4Score: roundToTwo(average(camOutcomes.map(outcome => outcome.weeks1To4Score))),
+        averageCamSpend: roundToTwo(average(camOutcomes.map(outcome => outcome.spend))),
+      };
+    })
+    .sort(
+      (left, right) =>
+        left.averageCamRank - right.averageCamRank ||
+        right.averageCamWeeks1To4Score - left.averageCamWeeks1To4Score ||
+        left.strategyKey.localeCompare(right.strategyKey),
+    );
+};
+
+const camScoreRangeFor = (runs: readonly MockResultsRun[]): MockResultsCamScoreRange => {
+  const sortedByCamScore = [...runs].sort(
+    (left, right) =>
+      right.camOutcome.weeks1To4Score - left.camOutcome.weeks1To4Score ||
+      right.camOutcome.week1Score - left.camOutcome.week1Score ||
+      left.label.localeCompare(right.label),
+  );
+  const bestRun = sortedByCamScore[0];
+  const worstRun = sortedByCamScore[sortedByCamScore.length - 1];
+  if (!bestRun || !worstRun) throw new Error("Cannot build mock analytics without runs.");
+
+  const week1Scores = runs.map(run => run.camOutcome.week1Score);
+  const weeks1To4Scores = runs.map(run => run.camOutcome.weeks1To4Score);
+  return {
+    minimumWeek1Score: roundToTwo(Math.min(...week1Scores)),
+    maximumWeek1Score: roundToTwo(Math.max(...week1Scores)),
+    averageWeek1Score: roundToTwo(average(week1Scores)),
+    minimumWeeks1To4Score: roundToTwo(Math.min(...weeks1To4Scores)),
+    maximumWeeks1To4Score: roundToTwo(Math.max(...weeks1To4Scores)),
+    averageWeeks1To4Score: roundToTwo(average(weeks1To4Scores)),
+    bestRunLabel: bestRun.label,
+    worstRunLabel: worstRun.label,
+  };
+};
+
+const topCamRosterPathsFor = (runs: readonly MockResultsRun[]): MockResultsRosterPath[] => {
+  const pathGroups = new Map<string, {
+    corePlayers: string[];
+    outcomes: MockResultsCamOutcome[];
+  }>();
+
+  for (const run of runs) {
+    const corePlayers = run.camOutcome.corePlayers;
+    const path = corePlayers.join(" / ");
+    const group = pathGroups.get(path) ?? { corePlayers, outcomes: [] };
+    group.outcomes.push(run.camOutcome);
+    pathGroups.set(path, group);
+  }
+
+  return [...pathGroups.entries()]
+    .map(([path, group]) => ({
+      path,
+      corePlayers: group.corePlayers,
+      count: group.outcomes.length,
+      draftedRate: roundToTwo(group.outcomes.length / runs.length),
+      averageWeek1Score: roundToTwo(average(group.outcomes.map(outcome => outcome.week1Score))),
+      averageWeeks1To4Score: roundToTwo(average(group.outcomes.map(outcome => outcome.weeks1To4Score))),
+      averageRank: roundToTwo(average(group.outcomes.map(outcome => outcome.rank))),
+    }))
+    .sort(
+      (left, right) =>
+        right.count - left.count ||
+        left.averageRank - right.averageRank ||
+        right.averageWeeks1To4Score - left.averageWeeks1To4Score ||
+        left.path.localeCompare(right.path),
+    )
+    .slice(0, 8);
+};
+
+const analyticsFor = (runs: readonly MockResultsRun[]): MockResultsAnalytics => ({
+  strategyLeaderboard: strategyLeaderboardFor(runs),
+  camScoreRange: camScoreRangeFor(runs),
+  topCamRosterPaths: topCamRosterPathsFor(runs),
+});
+
 const runResultFor = (
   run: MockRun,
   index: number,
@@ -396,6 +532,7 @@ export const buildMockResultsReport = (
 ): MockResultsReport => {
   const cam = batch.summary.owners.find(owner => owner.owner === "Cam");
   const resolvedRunStrategyKeys = batch.runs.map((_run, index) => runStrategyKeys[index] ?? strategyKey);
+  const runs = batch.runs.map((run, index) => runResultFor(run, index, resolvedRunStrategyKeys[index] ?? strategyKey));
 
   return {
     mode: "batch-mock",
@@ -405,7 +542,8 @@ export const buildMockResultsReport = (
     },
     summary: batch.summary,
     runStrategyKeys: resolvedRunStrategyKeys,
-    runs: batch.runs.map((run, index) => runResultFor(run, index, resolvedRunStrategyKeys[index] ?? strategyKey)),
+    runs,
+    analytics: analyticsFor(runs),
     ...(cam === undefined ? {} : { cam }),
     camTopExposures: batch.summary.ownerPlayerExposure
       .filter(exposure => exposure.owner === "Cam")
