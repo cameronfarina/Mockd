@@ -34,7 +34,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"open-scratch-session-button\"");
     expect(liveDraftHtml).toContain("id=\"active-session-label\"");
     expect(liveDraftHtml).toContain("id=\"draft-lock-status\"");
-    expect(liveDraftHtml).toContain("<header class=\"draft-header\">");
+    expect(liveDraftHtml).toContain("<header class=\"draft-header app-page-header\">");
     expect(liveDraftHtml).toContain("id=\"draft-header-menu-slot\"");
     expect(liveDraftHtml).toContain("id=\"app-menu-button\"");
     expect(liveDraftHtml).toContain("id=\"app-menu-list\"");
@@ -451,11 +451,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("overflow-y: auto;");
     expect(liveDraftHtml).toContain(".workspace {");
     expect(liveDraftHtml).toContain("width: var(--global-menu-width);");
-    expect(liveDraftHtml).toContain("body[data-active-route=\"draft-room\"] > .global-app-menu {\n      display: none;\n    }");
-    expect(liveDraftHtml).toContain(".draft-header-menu-slot .global-app-menu {\n      position: static;");
+    expect(liveDraftHtml).toContain(".app-header-menu-slot .global-app-menu {\n      position: static;");
     expect(liveDraftHtml).toContain(".draft-title-group {");
     expect(liveDraftHtml).toContain("justify-self: center;");
-    expect(liveDraftHtml).toContain("padding: 0 24px 0 var(--global-menu-width);");
+    expect(liveDraftHtml).toContain("padding: 0 24px;");
     expect(liveDraftHtml).not.toContain("padding: 0 24px 0 var(--nav-rail-width);");
     expect(liveDraftHtml).toContain("min-height: var(--global-menu-height);");
     expect(liveDraftHtml).toContain(".results-view {");
@@ -523,6 +522,24 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("background: linear-gradient(135deg, var(--position-accent-soft, rgba(99, 168, 255, 0.1)) 0%, rgba(12, 32, 51, 0.64) 58%);");
     expect(liveDraftHtml).toContain(".filter-chip:not([data-position-filter=\"ALL\"])::before");
     expect(liveDraftHtml).toContain(".metric:nth-child(4)");
+  });
+
+  it("uses the same centered app header structure on secondary routes", () => {
+    expect(liveDraftHtml).toContain("<header class=\"draft-header app-page-header\">");
+    expect(liveDraftHtml).toContain("<header class=\"results-header app-page-header\">");
+    expect(liveDraftHtml).toContain("id=\"draft-header-menu-slot\"");
+    expect(liveDraftHtml).toContain("id=\"mock-results-header-menu-slot\"");
+    expect(liveDraftHtml).toContain("id=\"my-expert-header-menu-slot\"");
+    expect(liveDraftHtml).toContain("id=\"player-news-header-menu-slot\"");
+    expect(liveDraftHtml).toContain(".app-header-menu-slot .brand {\n      display: none;\n    }");
+    expect(liveDraftHtml).toContain("'my-expert': 'my-expert-header-menu-slot'");
+    expect(liveDraftHtml).toContain("'player-news': 'player-news-header-menu-slot'");
+    expect(liveDraftHtml).toContain("setActiveRouteShell('my-expert')");
+    expect(liveDraftHtml).toContain("setActiveRouteShell('player-news')");
+    expect(liveDraftHtml).toContain("padding: 0 24px;");
+    expect(liveDraftHtml).not.toContain("padding: 0 24px 0 var(--global-menu-width);");
+    expect(liveDraftHtml).not.toContain("body[data-active-route=\"draft-room\"] > .global-app-menu");
+    expect(liveDraftHtml).not.toContain("document.body.insertBefore(appMenu, byId('draft-room-view'))");
   });
 
   it("renders raw sale history and import/export draft-log actions", () => {

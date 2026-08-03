@@ -273,11 +273,7 @@ export const liveDraftHtml = `<!doctype html>
       line-height: 1.1;
     }
 
-    body[data-active-route="draft-room"] > .global-app-menu {
-      display: none;
-    }
-
-    .draft-header-menu-slot {
+    .app-header-menu-slot {
       position: relative;
       justify-self: start;
       width: 38px;
@@ -285,7 +281,7 @@ export const liveDraftHtml = `<!doctype html>
       min-width: 38px;
     }
 
-    .draft-header-menu-slot .global-app-menu {
+    .app-header-menu-slot .global-app-menu {
       position: static;
       z-index: auto;
       width: auto;
@@ -297,16 +293,16 @@ export const liveDraftHtml = `<!doctype html>
       box-shadow: none;
     }
 
-    .draft-header-menu-slot .global-brand-row {
+    .app-header-menu-slot .global-brand-row {
       grid-template-columns: 38px;
       gap: 0;
     }
 
-    .draft-header-menu-slot .brand {
+    .app-header-menu-slot .brand {
       display: none;
     }
 
-    .draft-header-menu-slot .app-menu-list {
+    .app-header-menu-slot .app-menu-list {
       top: calc(100% + 10px);
       right: auto;
       width: var(--global-menu-width);
@@ -378,9 +374,7 @@ export const liveDraftHtml = `<!doctype html>
       overflow: hidden;
     }
 
-    .draft-header {
-      grid-column: 1 / -1;
-      grid-row: 1;
+    .app-page-header {
       display: grid;
       grid-template-columns: minmax(260px, 1fr) auto minmax(260px, 1fr);
       align-items: center;
@@ -390,6 +384,11 @@ export const liveDraftHtml = `<!doctype html>
       padding: 0 24px;
       border-bottom: 1px solid var(--line);
       background: rgba(5, 11, 18, 0.54);
+    }
+
+    .draft-header {
+      grid-column: 1 / -1;
+      grid-row: 1;
     }
 
     .draft-title-group {
@@ -1804,14 +1803,7 @@ export const liveDraftHtml = `<!doctype html>
       left: 0;
       right: 0;
       z-index: 80;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
       height: var(--global-menu-height);
-      min-height: var(--global-menu-height);
-      padding: 0 24px 0 var(--global-menu-width);
-      border-bottom: 1px solid var(--line);
       background: #050b12;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
     }
@@ -1819,13 +1811,20 @@ export const liveDraftHtml = `<!doctype html>
     .results-title-block {
       display: grid;
       gap: 4px;
+      justify-items: center;
+      justify-self: center;
       min-width: 0;
+      text-align: center;
     }
 
     .results-header-actions {
       display: flex;
       gap: 8px;
       align-items: center;
+      justify-content: flex-end;
+      justify-self: end;
+      width: 100%;
+      min-width: 0;
     }
 
     .results-header-actions button {
@@ -2933,8 +2932,8 @@ export const liveDraftHtml = `<!doctype html>
 </head>
 <body data-active-route="draft-room">
   <div class="app" id="draft-room-view">
-    <header class="draft-header">
-      <div class="draft-header-menu-slot" id="draft-header-menu-slot">
+    <header class="draft-header app-page-header">
+      <div class="app-header-menu-slot" id="draft-header-menu-slot">
         <div class="global-app-menu" id="app-menu">
           <div class="global-brand-row">
             <button type="button" class="app-menu-trigger" id="app-menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu-list" aria-label="Open app menu">
@@ -3203,7 +3202,8 @@ export const liveDraftHtml = `<!doctype html>
     </div>
   </div>
   <div class="results-view" id="mock-results-view" hidden>
-    <header class="results-header">
+    <header class="results-header app-page-header">
+      <div class="app-header-menu-slot" id="mock-results-header-menu-slot"></div>
       <div class="results-title-block">
         <h1>Mock Results</h1>
         <div class="subtle" id="mock-results-title">No completed mock batch yet.</div>
@@ -3227,7 +3227,8 @@ export const liveDraftHtml = `<!doctype html>
     </main>
   </div>
   <div class="results-view my-expert-view" id="my-expert-view" hidden>
-    <header class="results-header">
+    <header class="results-header app-page-header">
+      <div class="app-header-menu-slot" id="my-expert-header-menu-slot"></div>
       <div class="results-title-block">
         <h1>My Expert</h1>
         <div class="subtle" id="my-expert-title">Loading roster advice.</div>
@@ -3264,7 +3265,8 @@ export const liveDraftHtml = `<!doctype html>
     </main>
   </div>
   <div class="results-view player-news-view" id="player-news-view" hidden>
-    <header class="results-header">
+    <header class="results-header app-page-header">
+      <div class="app-header-menu-slot" id="player-news-header-menu-slot"></div>
       <div class="results-title-block">
         <h1>Player News</h1>
         <div class="subtle" id="player-news-title">Loading player news.</div>
@@ -3585,15 +3587,21 @@ export const liveDraftHtml = `<!doctype html>
       return (isActiveDraft() ? headerSearch : sidebarSearch).toLowerCase();
     };
 
+    const appMenuSlotIdsByRoute = {
+      'draft-room': 'draft-header-menu-slot',
+      'mock-results': 'mock-results-header-menu-slot',
+      'my-expert': 'my-expert-header-menu-slot',
+      'player-news': 'player-news-header-menu-slot'
+    };
+
+    const appMenuSlotForRoute = route =>
+      byId(appMenuSlotIdsByRoute[route] || appMenuSlotIdsByRoute['draft-room']);
+
     const syncAppMenuHostForRoute = route => {
       const appMenu = byId('app-menu');
-      const draftMenuSlot = byId('draft-header-menu-slot');
-      if (!appMenu || !draftMenuSlot) return;
-      if (route === 'draft-room') {
-        if (appMenu.parentElement !== draftMenuSlot) draftMenuSlot.append(appMenu);
-        return;
-      }
-      if (appMenu.parentElement !== document.body) document.body.insertBefore(appMenu, byId('draft-room-view'));
+      const menuSlot = appMenuSlotForRoute(route);
+      if (!appMenu || !menuSlot) return;
+      if (appMenu.parentElement !== menuSlot) menuSlot.append(appMenu);
     };
 
     const setActiveRouteShell = route => {
@@ -6338,7 +6346,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const renderMockResultsPage = async () => {
       stopPlayerNewsPolling();
-      setActiveRouteShell('results');
+      setActiveRouteShell('mock-results');
       setAppMenuCurrent('mock-results', 'Mock results');
       byId('draft-room-view').hidden = true;
       byId('mock-results-view').hidden = false;
@@ -6368,7 +6376,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const renderMyExpertPage = async () => {
       stopPlayerNewsPolling();
-      setActiveRouteShell('results');
+      setActiveRouteShell('my-expert');
       hydrateMyExpertFromLocation();
       setAppMenuCurrent('my-expert', 'My expert');
       byId('draft-room-view').hidden = true;
@@ -6388,7 +6396,7 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const renderPlayerNewsPage = async () => {
-      setActiveRouteShell('results');
+      setActiveRouteShell('player-news');
       hydratePlayerNewsFromLocation();
       setAppMenuCurrent('player-news', 'Player news');
       byId('draft-room-view').hidden = true;
