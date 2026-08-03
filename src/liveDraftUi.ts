@@ -328,6 +328,14 @@ export const liveDraftHtml = `<!doctype html>
       color: #eafff7;
     }
 
+    #see-mock-results-button {
+      grid-column: 2;
+      min-height: 34px;
+      border-color: rgba(31, 207, 143, 0.58);
+      color: #7af0bd;
+      font-weight: 750;
+    }
+
     .mode-status {
       display: grid;
       gap: 2px;
@@ -1376,6 +1384,7 @@ export const liveDraftHtml = `<!doctype html>
         <div class="mock-batch-control">
           <input id="mock-batch-runs" inputmode="numeric" pattern="[0-9]*" value="25" aria-label="Mock draft run count">
           <button type="button" id="run-mock-batch-button">Run mocks</button>
+          <button type="button" id="see-mock-results-button" hidden>See results</button>
         </div>
         <div class="mode-status" id="draft-mode-status">
           <strong>Real draft</strong>
@@ -2897,6 +2906,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const renderMockBatchButtonState = job => {
       const button = byId('run-mock-batch-button');
+      const seeResultsButton = byId('see-mock-results-button');
       const resultsRunNewButton = byId('mock-results-run-new-button');
       const input = byId('mock-batch-runs');
       const status = job ? job.status : '';
@@ -2904,11 +2914,13 @@ export const liveDraftHtml = `<!doctype html>
       const isRunning = status === 'queued' || status === 'running';
       const isReady = status === 'complete' && job && job.result;
 
-      button.style.setProperty('--mock-progress', percent + '%');
+      button.style.setProperty('--mock-progress', isRunning ? percent + '%' : '0%');
       button.classList.toggle('mock-batch-running', isRunning);
-      button.classList.toggle('mock-batch-ready', Boolean(isReady));
+      button.classList.toggle('mock-batch-ready', false);
       button.disabled = isRunning;
       input.disabled = isRunning;
+      seeResultsButton.hidden = !isReady;
+      seeResultsButton.disabled = !isReady || isRunning;
       resultsRunNewButton.disabled = isRunning;
 
       if (isRunning) {
@@ -2918,11 +2930,6 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       resultsRunNewButton.textContent = 'Run new mocks';
-      if (isReady) {
-        button.textContent = 'See results';
-        return;
-      }
-
       button.textContent = 'Run mocks';
     };
 
@@ -2967,12 +2974,7 @@ export const liveDraftHtml = `<!doctype html>
     const mockBatchSeedPrefix = () =>
       'live-ui-' + currentStrategyKey + '-' + Date.now().toString(36);
 
-    const runMockBatch = async ({ forceNew = false } = {}) => {
-      if (!forceNew && latestMockBatchJob && latestMockBatchJob.status === 'complete' && latestMockBatchJob.result) {
-        window.location.assign('/mock-results');
-        return;
-      }
-
+    const runMockBatch = async () => {
       const runs = Number(byId('mock-batch-runs').value || 25);
       selectedMockResultsRunIndex = 0;
       try {
@@ -3258,6 +3260,7 @@ export const liveDraftHtml = `<!doctype html>
     byId('start-real-draft-button').addEventListener('click', () => setDraftMode('real'));
     byId('start-mock-draft-button').addEventListener('click', () => setDraftMode('interactive-mock'));
     byId('run-mock-batch-button').addEventListener('click', () => runMockBatch());
+    byId('see-mock-results-button').addEventListener('click', () => window.location.assign('/mock-results'));
     byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
     byId('reset-button').addEventListener('click', () => postJsonAndRefresh('/api/reset'));
     byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
@@ -3272,7 +3275,7 @@ export const liveDraftHtml = `<!doctype html>
       const list = byId('mock-results-run-list');
       list.hidden = !list.hidden;
     });
-    byId('mock-results-run-new-button').addEventListener('click', () => runMockBatch({ forceNew: true }));
+    byId('mock-results-run-new-button').addEventListener('click', () => runMockBatch());
     document.addEventListener('click', event => {
       if (!event.target.closest || !event.target.closest('.run-selector')) byId('mock-results-run-list').hidden = true;
     });
