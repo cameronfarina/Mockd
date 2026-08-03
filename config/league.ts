@@ -46,8 +46,8 @@ export const leagueConfig = {
     RB: 6,
     WR: 6,
     TE: 2,
-    K: 1,
-    DST: 1,
+    K: 2,
+    DST: 2,
   },
 } as const;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { keepers } from "../config/keepers.js";
-import { ownerOrder, positions, type Owner, type Position } from "../config/league.js";
+import { leagueConfig, ownerOrder, positions, type Owner, type Position } from "../config/league.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
 import {
   buildAuctionConfig,
@@ -549,6 +549,9 @@ describe("auction engine economics", () => {
     expect(maximums.Tye?.QB).toBe(2);
     expect(maximums.Seth?.TE).toBe(1);
     expect(maximums.PJ?.TE).toBeUndefined();
+    expect(maximums.Hoody?.K).toBe(1);
+    expect(maximums.Hoody?.DST).toBe(1);
+    expect(maximums.Beaton?.DST).toBe(1);
   });
 
   it("applies owner-specific roster maximums during bidding", () => {
@@ -1869,13 +1872,14 @@ describe("auction engine economics", () => {
       excludedNames: adjustedPrices.unavailableKeepers.map(keeper => keeper.player),
       targetCount: ownerOrder.length * 16 - keeperCount + fullMockReplacementBuffer,
     });
+    const ownerRosterMaximums = buildOwnerRosterMaximums(profiles);
     const result = simulateAuction({
       players: auctionPlayers,
       initialRostersByOwner,
       config: buildAuctionConfig({
         ownerDemandMultipliers: buildOwnerDemandMultipliers(profiles),
         ownerBehaviors: buildOwnerAuctionBehaviors(profiles),
-        ownerRosterMaximums: buildOwnerRosterMaximums(profiles),
+        ownerRosterMaximums,
         seed: "economic-regression",
       }),
     });
@@ -1898,9 +1902,10 @@ describe("auction engine economics", () => {
         }),
         { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
       );
-      expect(counts.QB, `${owner} QB count`).toBeLessThanOrEqual(2);
-      expect(counts.K, `${owner} K count`).toBeLessThanOrEqual(1);
-      expect(counts.DST, `${owner} DST count`).toBeLessThanOrEqual(1);
+      for (const position of positions) {
+        const maximum = ownerRosterMaximums[owner]?.[position] ?? leagueConfig.rosterMaximums[position];
+        expect(counts[position], `${owner} ${position} count`).toBeLessThanOrEqual(maximum);
+      }
       for (const rosterPlayer of roster.players) draftedNames.add(rosterPlayer.name);
     }
 

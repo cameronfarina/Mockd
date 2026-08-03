@@ -2347,7 +2347,7 @@ export const buildOwnerRosterMaximums = (
 
   for (const profile of profiles) {
     const ownerMaximums: Partial<Record<Position, number>> = {};
-    for (const position of ["QB", "TE"] as const) {
+    for (const position of ["QB", "TE", "K", "DST"] as const) {
       const historicalMaximum = profile.rosterCounts[position] <= onePlayerRosterCountThreshold
         ? 1
         : Math.ceil(profile.rosterCounts[position]);
