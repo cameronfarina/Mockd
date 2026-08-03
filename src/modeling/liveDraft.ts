@@ -1,5 +1,6 @@
 import { keepers as defaultKeepers, type KeeperDeclaration } from "../../config/keepers.js";
 import { leagueConfig, ownerOrder, type Owner, type Position } from "../../config/league.js";
+import { nflTeamByEspnProTeamId } from "../../config/nflTeams.js";
 import { cleanPlayerName, normalizePlayerName } from "../data/normalizePlayerName.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
 import type { ProjectionRecord } from "../projections.js";
@@ -53,11 +54,37 @@ export interface LiveDraftRosterPlayer {
   price: number;
   expectedPrice: number;
   source: "keeper" | LiveDraftPlayerSource;
+  teamAbbreviation?: string;
+  byeWeek?: number;
+}
+
+export type LiveDraftRosterSlotKey =
+  | "QB"
+  | "RB1"
+  | "RB2"
+  | "WR1"
+  | "WR2"
+  | "TE"
+  | "FLEX"
+  | "K"
+  | "DST"
+  | "BENCH1"
+  | "BENCH2"
+  | "BENCH3"
+  | "BENCH4"
+  | "BENCH5"
+  | "BENCH6"
+  | "BENCH7";
+
+export interface LiveDraftRosterSlot {
+  slot: LiveDraftRosterSlotKey;
+  player?: LiveDraftRosterPlayer;
 }
 
 export interface LiveDraftOwnerState {
   owner: Owner;
   roster: LiveDraftRosterPlayer[];
+  slots: LiveDraftRosterSlot[];
   spent: number;
   budgetRemaining: number;
   rosterSlotsRemaining: number;
@@ -81,8 +108,11 @@ export interface LiveDraftRoomState {
 export interface LiveDraftTarget {
   name: string;
   position: Position;
+  teamAbbreviation?: string;
+  byeWeek?: number;
   expectedPrice: number;
   liveExpectedPrice: number;
+  personalValue: number;
   recommendedMaxBid: number;
   valueScore: number;
   weeks1To4: number;
@@ -121,6 +151,8 @@ interface LiveDraftPlayerRecord {
   week1: number;
   weeks1To4: number;
   source: LiveDraftPlayerSource;
+  teamAbbreviation?: string;
+  byeWeek?: number;
   projectionRank?: number;
   espnRank?: number;
 }
@@ -135,6 +167,25 @@ const defaultScenarioKey: KeeperScenarioKey = "expected";
 const defaultWatchOwner: Owner = "Cam";
 const defaultTargetLimit = 80;
 const compactWordPattern = /[^a-z0-9]+/g;
+const lineupSlotKeys = [
+  "QB",
+  "RB1",
+  "RB2",
+  "WR1",
+  "WR2",
+  "TE",
+  "FLEX",
+  "K",
+  "DST",
+  "BENCH1",
+  "BENCH2",
+  "BENCH3",
+  "BENCH4",
+  "BENCH5",
+  "BENCH6",
+  "BENCH7",
+] as const satisfies readonly LiveDraftRosterSlotKey[];
+const flexEligiblePositions = ["RB", "WR", "TE"] as const satisfies readonly Position[];
 
 const emptyPositionCounts = (): Record<Position, number> => ({
   QB: 0,
@@ -150,6 +201,13 @@ const roundToTwo = (value: number): number =>
 
 const roundPrice = (value: number): number =>
   Math.max(1, Math.round(value));
+
+const teamMetadataFor = (
+  proTeamId: number | undefined,
+): { teamAbbreviation?: string; byeWeek?: number } => {
+  const metadata = proTeamId === undefined ? undefined : nflTeamByEspnProTeamId[proTeamId];
+  return metadata ? { teamAbbreviation: metadata.abbreviation, byeWeek: metadata.byeWeek } : {};
+};
 
 const searchKeyFor = (value: string): string =>
   normalizePlayerName(cleanPlayerName(value))
@@ -215,6 +273,7 @@ const liveRecordFromPrice = (price: ScenarioAdjustedPrice): LiveDraftPlayerRecor
   week1: price.weeks[1] ?? 0,
   weeks1To4: price.weeks1To4,
   source: "pricedPool",
+  ...teamMetadataFor(price.proTeamId),
   projectionRank: price.projectionRank,
   ...(price.espnRank === undefined ? {} : { espnRank: price.espnRank }),
 });
@@ -230,6 +289,7 @@ const liveRecordFromProjection = (
   week1: projection.weeks[1] ?? 0,
   weeks1To4: projection.weeks1To4,
   source: "projectionFallback",
+  ...teamMetadataFor(projection.proTeamId),
   projectionRank: projection.projectionRank,
   ...(projection.espnRank === undefined ? {} : { espnRank: projection.espnRank }),
 });
@@ -324,6 +384,7 @@ const playerForRoster = (
   price: player.price,
   expectedPrice,
   source,
+  ...teamMetadataFor(player.proTeamId),
 });
 
 const livePlayerForRoster = (
@@ -335,6 +396,8 @@ const livePlayerForRoster = (
   price,
   expectedPrice: record.expectedPrice,
   source: record.source,
+  ...(record.teamAbbreviation === undefined ? {} : { teamAbbreviation: record.teamAbbreviation }),
+  ...(record.byeWeek === undefined ? {} : { byeWeek: record.byeWeek }),
 });
 
 const rostersFromKeepers = (
@@ -344,6 +407,83 @@ const rostersFromKeepers = (
     owner,
     [...(initialRostersByOwner[owner] ?? [])].map(player => playerForRoster(player, "keeper")),
   ]));
+
+const sortRosterPlayers = (players: readonly LiveDraftRosterPlayer[]): LiveDraftRosterPlayer[] =>
+  [...players].sort(
+    (left, right) =>
+      right.price - left.price ||
+      right.expectedPrice - left.expectedPrice ||
+      left.name.localeCompare(right.name),
+  );
+
+const emptyRosterSlots = (): LiveDraftRosterSlot[] =>
+  lineupSlotKeys.map(slot => ({ slot }));
+
+const slotIndexByKey = (slots: readonly LiveDraftRosterSlot[]): Map<LiveDraftRosterSlotKey, number> =>
+  new Map(slots.map((slot, index) => [slot.slot, index]));
+
+const placeInSlot = (
+  slots: LiveDraftRosterSlot[],
+  indexes: ReadonlyMap<LiveDraftRosterSlotKey, number>,
+  slot: LiveDraftRosterSlotKey,
+  player: LiveDraftRosterPlayer | undefined,
+): void => {
+  if (!player) return;
+
+  const index = indexes.get(slot);
+  if (index === undefined) return;
+  slots[index] = { slot, player };
+};
+
+const firstEmptyBenchSlot = (slots: readonly LiveDraftRosterSlot[]): LiveDraftRosterSlotKey | undefined =>
+  slots.find(slot => slot.slot.startsWith("BENCH") && !slot.player)?.slot;
+
+const isFlexEligible = (position: Position): boolean =>
+  flexEligiblePositions.some(flexPosition => flexPosition === position);
+
+const rosterSlotsFor = (roster: readonly LiveDraftRosterPlayer[]): LiveDraftRosterSlot[] => {
+  const slots = emptyRosterSlots();
+  const indexes = slotIndexByKey(slots);
+  const usedPlayers = new Set<LiveDraftRosterPlayer>();
+  const sortedByPosition = (position: Position): LiveDraftRosterPlayer[] =>
+    sortRosterPlayers(roster.filter(player => player.position === position));
+
+  const qbs = sortedByPosition("QB");
+  const rbs = sortedByPosition("RB");
+  const wrs = sortedByPosition("WR");
+  const tes = sortedByPosition("TE");
+  const kickers = sortedByPosition("K");
+  const defenses = sortedByPosition("DST");
+  const primaryAssignments: [LiveDraftRosterSlotKey, LiveDraftRosterPlayer | undefined][] = [
+    ["QB", qbs[0]],
+    ["RB1", rbs[0]],
+    ["RB2", rbs[1]],
+    ["WR1", wrs[0]],
+    ["WR2", wrs[1]],
+    ["TE", tes[0]],
+    ["K", kickers[0]],
+    ["DST", defenses[0]],
+  ];
+
+  for (const [slot, player] of primaryAssignments) {
+    placeInSlot(slots, indexes, slot, player);
+    if (player) usedPlayers.add(player);
+  }
+
+  const flex = sortRosterPlayers(
+    roster.filter(player => isFlexEligible(player.position) && !usedPlayers.has(player)),
+  )[0];
+  placeInSlot(slots, indexes, "FLEX", flex);
+  if (flex) usedPlayers.add(flex);
+
+  for (const player of sortRosterPlayers(roster.filter(candidate => !usedPlayers.has(candidate)))) {
+    const benchSlot = firstEmptyBenchSlot(slots);
+    if (!benchSlot) break;
+    placeInSlot(slots, indexes, benchSlot, player);
+  }
+
+  return slots;
+};
 
 const ownerStateFor = (
   owner: Owner,
@@ -356,6 +496,7 @@ const ownerStateFor = (
   return {
     owner,
     roster: [...roster],
+    slots: rosterSlotsFor(roster),
     spent,
     budgetRemaining,
     rosterSlotsRemaining,
@@ -462,6 +603,22 @@ const positionNeedMultiplierFor = (
   return multiplier;
 };
 
+const personalPremiumFor = (
+  player: LiveDraftPlayerRecord,
+  watchOwner: LiveDraftOwnerState,
+): number => {
+  const counts = watchOwner.positionCounts;
+  let premium = 0;
+
+  if (counts[player.position] < leagueConfig.lineup[player.position]) premium += 6;
+  if (player.position === "RB" && counts.RB < 3) premium += 4;
+  if (player.position === "WR" && counts.WR < 3) premium += 3;
+  if (player.position === "TE" && counts.TE < 1) premium += 2;
+  if (player.position === "K" || player.position === "DST") premium -= 1;
+
+  return premium;
+};
+
 const canWatchOwnerRosterPlayer = (
   player: LiveDraftPlayerRecord,
   watchOwner: LiveDraftOwnerState,
@@ -487,15 +644,26 @@ const buildTargets = ({
     .filter(player => canWatchOwnerRosterPlayer(player, watchOwner))
     .map(player => {
       const liveExpectedPrice = roundPrice(player.expectedPrice * room.liveInflationFactor);
-      const recommendedMaxBid = Math.min(watchOwner.maxBid, Math.max(player.expectedPrice, liveExpectedPrice));
       const needMultiplier = positionNeedMultiplierFor(player, watchOwner);
+      const positionCeiling = defaultPricingConfig.hardPriceCeilings[player.position];
+      const uncappedPersonalValue = roundPrice(liveExpectedPrice + personalPremiumFor(player, watchOwner));
+      const personalValue = Math.min(
+        watchOwner.maxBid,
+        positionCeiling,
+        player.expectedPrice + 12,
+        Math.max(1, uncappedPersonalValue),
+      );
+      const recommendedMaxBid = personalValue;
       const valueScore = roundToTwo((player.weeks1To4 * needMultiplier) - recommendedMaxBid * 0.35);
 
       return {
         name: player.name,
         position: player.position,
+        ...(player.teamAbbreviation === undefined ? {} : { teamAbbreviation: player.teamAbbreviation }),
+        ...(player.byeWeek === undefined ? {} : { byeWeek: player.byeWeek }),
         expectedPrice: player.expectedPrice,
         liveExpectedPrice,
+        personalValue,
         recommendedMaxBid,
         valueScore,
         weeks1To4: roundToTwo(player.weeks1To4),

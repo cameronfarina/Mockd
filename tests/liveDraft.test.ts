@@ -49,11 +49,53 @@ describe("live draft room", () => {
       rosterSlotsRemaining: 14,
       maxBid: 156,
     });
+    expect(updatedState.owners.find(owner => owner.owner === "Jakub")?.slots).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slot: "RB1",
+          player: expect.objectContaining({ name: "Rhamondre Stevenson" }),
+        }),
+        expect.objectContaining({
+          slot: "TE",
+          player: expect.objectContaining({ name: "George Kittle" }),
+        }),
+      ]),
+    );
     expect(updatedState.availableTargets.some(target => target.name === "George Kittle")).toBe(false);
     expect(updatedState.room.actualAuctionSpend).toBe(28);
     expect(updatedState.room.expectedAuctionSpend).toBe(2);
     expect(updatedState.room.saleVsExpected).toBe(26);
     expect(updatedState.room.liveInflationFactor).toBeLessThan(initialState.room.liveInflationFactor);
     expect(updatedState.availableTargets[0]?.recommendedMaxBid).toBeLessThanOrEqual(updatedState.watchOwner.maxBid);
+  });
+
+  it("exposes board metadata for a simple search-and-add interface", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+    });
+
+    const camQuarterbackSlot = state.watchOwner.slots.find(slot => slot.slot === "QB");
+    const gibbs = state.availableTargets.find(target => target.name === "Jahmyr Gibbs");
+
+    expect(camQuarterbackSlot?.player).toMatchObject({
+      name: "Justin Herbert",
+      position: "QB",
+      price: 2,
+    });
+    expect(gibbs).toMatchObject({
+      position: "RB",
+      expectedPrice: 72,
+      teamAbbreviation: "DET",
+      byeWeek: 6,
+    });
+    expect(gibbs?.personalValue).toBeGreaterThanOrEqual(gibbs?.liveExpectedPrice ?? 0);
+    expect(gibbs?.personalValue).toBeLessThanOrEqual(80);
+    expect(gibbs?.recommendedMaxBid).toBeLessThanOrEqual(state.watchOwner.maxBid);
   });
 });

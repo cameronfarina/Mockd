@@ -14,6 +14,7 @@ export interface ProjectionRecord {
   id: number;
   name: string;
   position: Position;
+  proTeamId?: number;
   weeks: Record<number, number>;
   weeks1To4: number;
   espnRank?: number;
@@ -39,10 +40,11 @@ export const loadEspnWeeksOneToFour = async (path: string): Promise<ProjectionRe
         candidate.statSplitTypeId === 1,
       );
 
-      const existing = records.get(id) ?? {
+      const existing: ProjectionRecord = records.get(id) ?? {
         id,
         name: String(player.fullName ?? ""),
         position,
+        ...(typeof player.proTeamId === "number" ? { proTeamId: player.proTeamId } : {}),
         weeks: {},
         weeks1To4: 0,
       };

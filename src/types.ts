@@ -4,6 +4,7 @@ export interface Player {
   id?: string | number;
   name: string;
   position: Position;
+  proTeamId?: number;
   price: number;
   week1: number;
   weeks1To4: number;

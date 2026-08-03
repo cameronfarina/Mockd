@@ -358,6 +358,7 @@ export interface AuctionPricedPlayer {
   id?: string | number;
   name: string;
   position: Position;
+  proTeamId?: number;
   price: number;
   scenarioPrice?: number;
   week1?: number;
@@ -2177,6 +2178,7 @@ export const buildInitialRostersFromKeepers = (
       id: playerId,
       name: projection?.name ?? declaration.player,
       position: declaration.position,
+      ...(projection?.proTeamId === undefined ? {} : { proTeamId: projection.proTeamId }),
       price: declaration.newCost,
       week1: projection ? projectionWeekOne(projection) : 0,
       weeks1To4: projection?.weeks1To4 ?? 0,
@@ -2198,6 +2200,7 @@ const playerFromPricedRecord = (record: AuctionPricedPlayer): Player => {
     ...id,
     name: record.name,
     position: record.position,
+    ...(record.proTeamId === undefined ? {} : { proTeamId: record.proTeamId }),
     price: record.scenarioPrice ?? record.price,
     week1: record.week1 ?? record.weeks?.[1] ?? 0,
     weeks1To4: record.weeks1To4,
@@ -2259,6 +2262,7 @@ export const buildAuctionPlayerPool = ({
         id: replacement.id,
         name: replacement.name,
         position: replacement.position,
+        ...(replacement.proTeamId === undefined ? {} : { proTeamId: replacement.proTeamId }),
         price,
         week1: projectionWeekOne(replacement),
         weeks1To4: replacement.weeks1To4,
