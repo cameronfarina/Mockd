@@ -37,6 +37,13 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\"");
   });
 
+  it("uses a custom select arrow with enough right-side spacing", () => {
+    expect(liveDraftHtml).toContain("select {");
+    expect(liveDraftHtml).toContain("appearance: none;");
+    expect(liveDraftHtml).toContain("padding-right: 34px;");
+    expect(liveDraftHtml).toContain("background-position: right 12px center;");
+  });
+
   it("switches the board from the dense table to player cards on compact screens", () => {
     expect(liveDraftHtml).toContain("@media (max-width: 760px)");
     expect(liveDraftHtml).toContain(".scroll {\n        display: none;\n      }");
