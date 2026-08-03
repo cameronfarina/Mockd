@@ -26,6 +26,7 @@ export interface MockSmokeBidDiagnostic {
   endgamePressureMultiplier: number;
   roomPressureMultiplier: number;
   budgetPacingMultiplier: number;
+  bidVarianceMultiplier: number;
   topEndDampingMultiplier: number;
   positionOverbidDampingMultiplier: number;
   contextPenaltyDampingMultiplier: number;
@@ -159,6 +160,7 @@ const firstRoundsFor = (run: MockRun, rounds: number): MockSmokePick[] => {
         endgamePressureMultiplier: bid.endgamePressureMultiplier,
         roomPressureMultiplier: bid.roomPressureMultiplier,
         budgetPacingMultiplier: bid.budgetPacingMultiplier,
+        bidVarianceMultiplier: bid.bidVarianceMultiplier,
         topEndDampingMultiplier: bid.topEndDampingMultiplier,
         positionOverbidDampingMultiplier: bid.positionOverbidDampingMultiplier,
         contextPenaltyDampingMultiplier: bid.contextPenaltyDampingMultiplier,

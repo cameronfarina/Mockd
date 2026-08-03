@@ -74,6 +74,13 @@ export interface BudgetPacingConfig {
   minimumPlayerPrice: number;
 }
 
+export interface BidVarianceConfig {
+  minimumPlayerPrice: number;
+  fullEffectPlayerPrice: number;
+  maxDiscount: number;
+  maxPremium: number;
+}
+
 export interface LateOpeningBidConfig {
   startRosterSlotsRemaining: number;
   targetBudgetPerSlot: number;
@@ -145,6 +152,7 @@ export interface AuctionEngineConfig {
   endgameSpend: EndgameSpendConfig;
   roomPressure: RoomPressureConfig;
   budgetPacing: BudgetPacingConfig;
+  bidVariance: BidVarianceConfig;
   lateOpeningBid: LateOpeningBidConfig;
   topEndOverbidDamping: TopEndOverbidDampingConfig;
   contextPenaltyBidDamping: ContextPenaltyBidDampingConfig;
@@ -154,7 +162,7 @@ export interface AuctionEngineConfig {
 }
 
 export type AuctionEngineConfigOverrides =
-  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "ownerPositionAnchorTargets" | "ownerPositionCoreTargets" | "ownerPositionCoreMaxBids" | "ownerPositionSlotMaxBids" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "roomPressure" | "budgetPacing" | "lateOpeningBid" | "topEndOverbidDamping" | "contextPenaltyBidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
+  Partial<Omit<AuctionEngineConfig, "ownerDemandMultipliers" | "ownerBehaviors" | "ownerRosterMaximums" | "ownerPositionAnchorTargets" | "ownerPositionCoreTargets" | "ownerPositionCoreMaxBids" | "ownerPositionSlotMaxBids" | "positionOverbidDamping" | "scarcity" | "rosterNeed" | "nomination" | "endgameSpend" | "roomPressure" | "budgetPacing" | "bidVariance" | "lateOpeningBid" | "topEndOverbidDamping" | "contextPenaltyBidDamping" | "topEndSaleGuard" | "tierSaleGuard">> & {
     ownerDemandMultipliers?: OwnerDemandMultipliers;
     ownerBehaviors?: OwnerAuctionBehaviors;
     ownerRosterMaximums?: OwnerRosterMaximums;
@@ -169,6 +177,7 @@ export type AuctionEngineConfigOverrides =
     endgameSpend?: Partial<EndgameSpendConfig>;
     roomPressure?: Partial<RoomPressureConfig>;
     budgetPacing?: Partial<BudgetPacingConfig>;
+    bidVariance?: Partial<BidVarianceConfig>;
     lateOpeningBid?: Partial<LateOpeningBidConfig>;
     topEndOverbidDamping?: Partial<TopEndOverbidDampingConfig>;
     contextPenaltyBidDamping?: Partial<ContextPenaltyBidDampingConfig>;
@@ -202,6 +211,7 @@ export interface AuctionBid {
   endgamePressureMultiplier: number;
   roomPressureMultiplier: number;
   budgetPacingMultiplier: number;
+  bidVarianceMultiplier: number;
   topEndDampingMultiplier: number;
   positionOverbidDampingMultiplier: number;
   contextPenaltyDampingMultiplier: number;
@@ -493,6 +503,12 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     maxDiscount: 0.28,
     minimumPlayerPrice: 8,
   },
+  bidVariance: {
+    minimumPlayerPrice: 30,
+    fullEffectPlayerPrice: 75,
+    maxDiscount: 0.07,
+    maxPremium: 0.05,
+  },
   lateOpeningBid: {
     startRosterSlotsRemaining: 2,
     targetBudgetPerSlot: 1,
@@ -595,6 +611,10 @@ export const buildAuctionConfig = (
   budgetPacing: {
     ...defaultAuctionEngineConfig.budgetPacing,
     ...overrides.budgetPacing,
+  },
+  bidVariance: {
+    ...defaultAuctionEngineConfig.bidVariance,
+    ...overrides.bidVariance,
   },
   lateOpeningBid: {
     ...defaultAuctionEngineConfig.lateOpeningBid,
@@ -810,6 +830,30 @@ const deterministicTieBreak = (
   playerName: string,
 ): number =>
   hashString(`${seed}|${owner}|${playerName}`) / hashDivisor;
+
+const bidVarianceMultiplierFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  config: AuctionEngineConfig,
+): number => {
+  if (player.price < config.bidVariance.minimumPlayerPrice) return 1;
+
+  const priceRange = Math.max(
+    1,
+    config.bidVariance.fullEffectPlayerPrice - config.bidVariance.minimumPlayerPrice,
+  );
+  const priceScale = clamp(
+    (player.price - config.bidVariance.minimumPlayerPrice) / priceRange,
+    0,
+    1,
+  );
+  const roll = deterministicTieBreak(`${config.seed}:bid-variance`, state.owner, player.name);
+  if (roll < 0.5) {
+    return 1 - ((0.5 - roll) / 0.5) * config.bidVariance.maxDiscount * priceScale;
+  }
+
+  return 1 + ((roll - 0.5) / 0.5) * config.bidVariance.maxPremium * priceScale;
+};
 
 const ownerDemandMultiplierFor = (
   owner: Owner,
@@ -1176,6 +1220,13 @@ const buildStyleMultiplierFor = (
   behavior: CompleteOwnerAuctionBehavior,
   config: AuctionEngineConfig,
 ): number => {
+  const positionAnchorCount = positionAnchorRosterCount(state.roster, player.position);
+  const positionAnchorTarget = config.ownerPositionAnchorTargets[state.owner]?.[player.position];
+  const coreTargets = config.ownerPositionCoreTargets[state.owner]?.[player.position];
+  const hasOpenPositionAnchorTarget = positionAnchorTarget !== undefined &&
+    positionAnchorCount < positionAnchorTarget;
+  const hasOpenCoreTarget = coreTargets !== undefined &&
+    positionAnchorCount < coreTargets.length;
   const unmetTargets = unmetPositionAnchorTargets(state, config);
   if (
     player.price >= anchorBuildPriceThreshold &&
@@ -1185,13 +1236,19 @@ const buildStyleMultiplierFor = (
     return behavior.depthAggression;
   }
 
-  const positionAnchorTarget = config.ownerPositionAnchorTargets[state.owner]?.[player.position];
   if (
-    positionAnchorTarget !== undefined &&
     player.price >= anchorBuildPriceThreshold &&
-    positionAnchorRosterCount(state.roster, player.position) < positionAnchorTarget
+    hasOpenPositionAnchorTarget
   ) {
     return behavior.anchorAggression;
+  }
+
+  if (
+    player.price >= anchorBuildPriceThreshold &&
+    positionAnchorCount > 0 &&
+    !hasOpenCoreTarget
+  ) {
+    return behavior.depthAggression;
   }
 
   if (
@@ -1226,6 +1283,7 @@ const bidForOwner = (
   const endgamePressureMultiplier = endgamePressureMultiplierFor(state, config);
   const roomPressureMultiplier = roomPressureMultiplierFor(state, player, config);
   const budgetPacingMultiplier = budgetPacingMultiplierFor(state, player, config);
+  const bidVarianceMultiplier = bidVarianceMultiplierFor(state, player, config);
   const rawBidMultiplier =
     ownerDemandMultiplier *
     rosterNeedMultiplier *
@@ -1235,7 +1293,8 @@ const bidForOwner = (
     replacementPatienceMultiplier *
     endgamePressureMultiplier *
     roomPressureMultiplier *
-    budgetPacingMultiplier;
+    budgetPacingMultiplier *
+    bidVarianceMultiplier;
   const topEndDampingMultiplier = topEndDampingMultiplierFor(player, rawBidMultiplier, config);
   const topEndAdjustedBidMultiplier = rawBidMultiplier * topEndDampingMultiplier;
   const positionOverbidDampingMultiplier = positionOverbidDampingMultiplierFor(
@@ -1284,6 +1343,7 @@ const bidForOwner = (
     endgamePressureMultiplier,
     roomPressureMultiplier,
     budgetPacingMultiplier,
+    bidVarianceMultiplier,
     topEndDampingMultiplier,
     positionOverbidDampingMultiplier,
     contextPenaltyDampingMultiplier,
@@ -1313,6 +1373,7 @@ const bidDriversFor = (bid: AuctionBid): AuctionBidDriver[] => {
     { key: "endgame_pressure", multiplier: bid.endgamePressureMultiplier },
     { key: "room_pressure", multiplier: bid.roomPressureMultiplier },
     { key: "budget_pacing", multiplier: bid.budgetPacingMultiplier },
+    { key: "bid_variance", multiplier: bid.bidVarianceMultiplier },
     { key: "top_end_damping", multiplier: bid.topEndDampingMultiplier },
     { key: "position_overbid_damping", multiplier: bid.positionOverbidDampingMultiplier },
     { key: "context_penalty_damping", multiplier: bid.contextPenaltyDampingMultiplier },

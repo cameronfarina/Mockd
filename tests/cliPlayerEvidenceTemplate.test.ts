@@ -30,6 +30,6 @@ describe("CLI player evidence template", () => {
     expect(lines.some(line => line.startsWith("Drake London,opportunity,,,"))).toBe(true);
     expect(lines.some(line => line.startsWith("Drake London,defensiveAttention,,,"))).toBe(true);
     expect(lines.some(line => line.includes(",present,"))).toBe(true);
-    expect(lines.some(line => line.includes("highMockPremium"))).toBe(true);
+    expect(lines.some(line => line.includes("largeProjectionRankLift"))).toBe(true);
   }, 15000);
 });

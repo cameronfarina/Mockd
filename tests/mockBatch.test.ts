@@ -119,4 +119,39 @@ describe("mock batch simulation", () => {
       valid: roster.valid,
     })));
   }, 15000);
+
+  it("keeps owner personality profiles from locking the same elite RB pair every run", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const batch = runMockBatch({
+      projections,
+      historicalRecords,
+      keepers,
+      scenarioKeys: ["expected"],
+      runsPerScenario: 20,
+      seedPrefix: "personality-lock",
+      diagnosticsMode: "summary",
+    });
+    const draftedOwnerFor = (
+      run: (typeof batch.runs)[number],
+      playerName: string,
+    ): string | undefined =>
+      run.rosters.find(roster => roster.players.some(player => player.name === playerName))?.owner;
+    const beatonBothCount = batch.runs.filter(run =>
+      draftedOwnerFor(run, "Jahmyr Gibbs") === "Beaton" &&
+      draftedOwnerFor(run, "Bijan Robinson") === "Beaton",
+    ).length;
+    const beatonAtLeastOneCount = batch.runs.filter(run =>
+      draftedOwnerFor(run, "Jahmyr Gibbs") === "Beaton" ||
+      draftedOwnerFor(run, "Bijan Robinson") === "Beaton",
+    ).length;
+    const eliteRbOwnerPairs = new Set(batch.runs.map(run => [
+      draftedOwnerFor(run, "Jahmyr Gibbs"),
+      draftedOwnerFor(run, "Bijan Robinson"),
+    ].join(":")));
+
+    expect(beatonAtLeastOneCount).toBeGreaterThan(0);
+    expect(beatonBothCount).toBeLessThan(batch.runs.length);
+    expect(eliteRbOwnerPairs.size).toBeGreaterThan(1);
+  }, 15000);
 });
