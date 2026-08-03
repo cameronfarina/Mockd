@@ -472,16 +472,42 @@ const nominatedPlayerFromValue = (value: unknown): string | undefined => {
 };
 
 const commandFromInteractiveMockAction = (result: unknown): string => {
+  const command = optionalCommandFromInteractiveMockAction(result);
+  if (command) return command;
+
+  throw new Error("Interactive mock action did not return a sale command.");
+};
+
+const optionalCommandFromInteractiveMockAction = (result: unknown): string | undefined => {
   if (!result || typeof result !== "object") {
-    throw new Error("Interactive mock action did not return a sale command.");
+    return undefined;
   }
 
   const command = (result as Record<string, unknown>).command;
   if (typeof command !== "string" || !command.trim()) {
-    throw new Error("Interactive mock action did not return a sale command.");
+    return undefined;
   }
 
   return command.trim();
+};
+
+const mockDraftFromInteractiveMockAction = (result: unknown): unknown | undefined => {
+  if (!result || typeof result !== "object") return undefined;
+
+  const mockDraft = (result as Record<string, unknown>).mockDraft;
+  return mockDraft && typeof mockDraft === "object" ? mockDraft : undefined;
+};
+
+const mockAuctionFromValue = (value: unknown): unknown | undefined =>
+  value && typeof value === "object" ? value : undefined;
+
+const mockDraftWithClientAuction = (mockDraft: unknown, mockAuction: unknown | undefined): unknown => {
+  if (!mockAuction || !mockDraft || typeof mockDraft !== "object") return mockDraft;
+
+  return {
+    ...(mockDraft as Record<string, unknown>),
+    auction: mockAuction,
+  };
 };
 
 const ambiguousPlayerMatchOptionsFor = (message: string): string[] => {
@@ -837,6 +863,20 @@ export const createLiveDraftServer = async (
     let appendedCount = 0;
     let startRound: number | undefined;
     let nextNominatedPlayer = nominatedPlayer;
+    const commandForMockAction = (mockDraft: unknown, actionName: string): string => {
+      let currentMockDraft = mockDraft;
+      for (let bidStep = 0; bidStep < ownerOrder.length * 2; bidStep += 1) {
+        const result = interactiveMockDraft.resolveInteractiveMockDraftAction(currentMockDraft, actionName);
+        const command = optionalCommandFromInteractiveMockAction(result);
+        if (command) return command;
+
+        const unresolvedMockDraft = mockDraftFromInteractiveMockAction(result);
+        if (!unresolvedMockDraft) break;
+        currentMockDraft = unresolvedMockDraft;
+      }
+
+      throw new Error("Interactive mock action did not resolve to a sale command.");
+    };
 
     for (let step = 0; step < maximumSteps; step += 1) {
       const mockDraft = await mockDraftFor({
@@ -859,13 +899,9 @@ export const createLiveDraftServer = async (
 
       let command: string | undefined;
       if (phase === "ai-sale") {
-        command = commandFromInteractiveMockAction(
-          interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, "advance"),
-        );
+        command = commandForMockAction(mockDraft, "advance");
       } else if (phase === "human-decision" && action === "complete-mock") {
-        command = commandFromInteractiveMockAction(
-          interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, "cam-bid"),
-        );
+        command = commandForMockAction(mockDraft, "cam-bid");
       } else if (phase === "human-nomination" && action === "complete-mock") {
         const automaticNomination = mockDraftTopTargetNameFor(mockDraft);
         if (!automaticNomination) break;
@@ -874,11 +910,9 @@ export const createLiveDraftServer = async (
           draftSessionKey,
         });
         const nominatedPhase = mockDraftPhaseFor(nominatedMockDraft);
-        command = commandFromInteractiveMockAction(
-          interactiveMockDraft.resolveInteractiveMockDraftAction(
-            nominatedMockDraft,
-            nominatedPhase === "human-decision" ? "cam-bid" : "advance",
-          ),
+        command = commandForMockAction(
+          nominatedMockDraft,
+          nominatedPhase === "human-decision" ? "cam-bid" : "advance",
         );
       } else {
         break;
@@ -1127,6 +1161,7 @@ export const createLiveDraftServer = async (
         const draftSessionKey = draftSessionKeyFromBody(body);
         const seed = seedFromValue(body.seed);
         const nominatedPlayer = nominatedPlayerFromValue(body.nominatedPlayer);
+        const mockAuction = mockAuctionFromValue(body.mockAuction);
         const action = typeof body.action === "string" ? body.action.trim() : "";
         const lock = draftNightLockFor(draftSessionKey);
         if (lock.locked) {
@@ -1178,10 +1213,22 @@ export const createLiveDraftServer = async (
         const result = await runQueuedSessionMutation(draftSessionKey, "interactive-mock", async (): Promise<LiveDraftMutationResult> => {
           const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
           const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
-          const mockDraft = await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer), draftSessionKey });
-          const command = commandFromInteractiveMockAction(
-            interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, action),
+          const mockDraft = mockDraftWithClientAuction(
+            await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer), draftSessionKey }),
+            mockAuction,
           );
+          const actionResult = interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, action);
+          const unresolvedMockDraft = mockDraftFromInteractiveMockAction(actionResult);
+          const command = optionalCommandFromInteractiveMockAction(actionResult);
+          if (!command) {
+            return {
+              status: 200,
+              body: {
+                ...await stateFor({ draftSessionKey, mode: "interactive-mock", strategyKey }),
+                mockDraft: unresolvedMockDraft ?? mockDraft,
+              },
+            };
+          }
           const trialCommands = [...interactiveMockStore.currentCommands(), command];
           const trialState = await stateFor({
             draftSessionKey,

@@ -4,6 +4,7 @@ import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.
 import {
   buildInteractiveMockDraftState,
   resolveInteractiveMockDraftAction,
+  type InteractiveMockDraftState,
 } from "../src/modeling/interactiveMockDraft.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
 
@@ -36,7 +37,7 @@ const commandsBeforeAffordableRb3Decision = [
 ];
 
 describe("interactive mock draft", () => {
-  it("uses real auction nominations and AI bids for owners other than Cam", async () => {
+  it("uses real auction nominations and pauses when Cam can enter the bidding", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const state = buildInteractiveMockDraftState({
@@ -49,11 +50,12 @@ describe("interactive mock draft", () => {
       seed: "interactive-test",
     });
 
-    expect(state.phase).toBe("ai-sale");
+    expect(state.phase).toBe("human-decision");
     expect(state.nominator).toBe("Beaton");
     expect(state.nomination?.player).toBe("Jahmyr Gibbs");
     expect(state.aiSaleCommand).toMatch(/^\w+ drafted Jahmyr Gibbs for \d+$/);
-    expect(state.camDecision).toBeUndefined();
+    expect(state.camDecision?.recommendedBid).toBe(state.auction?.nextCamBid);
+    expect(state.auction?.feed.map(event => event.text)).toContain("Beaton nominated Jahmyr Gibbs for $70");
     expect(state.aiBids[0]).toMatchObject({
       player: "Jahmyr Gibbs",
       owner: expect.not.stringMatching(/^Cam$/),
@@ -83,16 +85,94 @@ describe("interactive mock draft", () => {
     expect(state.nomination?.player).toBe("Breece Hall");
     expect(state.camDecision).toMatchObject({
       maxBid: 46,
-      recommendedBid: 42,
+      recommendedBid: 40,
       topAiBid: 41,
       topAiBidOwner: "Russ",
     });
-    expect(state.camDecision?.maxBid).toBeGreaterThanOrEqual(state.camDecision?.recommendedBid ?? 0);
+    expect(state.auction).toMatchObject({
+      currentBid: 39,
+      currentBidOwner: "Russ",
+      nextCamBid: 40,
+    });
+    expect(state.camDecision?.maxBid).toBeGreaterThanOrEqual(state.auction?.nextCamBid ?? 0);
 
     const camBid = resolveInteractiveMockDraftAction(state, "cam-bid");
     const pass = resolveInteractiveMockDraftAction(state, "pass");
-    expect(camBid.command).toBe(`Cam drafted ${state.nomination?.player} for ${state.camDecision?.recommendedBid}`);
+    expect(camBid.command).toBeUndefined();
+    expect(camBid.mockDraft?.auction?.currentBid).toBe(41);
+    expect(camBid.mockDraft?.auction?.nextCamBid).toBe(42);
     expect(pass.command).toBe(state.aiSaleCommand);
+  });
+
+  it("exposes the current auction bid and lets AI continue after Cam raises", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const commandsBeforeCamNomination = commandsBeforeAffordableRb3Decision.slice(0, 10);
+    const state = buildInteractiveMockDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      commands: commandsBeforeCamNomination,
+      watchOwner: "Cam",
+      strategyKey: "three-rb",
+      seed: "interactive-auction-test",
+      nominatedPlayer: "Breece Hall",
+    });
+
+    expect(state.phase).toBe("human-decision");
+    expect(state.auction).toMatchObject({
+      status: "cam-decision",
+      player: "Breece Hall",
+      currentBid: state.camDecision?.aiSalePrice,
+      nextCamBid: (state.camDecision?.aiSalePrice ?? 0) + 1,
+    });
+    expect(state.camDecision?.recommendedBid).toBe(state.auction?.nextCamBid);
+    expect(state.auction?.feed[0]?.text).toBe(
+      `${state.nominator} nominated Breece Hall for $${state.auction?.openingBid}`,
+    );
+
+    const contestedState = {
+      ...state,
+      aiBids: [
+        { owner: "Russ", player: "Breece Hall", amount: 45, maxBid: 45, marketPrice: 37 },
+        { owner: "Chip", player: "Breece Hall", amount: 43, maxBid: 43, marketPrice: 37 },
+      ],
+      camDecision: {
+        maxBid: 46,
+        recommendedBid: 42,
+        topAiBid: 45,
+        topAiBidOwner: "Russ",
+        aiSalePrice: 41,
+        valueGap: 8,
+      },
+      auction: {
+        ...state.auction!,
+        status: "cam-decision",
+        currentBid: 41,
+        currentBidOwner: "Russ",
+        nextCamBid: 42,
+        feed: [
+          { type: "nomination", text: "Cam nominated Breece Hall for $37" },
+          { type: "bid", owner: "Russ", amount: 41, text: "Russ bid $41" },
+        ],
+      },
+    } satisfies InteractiveMockDraftState;
+
+    const aiRaise = resolveInteractiveMockDraftAction(contestedState, "cam-bid") as {
+      command?: string;
+      mockDraft?: InteractiveMockDraftState;
+    };
+    expect(aiRaise.command).toBeUndefined();
+    expect(aiRaise.mockDraft?.phase).toBe("human-decision");
+    expect(aiRaise.mockDraft?.auction?.currentBid).toBe(43);
+    expect(aiRaise.mockDraft?.auction?.currentBidOwner).toBe("Russ");
+    expect(aiRaise.mockDraft?.auction?.nextCamBid).toBe(44);
+    expect(aiRaise.mockDraft?.auction?.feed.map(event => event.text)).toEqual([
+      "Cam nominated Breece Hall for $37",
+      "Russ bid $41",
+      "Cam bid $42",
+      "Russ bid $43",
+    ]);
   });
 
   it("lets Cam explicitly nominate a selected player on his snake turn", async () => {

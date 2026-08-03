@@ -93,6 +93,41 @@ export interface InteractiveMockDraftCamDecision {
   valueGap: number;
 }
 
+export type InteractiveMockDraftAuctionEventType =
+  | "nomination"
+  | "bid"
+  | "pass"
+  | "countdown"
+  | "sold";
+
+export interface InteractiveMockDraftAuctionEvent {
+  type: InteractiveMockDraftAuctionEventType;
+  text: string;
+  owner?: Owner;
+  amount?: number;
+  countdown?: number;
+}
+
+export type InteractiveMockDraftAuctionStatus = "ai-sale" | "cam-decision" | "sold";
+
+export interface InteractiveMockDraftAuctionState {
+  status: InteractiveMockDraftAuctionStatus;
+  player: string;
+  position: Position;
+  nominator: Owner;
+  openingBid: number;
+  currentBid: number;
+  currentBidOwner: Owner;
+  nextCamBid?: number;
+  camMaxBid?: number;
+  feed: InteractiveMockDraftAuctionEvent[];
+  resolution?: {
+    owner: Owner;
+    price: number;
+    command: string;
+  };
+}
+
 export interface InteractiveMockDraftState {
   phase: InteractiveMockDraftPhase;
   watchOwner: Owner;
@@ -105,12 +140,17 @@ export interface InteractiveMockDraftState {
   nominator?: Owner;
   nomination?: InteractiveMockDraftNomination;
   aiBids: InteractiveMockDraftBid[];
+  auction?: InteractiveMockDraftAuctionState;
   aiSaleCommand?: string;
   camDecision?: InteractiveMockDraftCamDecision;
   topTargets: LiveDraftTarget[];
   shortlist: LiveDraftShortlistTarget[];
   message?: string;
 }
+
+export type InteractiveMockDraftActionResult =
+  | { command: string; mockDraft?: InteractiveMockDraftState }
+  | { command?: undefined; mockDraft: InteractiveMockDraftState };
 
 export interface BuildInteractiveMockDraftStateOptions {
   projections: readonly ProjectionRecord[];
@@ -627,6 +667,95 @@ const watchOwnerCanRoster = (
 const aiSaleCommandFor = (owner: Owner, player: string, price: number): string =>
   `${owner} drafted ${player} for ${price}`;
 
+const dollarText = (amount: number): string => `$${amount}`;
+
+const auctionEvent = ({
+  type,
+  text,
+  owner,
+  amount,
+  countdown,
+}: {
+  type: InteractiveMockDraftAuctionEventType;
+  text: string;
+  owner?: Owner;
+  amount?: number;
+  countdown?: number;
+}): InteractiveMockDraftAuctionEvent => ({
+  type,
+  text,
+  ...(owner === undefined ? {} : { owner }),
+  ...(amount === undefined ? {} : { amount }),
+  ...(countdown === undefined ? {} : { countdown }),
+});
+
+const bidEventFor = (owner: Owner, amount: number): InteractiveMockDraftAuctionEvent =>
+  auctionEvent({
+    type: "bid",
+    owner,
+    amount,
+    text: `${owner} bid ${dollarText(amount)}`,
+  });
+
+const countdownAndSoldEventsFor = (
+  owner: Owner,
+  price: number,
+): InteractiveMockDraftAuctionEvent[] => [
+  ...[5, 4, 3, 2, 1].map(countdown =>
+    auctionEvent({ type: "countdown", countdown, text: String(countdown) })
+  ),
+  auctionEvent({
+    type: "sold",
+    owner,
+    amount: price,
+    text: `Sold to ${owner} for ${dollarText(price)}`,
+  }),
+];
+
+const nominationOpeningBidFor = (
+  nomination: InteractiveMockDraftNomination,
+  currentBid: number,
+  config: AuctionEngineConfig,
+  nominatorOpeningBid: number,
+): number => {
+  const modeledOpeningBid = nominatorOpeningBid > 0 ? nominatorOpeningBid : nomination.marketPrice;
+
+  return Math.max(config.minimumBid, Math.min(currentBid, modeledOpeningBid));
+};
+
+const aiBidFeedFor = ({
+  bids,
+  currentBid,
+  currentBidOwner,
+  minimumBid,
+  openingBid,
+}: {
+  bids: readonly AuctionBid[];
+  currentBid: number;
+  currentBidOwner: Owner;
+  minimumBid: number;
+  openingBid: number;
+}): InteractiveMockDraftAuctionEvent[] => {
+  if (currentBid <= openingBid) return [];
+
+  const feed: InteractiveMockDraftAuctionEvent[] = [];
+  const previousOwners = bids
+    .filter(bid => bid.owner !== currentBidOwner && bid.amount > openingBid)
+    .slice(0, topBidLimit)
+    .sort((left, right) => left.amount - right.amount);
+  let nextBid = openingBid + 1;
+
+  for (const bid of previousOwners) {
+    if (nextBid >= currentBid) break;
+    if (bid.amount < nextBid) continue;
+    feed.push(bidEventFor(bid.owner, nextBid));
+    nextBid += minimumBid;
+  }
+
+  feed.push(bidEventFor(currentBidOwner, currentBid));
+  return feed;
+};
+
 const baseStateFor = ({
   phase,
   prepared,
@@ -665,6 +794,7 @@ const camDecisionFor = ({
   topAiBid,
   topAiBidOwner,
   aiSalePrice,
+  minimumBid,
 }: {
   liveState: LiveDraftState;
   watchOwnerState: AuctionOwnerState;
@@ -672,6 +802,7 @@ const camDecisionFor = ({
   topAiBid: number;
   topAiBidOwner: Owner;
   aiSalePrice: number;
+  minimumBid: number;
 }): InteractiveMockDraftCamDecision | undefined => {
   if (!watchOwnerCanRoster(watchOwnerState, player)) return undefined;
 
@@ -681,15 +812,90 @@ const camDecisionFor = ({
   if (!target) return undefined;
 
   const maxBid = Math.min(target.recommendedMaxBid, watchOwnerState.maxBid);
-  if (maxBid <= topAiBid) return undefined;
+  if (maxBid <= aiSalePrice) return undefined;
+  const nextLiveBid = aiSalePrice + minimumBid;
 
   return {
     maxBid,
-    recommendedBid: Math.min(maxBid, topAiBid + 1),
+    recommendedBid: Math.min(maxBid, nextLiveBid),
     topAiBid,
     topAiBidOwner,
     aiSalePrice,
     valueGap: target.personalValue - target.liveExpectedPrice,
+  };
+};
+
+const auctionStateFor = ({
+  status,
+  nomination,
+  nominator,
+  aiSale,
+  camDecision,
+  config,
+}: {
+  status: InteractiveMockDraftAuctionStatus;
+  nomination: InteractiveMockDraftNomination;
+  nominator: Owner;
+  aiSale: NonNullable<ReturnType<typeof resolveAuctionSale>>;
+  camDecision?: InteractiveMockDraftCamDecision;
+  config: AuctionEngineConfig;
+}): InteractiveMockDraftAuctionState => {
+  const currentBid = aiSale.price;
+  const currentBidOwner = aiSale.winner;
+  const openingBid = nominationOpeningBidFor(
+    nomination,
+    currentBid,
+    config,
+    aiSale.diagnostics.nominatorOpeningBid,
+  );
+  const feed = [
+    auctionEvent({
+      type: "nomination",
+      owner: nominator,
+      amount: openingBid,
+      text: `${nominator} nominated ${nomination.player} for ${dollarText(openingBid)}`,
+    }),
+    ...aiBidFeedFor({
+      bids: aiSale.bids,
+      currentBid,
+      currentBidOwner,
+      minimumBid: config.minimumBid,
+      openingBid,
+    }),
+  ];
+  const resolution = {
+    owner: aiSale.winner,
+    price: aiSale.price,
+    command: aiSaleCommandFor(aiSale.winner, nomination.player, aiSale.price),
+  };
+
+  if (status === "ai-sale") {
+    return {
+      status,
+      player: nomination.player,
+      position: nomination.position,
+      nominator,
+      openingBid,
+      currentBid,
+      currentBidOwner,
+      feed: [...feed, ...countdownAndSoldEventsFor(aiSale.winner, aiSale.price)],
+      resolution,
+    };
+  }
+
+  return {
+    status,
+    player: nomination.player,
+    position: nomination.position,
+    nominator,
+    openingBid,
+    currentBid,
+    currentBidOwner,
+    ...(camDecision === undefined ? {} : {
+      nextCamBid: camDecision.recommendedBid,
+      camMaxBid: camDecision.maxBid,
+    }),
+    feed,
   };
 };
 
@@ -750,8 +956,17 @@ const stateForResolvedNomination = ({
     topAiBid,
     topAiBidOwner,
     aiSalePrice: aiSale.price,
+    minimumBid: prepared.config.minimumBid,
   });
   const phase: InteractiveMockDraftPhase = camDecision ? "human-decision" : "ai-sale";
+  const auction = auctionStateFor({
+    status: camDecision ? "cam-decision" : "ai-sale",
+    nomination,
+    nominator,
+    aiSale,
+    ...(camDecision === undefined ? {} : { camDecision }),
+    config: prepared.config,
+  });
 
   return {
     ...baseStateFor({
@@ -765,6 +980,7 @@ const stateForResolvedNomination = ({
     nominator,
     nomination,
     aiBids: aiSale.bids.slice(0, topBidLimit).map(bid => mockBidFor(bid, player)),
+    auction,
     aiSaleCommand: aiSaleCommandFor(aiSale.winner, player.name, aiSale.price),
     ...(camDecision === undefined ? {} : { camDecision }),
   };
@@ -901,21 +1117,134 @@ export const buildInteractiveMockDraftState = ({
   });
 };
 
+const resolvedAuctionFor = (
+  state: InteractiveMockDraftState,
+  owner: Owner,
+  price: number,
+): { command: string; auction: InteractiveMockDraftAuctionState | undefined } => {
+  if (!state.nomination) throw new Error("No nominated player is available to resolve.");
+
+  const command = aiSaleCommandFor(owner, state.nomination.player, price);
+  if (!state.auction) return { command, auction: undefined };
+
+  return {
+    command,
+    auction: {
+      ...state.auction,
+      status: "sold",
+      currentBid: price,
+      currentBidOwner: owner,
+      feed: [
+        ...state.auction.feed,
+        ...countdownAndSoldEventsFor(owner, price),
+      ],
+      resolution: { owner, price, command },
+    },
+  };
+};
+
+const nextAiBidAfterCam = (
+  state: InteractiveMockDraftState,
+  camBid: number,
+): InteractiveMockDraftBid | undefined =>
+  state.aiBids
+    .filter(bid => bid.amount >= camBid + 1)
+    .sort((left, right) => right.amount - left.amount || left.owner.localeCompare(right.owner))[0];
+
+const stateAfterAiRaise = (
+  state: InteractiveMockDraftState,
+  camBid: number,
+  aiBid: InteractiveMockDraftBid,
+): InteractiveMockDraftState => {
+  if (!state.auction || !state.camDecision) {
+    throw new Error("Cam does not have a live auction decision.");
+  }
+
+  const aiResponseAmount = camBid + 1;
+  const nextCamBid = aiResponseAmount + 1;
+  const feed = [
+    ...state.auction.feed,
+    bidEventFor(state.watchOwner, camBid),
+    bidEventFor(aiBid.owner, aiResponseAmount),
+  ];
+  const camDecision = {
+    ...state.camDecision,
+    recommendedBid: nextCamBid,
+    aiSalePrice: aiResponseAmount,
+    topAiBid: Math.max(state.camDecision.topAiBid, aiResponseAmount),
+    topAiBidOwner: aiBid.owner,
+  };
+
+  return {
+    ...state,
+    phase: "human-decision",
+    camDecision,
+    auction: {
+      ...state.auction,
+      status: "cam-decision",
+      currentBid: aiResponseAmount,
+      currentBidOwner: aiBid.owner,
+      nextCamBid,
+      camMaxBid: state.camDecision.maxBid,
+      feed,
+    },
+  };
+};
+
 export const resolveInteractiveMockDraftAction = (
   state: InteractiveMockDraftState,
   action: InteractiveMockDraftAction,
-): { command: string } => {
+): InteractiveMockDraftActionResult => {
   if (action === "cam-bid" || action === "cam-win") {
     if (!state.nomination || !state.camDecision) {
       throw new Error("Cam does not have a live decision to win.");
     }
+    const camBid = state.auction?.nextCamBid ?? state.camDecision.recommendedBid;
+    if (camBid > state.camDecision.maxBid) {
+      throw new Error(`Cam cannot bid ${camBid}; max bid is ${state.camDecision.maxBid}.`);
+    }
 
+    const aiRaise = nextAiBidAfterCam(state, camBid);
+    if (aiRaise) {
+      const nextState = stateAfterAiRaise(state, camBid, aiRaise);
+      if ((nextState.auction?.nextCamBid ?? 0) <= state.camDecision.maxBid) {
+        return { mockDraft: nextState };
+      }
+
+      const resolved = resolvedAuctionFor(nextState, aiRaise.owner, nextState.auction?.currentBid ?? camBid + 1);
+      return {
+        command: resolved.command,
+        ...(resolved.auction === undefined ? {} : {
+          mockDraft: {
+            ...nextState,
+            phase: "ai-sale",
+            auction: resolved.auction,
+          },
+        }),
+      };
+    }
+
+    const resolved = resolvedAuctionFor(state, state.watchOwner, camBid);
     return {
-      command: aiSaleCommandFor(state.watchOwner, state.nomination.player, state.camDecision.recommendedBid),
+      command: resolved.command,
+      ...(resolved.auction === undefined ? {} : {
+        mockDraft: {
+          ...state,
+          phase: "ai-sale",
+          auction: resolved.auction,
+        },
+      }),
     };
   }
 
   if (action === "advance" || action === "pass") {
+    const auctionOwner = state.auction?.currentBidOwner;
+    const auctionPrice = state.auction?.currentBid;
+    if (action === "pass" && state.nomination && auctionOwner && auctionPrice) {
+      const resolved = resolvedAuctionFor(state, auctionOwner, auctionPrice);
+      return { command: resolved.command };
+    }
+
     if (!state.aiSaleCommand) {
       throw new Error("No AI sale is ready to advance.");
     }

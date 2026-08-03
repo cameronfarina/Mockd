@@ -33,6 +33,23 @@ const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiv
     pickNumber: options.commands.length + 1,
     aiSaleCommand: mockAiSaleCommands[options.commands.length] ?? mockAiSaleCommands[1],
     nomination: options.nominatedPlayer ? { player: options.nominatedPlayer } : { player: "Breece Hall" },
+    auction: {
+      status: "cam-decision",
+      player: options.nominatedPlayer ?? "Breece Hall",
+      currentBid: options.commands.length >= 2 ? 41 : 40,
+      currentBidOwner: "Chip",
+      nextCamBid: options.commands.length >= 2 ? 42 : 41,
+      openingBid: 37,
+      feed: [
+        { type: "nomination", text: `Cam nominated ${options.nominatedPlayer ?? "Breece Hall"} for $37` },
+        {
+          type: "bid",
+          owner: "Chip",
+          amount: options.commands.length >= 2 ? 41 : 40,
+          text: `Chip bid $${options.commands.length >= 2 ? 41 : 40}`,
+        },
+      ],
+    },
     camDecision: options.nominatedPlayer || options.commands.length >= 2
       ? { recommendedBid: 42, maxBid: 44, topAiBid: 41, topAiBidOwner: "Chip" }
       : undefined,
@@ -47,9 +64,30 @@ const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiv
       aiSaleCommand?: string;
       nominatedPlayer?: string;
       nomination?: { player?: string };
+      auction?: { currentBid?: number; feed?: unknown[] };
     };
     if (action === "cam-bid") {
       const nominatedPlayer = draft.nominatedPlayer ?? draft.nomination?.player ?? "Breece Hall";
+      if (draft.auction?.currentBid === 41) {
+        return {
+          mockDraft: {
+            ...draft,
+            phase: "human-decision",
+            auction: {
+              ...draft.auction,
+              currentBid: 43,
+              currentBidOwner: "Chip",
+              nextCamBid: 44,
+              feed: [
+                ...(draft.auction.feed ?? []),
+                { type: "bid", owner: "Cam", amount: 42, text: "Cam bid $42" },
+                { type: "bid", owner: "Chip", amount: 43, text: "Chip bid $43" },
+              ],
+            },
+            camDecision: { recommendedBid: 44, maxBid: 44, topAiBid: 44, topAiBidOwner: "Chip" },
+          },
+        };
+      }
       return { command: `Cam drafted ${nominatedPlayer} for 42` };
     }
     if (action !== "advance") throw new Error(`Unexpected test action: ${action}`);
@@ -775,6 +813,51 @@ describe("live draft server", () => {
       expect(camBid.data.session.commandCount).toBe(1);
       expect(camBid.data.events.map((event: { input: string }) => event.input)).toEqual([
         "Cam drafted Breece Hall for 42",
+      ]);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("returns an updated mock auction when AI keeps bidding after Cam raises", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const aiRaise = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "practice-3rb",
+        strategyKey: "three-rb",
+        seed: "server-auction-bid",
+        action: "cam-bid",
+        nominatedPlayer: "Breece Hall",
+        mockAuction: {
+          currentBid: 41,
+          feed: [
+            { type: "nomination", text: "Cam nominated Breece Hall for $37" },
+            { type: "bid", owner: "Chip", amount: 41, text: "Chip bid $41" },
+          ],
+        },
+      });
+
+      expect(aiRaise.status).toBe(200);
+      expect(aiRaise.data.session.commandCount).toBe(0);
+      expect(aiRaise.data.events).toHaveLength(0);
+      expect(aiRaise.data.mockDraft.auction).toMatchObject({
+        currentBid: 43,
+        currentBidOwner: "Chip",
+        nextCamBid: 44,
+      });
+      expect(aiRaise.data.mockDraft.auction.feed.map((event: { text: string }) => event.text)).toEqual([
+        "Cam nominated Breece Hall for $37",
+        "Chip bid $41",
+        "Cam bid $42",
+        "Chip bid $43",
       ]);
     } finally {
       await rm(directory, { force: true, recursive: true });

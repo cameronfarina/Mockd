@@ -569,6 +569,81 @@ export const liveDraftHtml = `<!doctype html>
       font-variant-numeric: tabular-nums;
     }
 
+    .mock-auction-feed {
+      display: grid;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(5, 11, 18, 0.34);
+    }
+
+    .mock-auction-feed[hidden] {
+      display: none;
+    }
+
+    .mock-auction-nomination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 10px;
+      border: 1px solid rgba(99, 168, 255, 0.5);
+      border-radius: 6px;
+      background: rgba(99, 168, 255, 0.1);
+    }
+
+    .mock-auction-nomination strong {
+      color: #f4f8fc;
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .mock-auction-phase {
+      color: #a9c4df;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .mock-auction-feed-lines {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 1px;
+    }
+
+    .mock-feed-line {
+      flex: 0 0 auto;
+      padding: 5px 7px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: rgba(8, 24, 38, 0.82);
+      color: #a9c4df;
+      font-size: 12px;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .mock-feed-line.nomination {
+      color: #d9e7f5;
+    }
+
+    .mock-feed-line.bid {
+      color: #cfe4fb;
+    }
+
+    .mock-feed-line.countdown {
+      min-width: 26px;
+      text-align: center;
+      color: var(--amber);
+    }
+
+    .mock-feed-line.sold {
+      border-color: rgba(31, 207, 143, 0.52);
+      color: #7af0bd;
+      background: rgba(31, 207, 143, 0.1);
+    }
+
     .scroll {
       overflow: auto;
       max-height: calc(100vh - 236px);
@@ -589,6 +664,15 @@ export const liveDraftHtml = `<!doctype html>
 
     .target-card:last-child {
       border-bottom: 0;
+    }
+
+    .target-card.is-nominated {
+      margin: 0 -8px;
+      padding-inline: 8px;
+      border-radius: 6px;
+      background: rgba(31, 207, 143, 0.07);
+      outline: 1px solid rgba(31, 207, 143, 0.48);
+      outline-offset: -1px;
     }
 
     .target-card-body {
@@ -712,6 +796,12 @@ export const liveDraftHtml = `<!doctype html>
 
     tbody tr.is-selected {
       background: rgba(99, 168, 255, 0.1);
+    }
+
+    tbody tr.is-nominated {
+      outline: 1px solid rgba(31, 207, 143, 0.5);
+      outline-offset: -1px;
+      background: rgba(31, 207, 143, 0.07);
     }
 
     tbody tr.keeper-row {
@@ -1605,6 +1695,10 @@ export const liveDraftHtml = `<!doctype html>
           </select>
         </div>
         <div class="market-strip" id="position-market"></div>
+        <div class="mock-auction-feed" id="mock-auction-feed" hidden>
+          <div class="mock-auction-nomination" id="mock-active-nomination"></div>
+          <div class="mock-auction-feed-lines" id="mock-auction-feed-lines"></div>
+        </div>
         <div class="scroll">
           <table class="board-table">
             <thead>
@@ -1760,6 +1854,7 @@ export const liveDraftHtml = `<!doctype html>
     let currentDraftSession = 'live';
     let activeSidePanel = 'lineup';
     let pendingCamNominationName = null;
+    let currentMockDraft = null;
     let latestMockBatchReport = null;
     let latestMockBatchJob = null;
     let selectedMockResultsRunIndex = 0;
@@ -2825,6 +2920,56 @@ export const liveDraftHtml = `<!doctype html>
       return bid.owner + (amount == null ? '' : ' ' + money(amount));
     };
 
+    const mockAuctionFeedLines = mockDraft =>
+      mockDraft && mockDraft.auction && Array.isArray(mockDraft.auction.feed)
+        ? mockDraft.auction.feed
+        : [];
+
+    const mockDraftNominationText = mockDraft => {
+      if (!mockDraft || !mockDraft.auction) return '';
+      const auction = mockDraft.auction;
+      return (auction.nominator || mockDraft.nominator || 'AI') + ' nominated ' + (auction.player || '-');
+    };
+
+    const mockDraftPhaseLabel = mockDraft => {
+      if (!mockDraft || !mockDraft.auction) return '';
+      const auction = mockDraft.auction;
+      if (auction.status === 'sold' && auction.resolution) {
+        return 'Sold to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price);
+      }
+      if (mockDraft.phase === 'human-decision' && auction.nextCamBid != null) {
+        return 'Current ' + money(auction.currentBid) + ' - Cam can bid ' + money(auction.nextCamBid);
+      }
+      if (mockDraft.phase === 'ai-sale') {
+        return 'AI sale ready at ' + money(auction.currentBid);
+      }
+      return cleanText(mockDraft.phase || 'Mock auction');
+    };
+
+    const renderMockAuctionFeed = mockDraft => {
+      const root = byId('mock-auction-feed');
+      const active = byId('mock-active-nomination');
+      const lines = byId('mock-auction-feed-lines');
+      const shouldShow = currentDraftMode === 'interactive-mock' && mockDraft && mockDraft.auction;
+      root.hidden = !shouldShow;
+      if (!shouldShow) {
+        active.replaceChildren();
+        lines.replaceChildren();
+        return;
+      }
+
+      active.replaceChildren(
+        textElement('strong', mockDraftNominationText(mockDraft)),
+        textElement('span', mockDraftPhaseLabel(mockDraft), 'mock-auction-phase')
+      );
+      lines.replaceChildren(...mockAuctionFeedLines(mockDraft).map(event => {
+        const item = document.createElement('span');
+        item.className = 'mock-feed-line ' + event.type;
+        item.textContent = cleanText(event.text);
+        return item;
+      }));
+    };
+
     const syncMockNominationSelection = mockDraft => {
       if (!currentState || !mockDraft || !mockDraft.nomination || !mockDraft.nomination.player) return;
 
@@ -2839,7 +2984,10 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const renderMockDraft = mockDraft => {
+      currentMockDraft = mockDraft;
+      renderMockAuctionFeed(mockDraft);
       const details = byId('mock-draft-details');
+      byId('mock-draft-panel').dataset.phase = mockDraft && mockDraft.phase ? mockDraft.phase : '';
       const isMockMode = currentDraftMode === 'interactive-mock';
       const phase = mockDraft ? mockDraft.phase : '';
       const camBidButton = byId('mock-cam-win-button');
@@ -2854,7 +3002,7 @@ export const liveDraftHtml = `<!doctype html>
       nominateButton.disabled = !isMockMode || phase !== 'human-nomination' || !target;
       nominateButton.textContent = target ? 'Nominate ' + shortPlayerName(target.name) : 'Nominate';
       camBidButton.disabled = !isMockMode || phase !== 'human-decision' || !mockDraft.camDecision;
-      camBidButton.textContent = mockDraft && mockDraft.camDecision ? 'Bid ' + money(mockDraft.camDecision.recommendedBid) : 'Bid';
+      camBidButton.textContent = mockDraft && mockDraft.auction && mockDraft.auction.nextCamBid != null ? 'Bid ' + money(mockDraft.auction.nextCamBid) : 'Bid';
       byId('mock-pass-button').disabled = !isMockMode || phase !== 'human-decision';
       nextDecisionButton.disabled = !isMockMode || terminal || humanStop;
       nextRoundButton.disabled = !isMockMode || terminal || humanStop;
@@ -2898,13 +3046,14 @@ export const liveDraftHtml = `<!doctype html>
         const maxBid = mockDraft.camDecision.maxBid == null ? '-' : money(mockDraft.camDecision.maxBid);
         const topAiOwner = mockDraft.camDecision.topAiBidOwner || (aiBids[0] && aiBids[0].owner) || 'AI';
         const topAiBid = mockDraft.camDecision.topAiBid == null ? '-' : money(mockDraft.camDecision.topAiBid);
-        items.push(mockDraftItem('Cam bid', recommended + ' beats ' + topAiOwner + ' bid ' + topAiBid + ' / Cam max ' + maxBid));
+        items.push(mockDraftItem('Cam bid', recommended + ' now / ' + topAiOwner + ' can chase to ' + topAiBid + ' / Cam max ' + maxBid));
       } else if (aiBids.length) {
         items.push(mockDraftItem('Cam bid', aiBids[0].owner + ' can go to ' + money(aiBids[0].amount) + '. Use AI sale unless you want to manually override.'));
       }
 
       details.replaceChildren(...items);
       syncMockNominationSelection(mockDraft);
+      if (currentState) renderBoard(currentState);
     };
 
     const renderBoard = state => {
@@ -2922,6 +3071,7 @@ export const liveDraftHtml = `<!doctype html>
         const tierDrop = tierDrops.get(target.name) || 0;
         const row = document.createElement('tr');
         if (target.name === selectedTargetName) row.classList.add('is-selected');
+        if (currentMockDraft && currentMockDraft.auction && target.name === currentMockDraft.auction.player) row.classList.add('is-nominated');
         if (target.draftable === false) row.classList.add('keeper-row');
         const addCell = tableCell(row, '', 'center');
         addCell.appendChild(addTargetButton(target, 'icon'));
@@ -2957,6 +3107,7 @@ export const liveDraftHtml = `<!doctype html>
         const tierDrop = tierDrops.get(target.name) || 0;
         const card = document.createElement('div');
         card.className = 'target-card';
+        if (currentMockDraft && currentMockDraft.auction && target.name === currentMockDraft.auction.player) card.classList.add('is-nominated');
         const add = document.createElement('div');
         add.appendChild(addTargetButton(target, 'icon'));
         const body = document.createElement('div');
@@ -3412,7 +3563,8 @@ export const liveDraftHtml = `<!doctype html>
         draftSession: currentDraftSession,
         seed: 'live-ui',
         action,
-        nominatedPlayer: pendingCamNominationName
+        nominatedPlayer: pendingCamNominationName,
+        mockAuction: currentMockDraft && currentMockDraft.auction
       });
       if (action !== 'cam-nominate' && !data.errors.length) pendingCamNominationName = null;
       if (!data.mockDraft) await refreshMockDraft();
