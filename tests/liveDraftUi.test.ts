@@ -20,6 +20,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"export-bundle-button\"");
     expect(liveDraftHtml).toContain("id=\"import-log-button\"");
     expect(liveDraftHtml).toContain("id=\"import-log-file\"");
+    expect(liveDraftHtml).toContain("id=\"import-conflict-review\"");
     expect(liveDraftHtml).toContain("id=\"draft-session-select\"");
     expect(liveDraftHtml).toContain("id=\"scratch-session-name\"");
     expect(liveDraftHtml).toContain("id=\"open-scratch-session-button\"");
@@ -131,6 +132,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderShortlist = state =>");
     expect(liveDraftHtml).toContain("const renderPositionContext = state =>");
     expect(liveDraftHtml).toContain("const renderReadiness = state =>");
+    expect(liveDraftHtml).toContain("const renderImportConflictReview = state =>");
+    expect(liveDraftHtml).toContain("state.conflictReview");
+    expect(liveDraftHtml).toContain("issue.matchOptions");
+    expect(liveDraftHtml).toContain("Import needs review");
     expect(liveDraftHtml).toContain("const renderDraftPath = state =>");
     expect(liveDraftHtml).toContain("state.draftPath");
     expect(liveDraftHtml).toContain("Path");

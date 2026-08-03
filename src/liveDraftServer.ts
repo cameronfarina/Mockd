@@ -252,6 +252,23 @@ interface LiveDraftSessionExportBundle {
   commandsCsv: string;
 }
 
+type LiveDraftImportConflictType = "ambiguous-player" | "invalid-command" | "invalid-import";
+
+interface LiveDraftImportConflictIssue {
+  index: number;
+  input: string;
+  type: LiveDraftImportConflictType;
+  message: string;
+  matchOptions: string[];
+}
+
+interface LiveDraftImportConflictReview {
+  title: string;
+  importedCount: number;
+  issueCount: number;
+  issues: LiveDraftImportConflictIssue[];
+}
+
 interface InteractiveMockDraftModule {
   buildInteractiveMockDraftState(options: {
     projections: readonly ProjectionRecord[];
@@ -444,6 +461,37 @@ const commandFromInteractiveMockAction = (result: unknown): string => {
 
   return command.trim();
 };
+
+const ambiguousPlayerMatchOptionsFor = (message: string): string[] => {
+  const matchesText = message.match(/ Matches: (.+)\.$/)?.[1];
+  if (!matchesText) return [];
+  return matchesText.split(",").map(match => match.trim()).filter(Boolean);
+};
+
+const importConflictTypeFor = (message: string): LiveDraftImportConflictType => {
+  if (message.startsWith("Ambiguous player")) return "ambiguous-player";
+  return "invalid-command";
+};
+
+const importConflictReviewFor = (
+  commands: readonly string[],
+  errors: readonly { input: string; message: string }[],
+  title = "Import needs review",
+): LiveDraftImportConflictReview => ({
+  title,
+  importedCount: commands.length,
+  issueCount: errors.length,
+  issues: errors.map((error, errorIndex) => {
+    const commandIndex = commands.findIndex(command => command === error.input);
+    return {
+      index: commandIndex >= 0 ? commandIndex + 1 : errorIndex + 1,
+      input: error.input,
+      type: title === "Import could not be read" ? "invalid-import" : importConflictTypeFor(error.message),
+      message: error.message,
+      matchOptions: ambiguousPlayerMatchOptionsFor(error.message),
+    };
+  }),
+});
 
 const mockDraftRequestFor = (
   strategyKey: LiveDraftStrategyKey,
@@ -892,15 +940,32 @@ export const createLiveDraftServer = async (
         const mode = sessionModeFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const store = await storeFor(draftSessionKey, mode);
-        const importedCommands = Array.isArray(body.commands)
-          ? parseLiveDraftCommandImport(JSON.stringify({ commands: body.commands }), "json")
-          : parseLiveDraftCommandImport(
-            typeof body.content === "string" ? body.content : "",
-            importFormatFor(body.format),
-          );
+        let importedCommands: string[];
+        try {
+          importedCommands = Array.isArray(body.commands)
+            ? parseLiveDraftCommandImport(JSON.stringify({ commands: body.commands }), "json")
+            : parseLiveDraftCommandImport(
+              typeof body.content === "string" ? body.content : "",
+              importFormatFor(body.format),
+            );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Draft log import could not be read.";
+          const parseError = { input: "", message };
+          sendJson(response, 422, {
+            ...await stateFor({ draftSessionKey, mode, strategyKey }),
+            errors: [parseError],
+            conflictReview: importConflictReviewFor([], [parseError], "Import could not be read"),
+          });
+          return;
+        }
+
         const trialState = await stateFor({ draftSessionKey, mode, commands: importedCommands, strategyKey });
         if (trialState.errors.length) {
-          sendJson(response, 422, { ...await stateFor({ draftSessionKey, mode, strategyKey }), errors: trialState.errors });
+          sendJson(response, 422, {
+            ...await stateFor({ draftSessionKey, mode, strategyKey }),
+            errors: trialState.errors,
+            conflictReview: importConflictReviewFor(importedCommands, trialState.errors),
+          });
           return;
         }
 

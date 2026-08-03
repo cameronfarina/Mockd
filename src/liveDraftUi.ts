@@ -852,6 +852,10 @@ export const liveDraftHtml = `<!doctype html>
       padding: 0 10px 8px;
     }
 
+    .import-conflict-review:empty {
+      display: none;
+    }
+
     .summary-item {
       display: grid;
       gap: 2px;
@@ -1407,6 +1411,7 @@ export const liveDraftHtml = `<!doctype html>
           <span class="subtle" id="sale-count"></span>
         </div>
         <div id="errors" role="alert"></div>
+        <div class="summary-list import-conflict-review" id="import-conflict-review"></div>
         <form class="add-form" id="add-form">
           <div class="selected-player" id="selected-player"></div>
           <select id="add-owner"></select>
@@ -2205,6 +2210,40 @@ export const liveDraftHtml = `<!doctype html>
       }));
     };
 
+    const renderImportConflictReview = state => {
+      const root = byId('import-conflict-review');
+      const review = state.conflictReview;
+      if (!review || !Array.isArray(review.issues) || !review.issues.length) {
+        root.replaceChildren();
+        return;
+      }
+
+      const summary = mockDraftItem(
+        review.title || 'Import needs review',
+        review.issueCount + ' issue' + (review.issueCount === 1 ? '' : 's') + ' across ' + review.importedCount + ' command' + (review.importedCount === 1 ? '' : 's') + '. Current room was not replaced.'
+      );
+      summary.classList.add('warn');
+
+      const issues = review.issues.map(issue => {
+        const item = document.createElement('div');
+        item.className = 'summary-item warn';
+        const rawCommand = document.createElement('code');
+        rawCommand.className = 'raw-command';
+        rawCommand.textContent = issue.input || '-';
+        item.replaceChildren(
+          textElement('strong', '#' + issue.index + ' - ' + cleanText(issue.type).replaceAll('-', ' ')),
+          textElement('span', issue.message, 'subtle'),
+          rawCommand
+        );
+        if (issue.matchOptions && issue.matchOptions.length) {
+          item.appendChild(textElement('span', 'Options: ' + issue.matchOptions.join(' / '), 'subtle'));
+        }
+        return item;
+      });
+
+      root.replaceChildren(summary, ...issues);
+    };
+
     const renderDraftPath = state => {
       const path = state.draftPath;
       if (!path) {
@@ -2582,6 +2621,7 @@ export const liveDraftHtml = `<!doctype html>
       renderPositionContext(state);
       renderEvents(state);
       renderErrors(state);
+      renderImportConflictReview(state);
       if (state.mockDraft) renderMockDraft(state.mockDraft);
       else renderMockDraft(null);
       renderMockBatchResults(latestMockBatchReport);

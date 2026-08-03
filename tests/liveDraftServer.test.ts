@@ -489,6 +489,54 @@ describe("live draft server", () => {
     }
   });
 
+  it("returns a compact import conflict review without replacing the session", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const rejected = await post(baseUrl, "/api/import", {
+        draftSession: "practice-3rb",
+        mode: "real",
+        strategyKey: "three-rb",
+        commands: [
+          "cam drafted brown for 12",
+          "nobody drafted Jahmyr Gibbs for 1",
+        ],
+      });
+
+      expect(rejected.status).toBe(422);
+      expect(rejected.data.session.commandCount).toBe(0);
+      expect(rejected.data.events).toHaveLength(0);
+      expect(rejected.data.conflictReview).toMatchObject({
+        title: "Import needs review",
+        importedCount: 2,
+        issueCount: 2,
+      });
+      expect(rejected.data.conflictReview.issues).toEqual([
+        expect.objectContaining({
+          index: 1,
+          type: "ambiguous-player",
+          input: "cam drafted brown for 12",
+          matchOptions: expect.arrayContaining(["A.J. Brown", "Chase Brown"]),
+        }),
+        expect.objectContaining({
+          index: 2,
+          type: "invalid-command",
+          input: "nobody drafted Jahmyr Gibbs for 1",
+          matchOptions: [],
+        }),
+      ]);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it("serves mock results and returns complete optimized 14-team run payloads", async () => {
     const directory = await tempSessionDirectory();
     try {
