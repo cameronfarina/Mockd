@@ -1977,7 +1977,7 @@ export const liveDraftHtml = `<!doctype html>
             ? strategyLabel(strategyLeader.strategyKey) + ' avg rank ' + scoreText(strategyLeader.averageCamRank)
             : 'No strategy data',
           strategyLeader
-            ? strategyLeader.runCount + ' runs / W1 ' + scoreText(strategyLeader.averageCamWeek1Score) + ' / W1-4 ' + scoreText(strategyLeader.averageCamWeeks1To4Score)
+            ? strategyLeader.runCount + ' runs / W1 ' + scoreText(strategyLeader.averageCamWeek1Score) + ' / Season ' + scoreText(strategyLeader.averageCamSeasonStrengthScore)
             : '-'
         ),
         insightCard(
@@ -2021,7 +2021,7 @@ export const liveDraftHtml = `<!doctype html>
       scoreline.className = 'mock-results-scoreline';
       for (const [label, value] of [
         ['Week 1', scoreText(team.week1Score)],
-        ['Weeks 1-4', scoreText(team.weeks1To4Score)],
+        ['Season', scoreText(team.seasonStrengthScore || team.projectedFinishScore || team.weeks1To4Score)],
         ['Spend', money(team.spend)]
       ]) {
         const metric = document.createElement('span');
@@ -2047,11 +2047,11 @@ export const liveDraftHtml = `<!doctype html>
 
       const header = document.createElement('div');
       header.className = 'mock-results-card-header';
-      const topScore = rankings[0] ? scoreText(rankings[0].projectedFinishScore) : '0.0';
+      const topScore = rankings.length ? scoreText(Math.max(...rankings.map(ranking => ranking.week1Score))) : '0.0';
       const scoreline = document.createElement('div');
       scoreline.className = 'mock-results-scoreline';
       const metric = document.createElement('span');
-      metric.replaceChildren(document.createTextNode('Top score'), textElement('b', topScore));
+      metric.replaceChildren(document.createTextNode('Top W1'), textElement('b', topScore));
       scoreline.appendChild(metric);
       header.replaceChildren(textElement('strong', 'AI Rankings'), scoreline);
 
@@ -2064,13 +2064,13 @@ export const liveDraftHtml = `<!doctype html>
         owner.className = 'mock-results-name';
         owner.replaceChildren(
           textElement('span', ranking.owner),
-          textElement('small', ranking.explanation)
+          textElement('small', ranking.explanation + ' W1 #' + ranking.week1Rank)
         );
         row.replaceChildren(
           textElement('span', '#' + ranking.rank, 'mock-results-slot'),
           owner,
           textElement('span', scoreText(ranking.week1Score), 'mock-results-score'),
-          textElement('span', scoreText(ranking.projectedFinishScore), 'mock-results-score')
+          textElement('span', scoreText(ranking.seasonStrengthScore || ranking.projectedFinishScore), 'mock-results-score')
         );
         return row;
       }));

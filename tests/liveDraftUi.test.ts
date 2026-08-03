@@ -102,6 +102,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("run.camOutcome");
     expect(liveDraftHtml).toContain("team.rankExplanation");
     expect(liveDraftHtml).toContain("ranking.explanation");
+    expect(liveDraftHtml).toContain("ranking.week1Rank");
+    expect(liveDraftHtml).toContain("Math.max(...rankings.map(ranking => ranking.week1Score))");
     expect(liveDraftHtml).toContain("run.bestBuild");
     expect(liveDraftHtml).toContain("run.worstBuild");
     expect(liveDraftHtml).toContain("window.location.assign('/mock-results')");
@@ -140,6 +142,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("Run mocks");
     expect(liveDraftHtml).toContain("See results");
     expect(liveDraftHtml).toContain("Mock Results");
+    expect(liveDraftHtml).toContain("Top W1");
+    expect(liveDraftHtml).toContain("Season");
+    expect(liveDraftHtml).not.toContain("Top score");
     expect(liveDraftHtml).toContain("grid-template-columns: repeat(5, minmax(220px, 1fr));");
     expect(liveDraftHtml).not.toContain("mockDraftItem('AI max bids'");
     expect(liveDraftHtml).toContain("strategyKey: currentStrategyKey");

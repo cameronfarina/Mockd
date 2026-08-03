@@ -23,6 +23,10 @@ export interface MockResultsTeam {
   budgetRemaining: number;
   week1Score: number;
   weeks1To4Score: number;
+  starterSeasonScore: number;
+  depthScore: number;
+  consistencyScore: number;
+  seasonStrengthScore: number;
   valid: boolean;
   errors: string[];
   starters: MockResultsPlayer[];
@@ -43,6 +47,11 @@ export interface MockResultsRanking {
   owner: Owner;
   week1Score: number;
   weeks1To4Score: number;
+  week1Rank: number;
+  starterSeasonScore: number;
+  depthScore: number;
+  consistencyScore: number;
+  seasonStrengthScore: number;
   projectedFinishScore: number;
   projectedFinishLabel: string;
   explanation: string;
@@ -56,6 +65,7 @@ export interface MockResultsBuildSummary {
   headline: string;
   week1Score: number;
   weeks1To4Score: number;
+  seasonStrengthScore: number;
   spend: number;
   budgetRemaining: number;
   corePlayers: string[];
@@ -75,6 +85,7 @@ export interface MockResultsStrategyAnalytics {
   worstCamRank: number;
   averageCamWeek1Score: number;
   averageCamWeeks1To4Score: number;
+  averageCamSeasonStrengthScore: number;
   averageCamSpend: number;
 }
 
@@ -216,17 +227,59 @@ const benchPlayersFor = (
     .map(player => playerResultFor(player, "BENCH", false));
 };
 
+const seasonLineupFor = (roster: MockRosterSummary): LineupEntry[] =>
+  optimizeLineup({ strategy: "mock-results-season", players: roster.players }, "weeks1To4");
+
+const depthScoreFor = (
+  roster: MockRosterSummary,
+  seasonLineup: readonly LineupEntry[],
+): number => {
+  const starterNames = new Set(seasonLineup.map(entry => entry.player.name));
+  const weights = [0.16, 0.12, 0.09, 0.06, 0.04] as const;
+  const depthPlayers = roster.players
+    .filter(player => !starterNames.has(player.name))
+    .filter(player => player.position !== "K" && player.position !== "DST")
+    .sort(
+      (left, right) =>
+        right.weeks1To4 - left.weeks1To4 ||
+        right.week1 - left.week1 ||
+        left.name.localeCompare(right.name),
+    )
+    .slice(0, weights.length);
+
+  return roundToTwo(depthPlayers.reduce(
+    (total, player, index) => total + player.weeks1To4 * (weights[index] ?? 0),
+    0,
+  ));
+};
+
+const consistencyScoreFor = (seasonLineup: readonly LineupEntry[]): number =>
+  roundToTwo(seasonLineup.reduce((total, entry) => {
+    const weekOnePace = entry.player.week1 * 4;
+    const strongerProjection = Math.max(weekOnePace, entry.player.weeks1To4, 1);
+    const steadiness = Math.min(weekOnePace, entry.player.weeks1To4) / strongerProjection;
+    return total + steadiness * 1.5;
+  }, 0));
+
 const teamResultFor = (roster: MockRosterSummary): MockResultsTeam => {
   const starters = optimizedWeekOneLineup(roster);
+  const seasonLineup = seasonLineupFor(roster);
   const starterPlayers = starters.map(entry => playerResultFor(entry.player, entry.slot, true));
   const bench = benchPlayersFor(roster, starters);
+  const starterSeasonScore = roundToTwo(roster.weeks1To4Score ?? lineupScore(seasonLineup, "weeks1To4"));
+  const depthScore = depthScoreFor(roster, seasonLineup);
+  const consistencyScore = consistencyScoreFor(seasonLineup);
 
   return {
     owner: roster.owner,
     spend: roster.spend,
     budgetRemaining: roster.budgetRemaining,
     week1Score: roundToTwo(lineupScore(starters, "week1")),
-    weeks1To4Score: roundToTwo(roster.weeks1To4Score ?? 0),
+    weeks1To4Score: starterSeasonScore,
+    starterSeasonScore,
+    depthScore,
+    consistencyScore,
+    seasonStrengthScore: roundToTwo(starterSeasonScore + depthScore + consistencyScore),
     valid: roster.valid,
     errors: roster.errors,
     starters: starterPlayers,
@@ -267,6 +320,7 @@ const baseRankingTeams = (teams: readonly MockResultsTeam[]): MockResultsTeam[] 
   [...teams]
     .sort(
       (left, right) =>
+        right.seasonStrengthScore - left.seasonStrengthScore ||
         right.weeks1To4Score - left.weeks1To4Score ||
         right.week1Score - left.week1Score ||
         left.owner.localeCompare(right.owner),
@@ -293,6 +347,8 @@ const strengthNotesFor = (
   ];
 
   if (topStarter) notes.push(`Top starter ${topStarter.name} at ${scoreText(topStarter.week1)} W1`);
+  notes.push(`Season strength ${scoreText(team.seasonStrengthScore)}`);
+  notes.push(`Depth ${scoreText(team.depthScore)} / consistency ${scoreText(team.consistencyScore)}`);
   if (bestValue) notes.push(`Best value ${bestValue.name} at ${moneyText(bestValue.price)}`);
   return notes;
 };
@@ -303,7 +359,7 @@ const riskNotesFor = (
   leaderScore: number,
 ): string[] => {
   const risks: string[] = [];
-  const leaderGap = roundToTwo(leaderScore - team.weeks1To4Score);
+  const leaderGap = roundToTwo(leaderScore - team.seasonStrengthScore);
   if (rank > 7) risks.push(`Needs ${scoreText(leaderGap)} points of upside to catch the lead`);
   if (team.budgetRemaining <= 1) risks.push("No budget cushion after the draft");
   if (!team.valid) risks.push(team.errors[0] ?? "Roster validation warning");
@@ -314,26 +370,31 @@ const rankingsFor = (teams: readonly MockResultsTeam[]): MockResultsRanking[] =>
   const rankedTeams = baseRankingTeams(teams);
   const week1Ranks = weekOneRankByOwner(teams);
   const leader = rankedTeams[0];
-  const leaderScore = leader?.weeks1To4Score ?? 0;
+  const leaderScore = leader?.seasonStrengthScore ?? 0;
   const runnerUp = rankedTeams[1];
 
   return rankedTeams.map((team, index) => {
     const rank = index + 1;
     const week1Rank = week1Ranks.get(team.owner) ?? rank;
-    const gapToLeader = roundToTwo(leaderScore - team.weeks1To4Score);
+    const gapToLeader = roundToTwo(leaderScore - team.seasonStrengthScore);
     const margin = rank === 1 && runnerUp
-      ? roundToTwo(team.weeks1To4Score - runnerUp.weeks1To4Score)
+      ? roundToTwo(team.seasonStrengthScore - runnerUp.seasonStrengthScore)
       : gapToLeader;
     const explanation = rank === 1
-      ? `Projected 1st by Weeks 1-4 score, ${scoreText(margin)} ahead of the field; Week 1 rank ${ordinal(week1Rank)}.`
-      : `Projected ${ordinal(rank)} by Weeks 1-4 score, ${scoreText(gapToLeader)} behind the leader; Week 1 rank ${ordinal(week1Rank)}.`;
+      ? `Projected 1st by season strength, ${scoreText(margin)} ahead of the field; Week 1 rank ${ordinal(week1Rank)}.`
+      : `Projected ${ordinal(rank)} by season strength, ${scoreText(gapToLeader)} behind the leader; Week 1 rank ${ordinal(week1Rank)}.`;
 
     return {
       rank: index + 1,
       owner: team.owner,
       week1Score: team.week1Score,
       weeks1To4Score: team.weeks1To4Score,
-      projectedFinishScore: team.weeks1To4Score,
+      week1Rank,
+      starterSeasonScore: team.starterSeasonScore,
+      depthScore: team.depthScore,
+      consistencyScore: team.consistencyScore,
+      seasonStrengthScore: team.seasonStrengthScore,
+      projectedFinishScore: team.seasonStrengthScore,
       projectedFinishLabel: ordinal(rank),
       explanation,
       strengths: strengthNotesFor(team, week1Rank),
@@ -373,9 +434,10 @@ const buildSummaryFor = (
 ): MockResultsBuildSummary => ({
   owner: team.owner,
   rank: ranking.rank,
-  headline: `${team.owner} projected ${ranking.projectedFinishLabel} with ${scoreText(team.weeks1To4Score)} Weeks 1-4 points`,
+  headline: `${team.owner} projected ${ranking.projectedFinishLabel} with ${scoreText(team.seasonStrengthScore)} season-strength score`,
   week1Score: team.week1Score,
   weeks1To4Score: team.weeks1To4Score,
+  seasonStrengthScore: team.seasonStrengthScore,
   spend: team.spend,
   budgetRemaining: team.budgetRemaining,
   corePlayers: (team.corePlayers ?? corePlayersFor(team)).map(player => player.name),
@@ -415,12 +477,14 @@ const strategyLeaderboardFor = (runs: readonly MockResultsRun[]): MockResultsStr
         worstCamRank: Math.max(...camRanks),
         averageCamWeek1Score: roundToTwo(average(camOutcomes.map(outcome => outcome.week1Score))),
         averageCamWeeks1To4Score: roundToTwo(average(camOutcomes.map(outcome => outcome.weeks1To4Score))),
+        averageCamSeasonStrengthScore: roundToTwo(average(camOutcomes.map(outcome => outcome.seasonStrengthScore))),
         averageCamSpend: roundToTwo(average(camOutcomes.map(outcome => outcome.spend))),
       };
     })
     .sort(
       (left, right) =>
         left.averageCamRank - right.averageCamRank ||
+        right.averageCamSeasonStrengthScore - left.averageCamSeasonStrengthScore ||
         right.averageCamWeeks1To4Score - left.averageCamWeeks1To4Score ||
         left.strategyKey.localeCompare(right.strategyKey),
     );
@@ -429,6 +493,7 @@ const strategyLeaderboardFor = (runs: readonly MockResultsRun[]): MockResultsStr
 const camScoreRangeFor = (runs: readonly MockResultsRun[]): MockResultsCamScoreRange => {
   const sortedByCamScore = [...runs].sort(
     (left, right) =>
+      right.camOutcome.seasonStrengthScore - left.camOutcome.seasonStrengthScore ||
       right.camOutcome.weeks1To4Score - left.camOutcome.weeks1To4Score ||
       right.camOutcome.week1Score - left.camOutcome.week1Score ||
       left.label.localeCompare(right.label),
