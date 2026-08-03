@@ -147,6 +147,14 @@ describe("live draft room", () => {
     });
     expect(gibbs?.personalValue).toBeGreaterThanOrEqual(gibbs?.liveExpectedPrice ?? 0);
     expect(gibbs?.personalValue).toBeLessThanOrEqual(80);
+    expect(gibbs?.strategyValues).toMatchObject({
+      balanced: expect.any(Number),
+      "three-rb": gibbs?.personalValue,
+      "hero-rb": expect.any(Number),
+      "wr-heavy": expect.any(Number),
+    });
+    const receiver = state.availableTargets.find(target => target.position === "WR");
+    expect(receiver?.strategyValues["wr-heavy"]).toBeGreaterThanOrEqual(receiver?.strategyValues["three-rb"] ?? 0);
     expect(gibbs?.recommendedMaxBid).toBeLessThanOrEqual(state.watchOwner.maxBid);
     expect(gibbs?.recommendedMaxBid).toBe(62);
     expect(gibbs?.tags).toContain("path max $62");

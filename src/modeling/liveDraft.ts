@@ -24,6 +24,7 @@ import {
 import { buildProjectionRankings, type ProjectionRanking } from "./projectionRankings.js";
 import {
   defaultLiveDraftStrategyKey,
+  liveDraftStrategies,
   liveDraftStrategyFor,
   type LiveDraftStrategyDefinition,
   type LiveDraftStrategyKey,
@@ -120,6 +121,7 @@ export interface LiveDraftTarget {
   expectedPrice: number;
   liveExpectedPrice: number;
   personalValue: number;
+  strategyValues: Record<LiveDraftStrategyKey, number>;
   recommendedMaxBid: number;
   valueScore: number;
   weeks1To4: number;
@@ -805,14 +807,25 @@ const buildTargets = ({
       const liveExpectedPrice = roundPrice(player.expectedPrice * room.liveInflationFactor);
       const needMultiplier = positionNeedMultiplierFor(player, watchOwner, strategy);
       const positionCeiling = defaultPricingConfig.hardPriceCeilings[player.position];
-      const uncappedPersonalValue = roundPrice(liveExpectedPrice + personalPremiumFor(player, watchOwner, strategy));
+      const personalValueForStrategy = (candidateStrategy: LiveDraftStrategyDefinition): number => {
+        const uncappedPersonalValue = roundPrice(
+          liveExpectedPrice + personalPremiumFor(player, watchOwner, candidateStrategy),
+        );
+        return Math.min(
+          watchOwner.maxBid,
+          positionCeiling,
+          player.expectedPrice + 12,
+          Math.max(1, uncappedPersonalValue),
+        );
+      };
+      const strategyValues = Object.fromEntries(
+        Object.values(liveDraftStrategies).map(candidateStrategy => [
+          candidateStrategy.key,
+          personalValueForStrategy(candidateStrategy),
+        ]),
+      ) as Record<LiveDraftStrategyKey, number>;
       const strategyPathMaxBid = strategyPathMaxBidFor(player, watchOwner, strategy);
-      const personalValue = Math.min(
-        watchOwner.maxBid,
-        positionCeiling,
-        player.expectedPrice + 12,
-        Math.max(1, uncappedPersonalValue),
-      );
+      const personalValue = strategyValues[strategy.key];
       const recommendedMaxBid = Math.min(personalValue, strategyPathMaxBid ?? personalValue);
       const valueScore = roundToTwo((player.weeks1To4 * needMultiplier) - recommendedMaxBid * 0.35);
       const tags = targetTagsFor(player, watchOwner, strategy);
@@ -828,6 +841,7 @@ const buildTargets = ({
         expectedPrice: player.expectedPrice,
         liveExpectedPrice,
         personalValue,
+        strategyValues,
         recommendedMaxBid,
         valueScore,
         weeks1To4: roundToTwo(player.weeks1To4),

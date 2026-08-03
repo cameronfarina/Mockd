@@ -73,6 +73,9 @@ describe("live draft UI shell", () => {
   it("includes board behavior for position filters, sortable values, and draft-day guardrails", () => {
     expect(liveDraftHtml).toContain("const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST']");
     expect(liveDraftHtml).toContain("const valueGapFor = target => target.personalValue - target.liveExpectedPrice");
+    expect(liveDraftHtml).toContain("const strategyValueLabels =");
+    expect(liveDraftHtml).toContain("const renderStrategyValues = target =>");
+    expect(liveDraftHtml).toContain("target.strategyValues");
     expect(liveDraftHtml).toContain("const tierDropsFor = targets =>");
     expect(liveDraftHtml).toContain("'next ' + target.position + ' -' + money(tierDrop)");
     expect(liveDraftHtml).toContain("const saleWarningsFor = (target, owner, price) =>");

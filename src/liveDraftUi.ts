@@ -703,6 +703,29 @@ export const liveDraftHtml = `<!doctype html>
       color: var(--amber);
     }
 
+    .strategy-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.2;
+    }
+
+    .strategy-value {
+      padding: 2px 5px;
+      border: 1px solid var(--line-soft);
+      border-radius: 4px;
+      background: rgba(5, 11, 18, 0.32);
+      white-space: nowrap;
+    }
+
+    .strategy-value.active {
+      border-color: rgba(99, 168, 255, 0.5);
+      color: #e7f2ff;
+    }
+
     .gap-positive {
       color: #7af0bd;
       font-weight: 750;
@@ -1523,6 +1546,12 @@ export const liveDraftHtml = `<!doctype html>
 
     const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST'];
     const strategyKeys = ['balanced', 'three-rb', 'hero-rb', 'wr-heavy'];
+    const strategyValueLabels = {
+      balanced: 'Bal',
+      'three-rb': '3RB',
+      'hero-rb': 'Hero',
+      'wr-heavy': 'WR'
+    };
     const draftModes = ['real', 'interactive-mock'];
     const draftModeCopy = {
       real: {
@@ -1717,6 +1746,20 @@ export const liveDraftHtml = `<!doctype html>
         return element;
       }));
       return tags;
+    };
+
+    const renderStrategyValues = target => {
+      if (!target.strategyValues) return null;
+      const row = document.createElement('div');
+      row.className = 'strategy-values';
+      row.replaceChildren(...strategyKeys.map(strategyKey => {
+        const value = target.strategyValues[strategyKey];
+        const item = document.createElement('span');
+        item.className = 'strategy-value' + (strategyKey === currentStrategyKey ? ' active' : '');
+        item.textContent = strategyValueLabels[strategyKey] + ' ' + money(value);
+        return item;
+      }));
+      return row;
     };
 
     const optionList = state => state.owners.map(owner => {
@@ -2453,6 +2496,8 @@ export const liveDraftHtml = `<!doctype html>
 
         const playerCell = tableCell(row, '', '');
         playerCell.appendChild(textElement('div', target.name, 'player-name'));
+        const strategyValues = renderStrategyValues(target);
+        if (strategyValues) playerCell.appendChild(strategyValues);
         const tags = targetTags(target, tierDrop);
         if (tags) playerCell.appendChild(tags);
 
@@ -2500,6 +2545,8 @@ export const liveDraftHtml = `<!doctype html>
 
         const tags = targetTags(target, tierDrop);
         body.append(top);
+        const strategyValues = renderStrategyValues(target);
+        if (strategyValues) body.appendChild(strategyValues);
         if (tags) body.appendChild(tags);
         body.appendChild(values);
         card.append(add, body);
