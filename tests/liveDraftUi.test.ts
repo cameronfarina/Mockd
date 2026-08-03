@@ -13,6 +13,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"team-filter\"");
     expect(liveDraftHtml).toContain("id=\"bye-filter\"");
     expect(liveDraftHtml).toContain("id=\"sort-select\"");
+    expect(liveDraftHtml).toContain("id=\"strategy-select\"");
     expect(liveDraftHtml).toContain("id=\"export-json-button\"");
     expect(liveDraftHtml).toContain("id=\"export-csv-button\"");
     expect(liveDraftHtml).toContain("id=\"import-log-button\"");
@@ -28,6 +29,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"readiness-checks\"");
     expect(liveDraftHtml).toContain("id=\"shortlist\"");
     expect(liveDraftHtml).toContain("id=\"position-context\"");
+    expect(liveDraftHtml).toContain("id=\"mock-draft-panel\"");
+    expect(liveDraftHtml).toContain("id=\"mock-advance-button\"");
+    expect(liveDraftHtml).toContain("id=\"mock-cam-win-button\"");
+    expect(liveDraftHtml).toContain("id=\"mock-pass-button\"");
     expect(liveDraftHtml).toContain("data-sort-key=\"personalValue\">Our");
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\">Gap");
     expect(liveDraftHtml).toContain("data-sort-key=\"byeWeek\">Bye");
@@ -43,6 +48,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const tierDropsFor = targets =>");
     expect(liveDraftHtml).toContain("'next ' + target.position + ' -' + money(tierDrop)");
     expect(liveDraftHtml).toContain("const saleWarningsFor = (target, owner, price) =>");
+    expect(liveDraftHtml).toContain("const renderMockDraft = mockDraft =>");
+    expect(liveDraftHtml).toContain("const advanceMockDraft = async action =>");
+    expect(liveDraftHtml).toContain("strategyKey: currentStrategyKey");
     expect(liveDraftHtml).toContain("const renderPositionMarket = state =>");
     expect(liveDraftHtml).toContain("const renderOwnerNeeds = state =>");
     expect(liveDraftHtml).toContain("const renderShortlist = state =>");

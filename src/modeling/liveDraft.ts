@@ -22,6 +22,12 @@ import {
   type ScenarioAdjustedPrice,
 } from "./keeperInflation.js";
 import { buildProjectionRankings, type ProjectionRanking } from "./projectionRankings.js";
+import {
+  defaultLiveDraftStrategyKey,
+  liveDraftStrategyFor,
+  type LiveDraftStrategyDefinition,
+  type LiveDraftStrategyKey,
+} from "./liveDraftStrategies.js";
 
 export type LiveDraftPlayerSource = "pricedPool" | "projectionFallback";
 
@@ -157,6 +163,7 @@ export interface LiveDraftReadiness {
 }
 
 export interface LiveDraftState {
+  strategy: LiveDraftStrategyDefinition;
   scenario: KeeperScenario;
   room: LiveDraftRoomState;
   watchOwner: LiveDraftOwnerState;
@@ -174,6 +181,7 @@ export interface BuildLiveDraftStateOptions {
   historicalRecords: readonly HistoricalAuctionRecord[];
   keepers?: readonly KeeperDeclaration[];
   scenarioKey?: KeeperScenarioKey;
+  strategyKey?: LiveDraftStrategyKey;
   watchOwner?: Owner;
   commands?: readonly string[];
   pricingConfig?: PricingConfig;
@@ -633,12 +641,15 @@ const buildRoomState = ({
 const targetTagsFor = (
   player: LiveDraftPlayerRecord,
   watchOwner: LiveDraftOwnerState,
+  strategy: LiveDraftStrategyDefinition,
 ): string[] => {
   const tags: string[] = [];
   const counts = watchOwner.positionCounts;
 
   if (counts[player.position] < leagueConfig.lineup[player.position]) tags.push("starter need");
-  if (player.position === "RB" && counts.RB < 3) tags.push("3RB core");
+  const anchorTarget = strategy.anchorTargets?.[player.position] ?? 0;
+  const strategyTag = strategy.tags[player.position];
+  if (strategyTag && anchorTarget > 0 && counts[player.position] < anchorTarget) tags.push(strategyTag);
   if ((player.position === "WR" || player.position === "TE") && counts.RB + counts.WR + counts.TE < 5) {
     tags.push("flex need");
   }
@@ -651,15 +662,25 @@ const targetTagsFor = (
 const positionNeedMultiplierFor = (
   player: LiveDraftPlayerRecord,
   watchOwner: LiveDraftOwnerState,
+  strategy: LiveDraftStrategyDefinition,
 ): number => {
   const counts = watchOwner.positionCounts;
   let multiplier = 1;
 
-  if (counts[player.position] < leagueConfig.lineup[player.position]) multiplier += 0.75;
-  if (player.position === "RB" && counts.RB < 3) multiplier += 0.5;
-  if (player.position === "WR" && counts.WR < 3) multiplier += 0.25;
-  if (player.position === "TE" && counts.TE < 1) multiplier += 0.2;
-  if (player.position === "K" || player.position === "DST") multiplier -= 0.4;
+  if (counts[player.position] < leagueConfig.lineup[player.position]) {
+    multiplier += strategy.needMultiplier[player.position] ?? 0;
+  }
+  const anchorTarget = strategy.anchorTargets?.[player.position] ?? 0;
+  if (anchorTarget > 0 && counts[player.position] < anchorTarget) {
+    multiplier += Math.max(0, (strategy.needMultiplier[player.position] ?? 0) * 0.65);
+  }
+  if (
+    (player.position === "RB" || player.position === "WR" || player.position === "TE") &&
+    counts.RB + counts.WR + counts.TE < 5
+  ) {
+    multiplier += Math.max(0, strategy.needMultiplier[player.position] ?? 0) * 0.35;
+  }
+  if (player.position === "K" || player.position === "DST") multiplier += strategy.needMultiplier[player.position] ?? -0.4;
 
   return multiplier;
 };
@@ -667,15 +688,25 @@ const positionNeedMultiplierFor = (
 const personalPremiumFor = (
   player: LiveDraftPlayerRecord,
   watchOwner: LiveDraftOwnerState,
+  strategy: LiveDraftStrategyDefinition,
 ): number => {
   const counts = watchOwner.positionCounts;
   let premium = 0;
 
-  if (counts[player.position] < leagueConfig.lineup[player.position]) premium += 6;
-  if (player.position === "RB" && counts.RB < 3) premium += 4;
-  if (player.position === "WR" && counts.WR < 3) premium += 3;
-  if (player.position === "TE" && counts.TE < 1) premium += 2;
-  if (player.position === "K" || player.position === "DST") premium -= 1;
+  if (counts[player.position] < leagueConfig.lineup[player.position]) {
+    premium += strategy.starterPremium[player.position] ?? 0;
+  }
+  const anchorTarget = strategy.anchorTargets?.[player.position] ?? 0;
+  if (anchorTarget > 0 && counts[player.position] < anchorTarget) {
+    premium += strategy.depthPremium[player.position] ?? 0;
+  }
+  if (
+    (player.position === "RB" || player.position === "WR" || player.position === "TE") &&
+    counts.RB + counts.WR + counts.TE < 5
+  ) {
+    premium += Math.max(0, strategy.depthPremium[player.position] ?? 0);
+  }
+  if (player.position === "K" || player.position === "DST") premium += strategy.starterPremium[player.position] ?? -1;
 
   return premium;
 };
@@ -693,21 +724,23 @@ const buildTargets = ({
   watchOwner,
   room,
   targetLimit,
+  strategy,
 }: {
   records: readonly LiveDraftPlayerRecord[];
   soldNames: ReadonlySet<string>;
   watchOwner: LiveDraftOwnerState;
   room: LiveDraftRoomState;
   targetLimit: number;
+  strategy: LiveDraftStrategyDefinition;
 }): LiveDraftTarget[] =>
   records
     .filter(player => !soldNames.has(player.normalizedName))
     .filter(player => canWatchOwnerRosterPlayer(player, watchOwner))
     .map(player => {
       const liveExpectedPrice = roundPrice(player.expectedPrice * room.liveInflationFactor);
-      const needMultiplier = positionNeedMultiplierFor(player, watchOwner);
+      const needMultiplier = positionNeedMultiplierFor(player, watchOwner, strategy);
       const positionCeiling = defaultPricingConfig.hardPriceCeilings[player.position];
-      const uncappedPersonalValue = roundPrice(liveExpectedPrice + personalPremiumFor(player, watchOwner));
+      const uncappedPersonalValue = roundPrice(liveExpectedPrice + personalPremiumFor(player, watchOwner, strategy));
       const personalValue = Math.min(
         watchOwner.maxBid,
         positionCeiling,
@@ -731,7 +764,7 @@ const buildTargets = ({
         ...(player.projectionRank === undefined ? {} : { projectionRank: player.projectionRank }),
         ...(player.espnRank === undefined ? {} : { espnRank: player.espnRank }),
         source: player.source,
-        tags: targetTagsFor(player, watchOwner),
+        tags: targetTagsFor(player, watchOwner, strategy),
       };
     })
     .sort(
@@ -862,6 +895,7 @@ export const buildLiveDraftState = ({
   historicalRecords,
   keepers = defaultKeepers,
   scenarioKey = defaultScenarioKey,
+  strategyKey = defaultLiveDraftStrategyKey,
   watchOwner = defaultWatchOwner,
   commands = [],
   pricingConfig = defaultPricingConfig,
@@ -870,6 +904,7 @@ export const buildLiveDraftState = ({
   const prices = buildBasePrices(projections, historicalRecords, pricingConfig);
   const scenario = buildKeeperScenarios(keepers).find(candidate => candidate.key === scenarioKey);
   if (!scenario) throw new Error(`Unknown keeper scenario "${scenarioKey}".`);
+  const strategy = liveDraftStrategyFor(strategyKey);
 
   const appliedScenario = applyKeeperScenarioToPrices(prices, scenario, keepers);
   const unavailableKeeperNames = new Set(
@@ -941,9 +976,11 @@ export const buildLiveDraftState = ({
     watchOwner: currentWatchOwner,
     room,
     targetLimit,
+    strategy,
   });
 
   return {
+    strategy,
     scenario,
     room,
     watchOwner: currentWatchOwner,

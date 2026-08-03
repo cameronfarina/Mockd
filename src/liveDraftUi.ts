@@ -224,7 +224,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .board-toolbar {
       display: grid;
-      grid-template-columns: minmax(360px, 1fr) auto minmax(130px, 160px) minmax(112px, 130px) minmax(160px, 190px);
+      grid-template-columns: minmax(320px, 1fr) auto minmax(130px, 160px) minmax(112px, 130px) minmax(132px, 160px) minmax(160px, 190px);
       gap: 8px;
       align-items: center;
       padding: 8px 10px;
@@ -630,6 +630,31 @@ export const liveDraftHtml = `<!doctype html>
       background: #fff5f3;
     }
 
+    .mock-draft-panel {
+      display: grid;
+      gap: 8px;
+      padding: 0 10px 8px;
+    }
+
+    .mock-draft-details {
+      display: grid;
+      gap: 6px;
+    }
+
+    .mock-actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .mock-actions button {
+      min-height: 32px;
+      padding: 0 7px;
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 1.15;
+    }
+
     .raw-command {
       display: block;
       margin-top: 4px;
@@ -773,6 +798,12 @@ export const liveDraftHtml = `<!doctype html>
           <label class="toggle"><input type="checkbox" id="my-needs-filter"> My needs</label>
           <select id="team-filter" aria-label="NFL team filter"></select>
           <select id="bye-filter" aria-label="Bye week filter"></select>
+          <select id="strategy-select" aria-label="Draft strategy">
+            <option value="balanced">Balanced</option>
+            <option value="three-rb" selected>True 3RB</option>
+            <option value="hero-rb">Hero RB</option>
+            <option value="wr-heavy">WR Heavy</option>
+          </select>
           <select id="sort-select" aria-label="Board sort">
             <option value="valueScore:desc">Best score</option>
             <option value="valueGap:desc">Best value gap</option>
@@ -828,6 +859,20 @@ export const liveDraftHtml = `<!doctype html>
           <div class="owner-needs" id="owner-needs"></div>
         </div>
         <div class="side-scroll">
+          <div class="section-label">Mock Draft</div>
+          <div class="mock-draft-panel" id="mock-draft-panel">
+            <div class="mock-draft-details" id="mock-draft-details">
+              <div class="summary-item">
+                <strong>Loading</strong>
+                <span class="subtle">Preparing the interactive mock.</span>
+              </div>
+            </div>
+            <div class="mock-actions">
+              <button type="button" id="mock-advance-button" disabled>Advance AI Sale</button>
+              <button type="button" id="mock-cam-win-button" disabled>Cam Wins</button>
+              <button type="button" id="mock-pass-button" disabled>Pass</button>
+            </div>
+          </div>
           <div class="section-label">Readiness</div>
           <div class="summary-list" id="readiness-checks"></div>
           <div class="section-label">Cam Shortlist</div>
@@ -865,8 +910,10 @@ export const liveDraftHtml = `<!doctype html>
     let boardPositionFilter = 'ALL';
     let boardSortKey = 'valueScore';
     let boardSortDirection = 'desc';
+    let currentStrategyKey = 'three-rb';
 
     const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST'];
+    const strategyKeys = ['balanced', 'three-rb', 'hero-rb', 'wr-heavy'];
     const flexPositions = ['RB', 'WR', 'TE'];
     const rosterMaximums = { QB: 2, RB: 6, WR: 6, TE: 2, K: 1, DST: 1 };
     const positionOrder = { RB: 1, WR: 2, TE: 3, QB: 4, K: 5, DST: 6 };
@@ -897,6 +944,8 @@ export const liveDraftHtml = `<!doctype html>
     const currentOwner = () => ownerByName(selectedRosterOwner);
     const priceInputValue = () => Number(byId('add-price').value);
     const gapClassFor = gap => gap > 0 ? 'gap-positive' : gap < 0 ? 'gap-negative' : '';
+    const stateUrl = () => '/api/state?strategy=' + currentStrategyKey;
+    const mockDraftUrl = () => '/api/mock/state?strategy=' + currentStrategyKey + '&seed=live-ui';
 
     const textElement = (tagName, text, className) => {
       const element = document.createElement(tagName);
@@ -913,7 +962,7 @@ export const liveDraftHtml = `<!doctype html>
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body || {})
+        body: JSON.stringify({ strategyKey: currentStrategyKey, ...(body || {}) })
       });
       const data = await response.json();
       render(data);
@@ -1072,12 +1121,19 @@ export const liveDraftHtml = `<!doctype html>
         button.setAttribute('aria-pressed', String(button.dataset.positionFilter === boardPositionFilter));
       }
 
+      byId('strategy-select').value = currentStrategyKey;
       byId('sort-select').value = boardSortKey + ':' + boardSortDirection;
       for (const button of document.querySelectorAll('[data-sort-key]')) {
         const key = button.dataset.sortKey;
         const marker = key === boardSortKey ? (boardSortDirection === 'asc' ? ' ^' : ' v') : '';
         button.textContent = sortLabels[key] + marker;
       }
+    };
+
+    const syncStrategy = state => {
+      const key = state.strategy && strategyKeys.includes(state.strategy.key) ? state.strategy.key : currentStrategyKey;
+      currentStrategyKey = key;
+      byId('strategy-select').value = currentStrategyKey;
     };
 
     const targetMatchesQuery = (target, query) => {
@@ -1215,6 +1271,61 @@ export const liveDraftHtml = `<!doctype html>
       });
 
       byId('position-context').replaceChildren(...rows);
+    };
+
+    const mockDraftItem = (label, value) => {
+      const item = document.createElement('div');
+      item.className = 'summary-item';
+      item.replaceChildren(textElement('strong', label), textElement('span', value || '-', 'subtle'));
+      return item;
+    };
+
+    const mockDraftCommandItem = command => {
+      const item = document.createElement('div');
+      item.className = 'summary-item';
+      const rawCommand = document.createElement('code');
+      rawCommand.className = 'raw-command';
+      rawCommand.textContent = command || '-';
+      item.replaceChildren(textElement('strong', 'AI sale command'), rawCommand);
+      return item;
+    };
+
+    const bidText = bid => {
+      const amount = bid.recommendedBid ?? bid.amount ?? bid.bid ?? bid.price ?? bid.maxBid;
+      return bid.owner + (amount == null ? '' : ' ' + money(amount));
+    };
+
+    const renderMockDraft = mockDraft => {
+      const details = byId('mock-draft-details');
+      const phase = mockDraft ? mockDraft.phase : '';
+      byId('mock-advance-button').disabled = phase !== 'ai-sale';
+      byId('mock-cam-win-button').disabled = phase !== 'human-decision' || !mockDraft.camDecision;
+      byId('mock-pass-button').disabled = phase !== 'human-decision';
+
+      if (!mockDraft) {
+        details.replaceChildren(mockDraftItem('Mock draft', 'Loading interactive state.'));
+        return;
+      }
+
+      const nomination = mockDraft.nomination || {};
+      const nominationText = nomination.player || nomination.name || mockDraft.nominatedPlayer || '-';
+      const aiBids = (mockDraft.aiBids || []).slice(0, 5);
+      const items = [
+        mockDraftItem('Nominator', mockDraft.nominator || nomination.nominator || '-'),
+        mockDraftItem('Nominated player', nominationText),
+        mockDraftCommandItem(mockDraft.aiSaleCommand),
+        mockDraftItem('Top AI bids', aiBids.length ? aiBids.map(bidText).join(' / ') : '-')
+      ];
+
+      if (mockDraft.camDecision) {
+        const recommended = mockDraft.camDecision.recommendedBid == null
+          ? '-'
+          : money(mockDraft.camDecision.recommendedBid);
+        const maxBid = mockDraft.camDecision.maxBid == null ? '-' : money(mockDraft.camDecision.maxBid);
+        items.push(mockDraftItem('Cam recommended bid', recommended + ' / max ' + maxBid));
+      }
+
+      details.replaceChildren(...items);
     };
 
     const renderBoard = state => {
@@ -1412,6 +1523,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const render = state => {
       currentState = state;
+      syncStrategy(state);
       if (!state.owners.some(owner => owner.owner === selectedRosterOwner)) selectedRosterOwner = 'Cam';
       syncOwnerSelects(state);
       syncBoardFilterOptions(state);
@@ -1426,6 +1538,45 @@ export const liveDraftHtml = `<!doctype html>
       renderPositionContext(state);
       renderEvents(state);
       renderErrors(state);
+      if (state.mockDraft) renderMockDraft(state.mockDraft);
+    };
+
+    const refreshMockDraft = async () => {
+      renderMockDraft(null);
+      try {
+        const response = await fetch(mockDraftUrl());
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load mock draft.');
+        renderMockDraft(data.mockDraft || data);
+        return data;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not load mock draft.';
+        byId('mock-draft-details').replaceChildren(mockDraftItem('Mock draft unavailable', message));
+        byId('mock-advance-button').disabled = true;
+        byId('mock-cam-win-button').disabled = true;
+        byId('mock-pass-button').disabled = true;
+        return null;
+      }
+    };
+
+    const refreshState = async () => {
+      const response = await fetch(stateUrl());
+      const state = await response.json();
+      render(state);
+      return state;
+    };
+
+    const refreshDraftRoom = async () => {
+      const state = await refreshState();
+      await refreshMockDraft();
+      return state;
+    };
+
+    const postJsonAndRefresh = async (url, body) => {
+      const data = await postJson(url, body);
+      await refreshMockDraft();
+      focusCommandInput();
+      return data;
     };
 
     const submitCommand = async command => {
@@ -1434,6 +1585,18 @@ export const liveDraftHtml = `<!doctype html>
         selectedTargetName = data.availableTargets[0] ? data.availableTargets[0].name : null;
         render(data);
       }
+      await refreshMockDraft();
+      focusCommandInput();
+      return data;
+    };
+
+    const advanceMockDraft = async action => {
+      const data = await postJson('/api/mock/advance', {
+        strategyKey: currentStrategyKey,
+        seed: 'live-ui',
+        action
+      });
+      if (!data.mockDraft) await refreshMockDraft();
       focusCommandInput();
       return data;
     };
@@ -1455,6 +1618,7 @@ export const liveDraftHtml = `<!doctype html>
       const content = await response.text();
       if (!response.ok) {
         if (currentState) render({ ...currentState, errors: [{ input: '', message: content || 'Could not export draft log.' }] });
+        await refreshMockDraft();
         focusCommandInput();
         return;
       }
@@ -1464,6 +1628,7 @@ export const liveDraftHtml = `<!doctype html>
         content,
         format === 'csv' ? 'text/csv' : 'application/json'
       );
+      await refreshMockDraft();
       focusCommandInput();
     };
 
@@ -1472,6 +1637,7 @@ export const liveDraftHtml = `<!doctype html>
       const format = file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'json';
       const content = await file.text();
       await postJson('/api/import', { format, content });
+      await refreshMockDraft();
       byId('import-log-file').value = '';
       focusCommandInput();
     };
@@ -1508,6 +1674,12 @@ export const liveDraftHtml = `<!doctype html>
       boardSortKey = key;
       boardSortDirection = direction;
       if (currentState) renderBoard(currentState);
+    });
+
+    byId('strategy-select').addEventListener('change', async event => {
+      currentStrategyKey = strategyKeys.includes(event.target.value) ? event.target.value : 'three-rb';
+      await refreshDraftRoom();
+      focusCommandInput();
     });
 
     for (const button of document.querySelectorAll('[data-sort-key]')) {
@@ -1555,6 +1727,7 @@ export const liveDraftHtml = `<!doctype html>
       const price = Number(byId('add-price').value);
       if (saleWarningsFor(target, ownerByName(owner), price).length) {
         renderSaleControls(currentState);
+        focusCommandInput();
         return;
       }
       const command = owner + ' drafted ' + target.name + ' for ' + price;
@@ -1565,11 +1738,13 @@ export const liveDraftHtml = `<!doctype html>
     byId('export-csv-button').addEventListener('click', () => exportLog('csv'));
     byId('import-log-button').addEventListener('click', () => byId('import-log-file').click());
     byId('import-log-file').addEventListener('change', event => importDraftLogFile(event.target.files[0]));
-    byId('undo-button').addEventListener('click', () => postJson('/api/undo').then(focusCommandInput));
-    byId('reset-button').addEventListener('click', () => postJson('/api/reset').then(focusCommandInput));
+    byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
+    byId('reset-button').addEventListener('click', () => postJsonAndRefresh('/api/reset'));
+    byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
+    byId('mock-cam-win-button').addEventListener('click', () => advanceMockDraft('cam-win'));
+    byId('mock-pass-button').addEventListener('click', () => advanceMockDraft('pass'));
 
-    fetch('/api/state').then(response => response.json()).then(state => {
-      render(state);
+    refreshDraftRoom().then(() => {
       focusCommandInput();
     });
   </script>

@@ -1555,14 +1555,14 @@ const compareAuctionPlayers = (left: Player, right: Player): number =>
   right.weeks1To4 - left.weeks1To4 ||
   left.name.localeCompare(right.name);
 
-interface NominationSelection {
+export interface NominationSelection {
   index: number;
   player: Player;
   score: number;
   diagnostics: AuctionNominationDiagnostics;
 }
 
-interface NominationTurn {
+export interface NominationTurn {
   owner: Owner;
   nextCursor: number;
 }
@@ -1576,7 +1576,7 @@ const highestMarketPrice = (players: readonly Player[]): number =>
 const highestProjectionTotal = (players: readonly Player[]): number =>
   players.reduce((highest, player) => Math.max(highest, player.weeks1To4), 0);
 
-const nextNominationTurn = (
+export const nextNominationTurn = (
   ownerStates: readonly AuctionOwnerState[],
   config: AuctionEngineConfig,
   nominationCursor: number,
@@ -1896,7 +1896,7 @@ const nominationScoreFor = ({
   };
 };
 
-const selectNominatedPlayer = ({
+export const selectNominatedPlayer = ({
   availablePlayers,
   ownerStates,
   nominator,
