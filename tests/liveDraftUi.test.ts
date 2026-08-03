@@ -35,6 +35,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"draft-room-view\"");
     expect(liveDraftHtml).toContain("id=\"mock-results-view\"");
     expect(liveDraftHtml).toContain("id=\"mock-results-run-list\"");
+    expect(liveDraftHtml).toContain("id=\"mock-results-run-new-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-results-grid\"");
     expect(liveDraftHtml).toContain("id=\"mock-results-title\"");
     expect(liveDraftHtml).toContain("id=\"back-to-draft-room-button\"");
@@ -88,7 +89,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderMockDraft = mockDraft =>");
     expect(liveDraftHtml).toContain("const renderDraftMode = state =>");
     expect(liveDraftHtml).toContain("const setDraftMode = async mode =>");
-    expect(liveDraftHtml).toContain("const runMockBatch = async () =>");
+    expect(liveDraftHtml).toContain("const runMockBatch = async ({ forceNew = false } = {}) =>");
+    expect(liveDraftHtml).toContain("const mockBatchSeedPrefix = () =>");
+    expect(liveDraftHtml).toContain("Date.now().toString(36)");
     expect(liveDraftHtml).toContain("const pollMockBatchJob = async jobId =>");
     expect(liveDraftHtml).toContain("const renderMockBatchButtonState = job =>");
     expect(liveDraftHtml).toContain("const renderMockResultsRoute = report =>");
@@ -144,6 +147,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("aria-label=\"Start real draft\">Real draft");
     expect(liveDraftHtml).toContain("aria-label=\"Start mock draft\">Mock draft");
     expect(liveDraftHtml).toContain("Run mocks");
+    expect(liveDraftHtml).toContain("Run new mocks");
     expect(liveDraftHtml).toContain("See results");
     expect(liveDraftHtml).toContain("Mock Results");
     expect(liveDraftHtml).toContain("Top W1");
@@ -160,6 +164,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("grid-template-columns: repeat(5, minmax(220px, 1fr));");
     expect(liveDraftHtml).not.toContain("mockDraftItem('AI max bids'");
     expect(liveDraftHtml).toContain("strategyKey: currentStrategyKey");
+    expect(liveDraftHtml).toContain("runMockBatch({ forceNew: true })");
     expect(liveDraftHtml).toContain("const renderPositionMarket = state =>");
     expect(liveDraftHtml).toContain("const renderOwnerNeeds = state =>");
     expect(liveDraftHtml).toContain("const renderShortlist = state =>");

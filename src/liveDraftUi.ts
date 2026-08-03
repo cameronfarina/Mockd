@@ -1567,6 +1567,7 @@ export const liveDraftHtml = `<!doctype html>
         <div class="subtle" id="mock-results-title">No completed mock batch yet.</div>
       </div>
       <div class="results-header-actions">
+        <button type="button" id="mock-results-run-new-button">Run new mocks</button>
         <button type="button" id="back-to-draft-room-button">Draft room</button>
       </div>
     </header>
@@ -2896,6 +2897,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const renderMockBatchButtonState = job => {
       const button = byId('run-mock-batch-button');
+      const resultsRunNewButton = byId('mock-results-run-new-button');
       const input = byId('mock-batch-runs');
       const status = job ? job.status : '';
       const percent = Math.max(0, Math.min(100, Number(job && job.percent ? job.percent : 0)));
@@ -2907,12 +2909,15 @@ export const liveDraftHtml = `<!doctype html>
       button.classList.toggle('mock-batch-ready', Boolean(isReady));
       button.disabled = isRunning;
       input.disabled = isRunning;
+      resultsRunNewButton.disabled = isRunning;
 
       if (isRunning) {
         button.textContent = percent > 0 ? percent + '% complete' : 'Starting mocks';
+        resultsRunNewButton.textContent = percent > 0 ? percent + '% complete' : 'Starting mocks';
         return;
       }
 
+      resultsRunNewButton.textContent = 'Run new mocks';
       if (isReady) {
         button.textContent = 'See results';
         return;
@@ -2959,13 +2964,17 @@ export const liveDraftHtml = `<!doctype html>
       return job;
     };
 
-    const runMockBatch = async () => {
-      if (latestMockBatchJob && latestMockBatchJob.status === 'complete' && latestMockBatchJob.result) {
+    const mockBatchSeedPrefix = () =>
+      'live-ui-' + currentStrategyKey + '-' + Date.now().toString(36);
+
+    const runMockBatch = async ({ forceNew = false } = {}) => {
+      if (!forceNew && latestMockBatchJob && latestMockBatchJob.status === 'complete' && latestMockBatchJob.result) {
         window.location.assign('/mock-results');
         return;
       }
 
       const runs = Number(byId('mock-batch-runs').value || 25);
+      selectedMockResultsRunIndex = 0;
       try {
         const response = await fetch('/api/mock-batch', {
           method: 'POST',
@@ -2974,7 +2983,7 @@ export const liveDraftHtml = `<!doctype html>
             strategyKey: currentStrategyKey,
             draftSession: currentDraftSession,
             runs,
-            seedPrefix: 'live-ui-' + currentStrategyKey
+            seedPrefix: mockBatchSeedPrefix()
           })
         });
         const job = await response.json();
@@ -3263,6 +3272,7 @@ export const liveDraftHtml = `<!doctype html>
       const list = byId('mock-results-run-list');
       list.hidden = !list.hidden;
     });
+    byId('mock-results-run-new-button').addEventListener('click', () => runMockBatch({ forceNew: true }));
     document.addEventListener('click', event => {
       if (!event.target.closest || !event.target.closest('.run-selector')) byId('mock-results-run-list').hidden = true;
     });
