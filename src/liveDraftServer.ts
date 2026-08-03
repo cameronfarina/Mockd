@@ -1,4 +1,5 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { keepers } from "../config/keepers.js";
@@ -208,6 +209,25 @@ const importFormatFor = (value: unknown): LiveDraftCommandImportFormat => {
 const parseJsonBody = async (request: IncomingMessage): Promise<Record<string, unknown>> =>
   JSON.parse(await readRequestBody(request) || "{}") as Record<string, unknown>;
 
+const isMissingFileError = (error: unknown): boolean =>
+  error instanceof Error &&
+  "code" in error &&
+  (error as NodeJS.ErrnoException).code === "ENOENT";
+
+const readTextFileIfPresent = async (path: string): Promise<string> => {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if (isMissingFileError(error)) return "";
+    throw error;
+  }
+};
+
+const readJsonFileIfPresent = async (path: string): Promise<unknown | null> => {
+  const content = await readTextFileIfPresent(path);
+  return content ? JSON.parse(content) : null;
+};
+
 interface LiveDraftStateResponse extends LiveDraftState {
   draftMode: LiveDraftSessionMode;
   draftModes: readonly LiveDraftModeDescriptor[];
@@ -216,6 +236,20 @@ interface LiveDraftStateResponse extends LiveDraftState {
   draftNightLock: DraftNightLockStatus;
   session: LiveDraftSessionStatus;
   readiness: LiveDraftReadiness;
+}
+
+interface LiveDraftSessionExportBundle {
+  version: 1;
+  exportedAt: string;
+  activeDraftSession: LiveDraftSessionDescriptor;
+  draftMode: LiveDraftSessionMode;
+  session: LiveDraftSessionStatus;
+  readiness: LiveDraftReadiness;
+  currentSnapshot: unknown | null;
+  backupSnapshot: unknown | null;
+  auditLogJsonl: string;
+  commandsJson: string;
+  commandsCsv: string;
 }
 
 interface InteractiveMockDraftModule {
@@ -541,6 +575,32 @@ export const createLiveDraftServer = async (
       mockDraft: await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, commands }),
     };
   };
+  const exportBundleFor = async ({
+    draftSessionKey,
+    mode,
+    strategyKey,
+  }: {
+    draftSessionKey: string;
+    mode: LiveDraftSessionMode;
+    strategyKey: LiveDraftStrategyKey;
+  }): Promise<LiveDraftSessionExportBundle> => {
+    const store = await storeFor(draftSessionKey, mode);
+    const state = await stateFor({ draftSessionKey, mode, strategyKey });
+    const commands = store.currentCommands();
+    return {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      activeDraftSession: state.activeDraftSession,
+      draftMode: state.draftMode,
+      session: state.session,
+      readiness: state.readiness,
+      currentSnapshot: await readJsonFileIfPresent(state.session.paths.currentPath),
+      backupSnapshot: await readJsonFileIfPresent(state.session.paths.backupPath),
+      auditLogJsonl: await readTextFileIfPresent(state.session.paths.logPath),
+      commandsJson: liveDraftCommandsJson(commands),
+      commandsCsv: liveDraftCommandsCsv(commands),
+    };
+  };
   const mockBatchJobs = new Map<string, MockBatchJob>();
   let latestMockBatchJobId: string | undefined;
 
@@ -699,6 +759,15 @@ export const createLiveDraftServer = async (
         } else {
           sendText(response, 200, "application/json", liveDraftCommandsJson(commands));
         }
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/export-bundle") {
+        sendText(response, 200, "application/json", `${JSON.stringify(await exportBundleFor({
+          draftSessionKey: draftSessionKeyFromQuery(url),
+          mode: sessionModeFromQuery(url),
+          strategyKey: strategyKeyFromQuery(url),
+        }), null, 2)}\n`);
         return;
       }
 

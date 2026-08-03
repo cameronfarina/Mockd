@@ -1326,6 +1326,7 @@ export const liveDraftHtml = `<!doctype html>
         <div class="top-actions">
           <button type="button" id="export-json-button">Export JSON</button>
           <button type="button" id="export-csv-button">CSV</button>
+          <button type="button" id="export-bundle-button">Bundle</button>
           <button type="button" id="import-log-button">Import</button>
           <input class="file-input" id="import-log-file" type="file" accept=".json,.csv,application/json,text/csv">
           <button type="button" id="undo-button">Undo</button>
@@ -1547,6 +1548,7 @@ export const liveDraftHtml = `<!doctype html>
       return (rounded > 0 ? '+' : '-') + '$' + Math.abs(rounded);
     };
     const cleanText = value => String(value == null ? '' : value);
+    const safeFilePart = value => cleanText(value).replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '') || 'draft';
     const valueGapFor = target => target.personalValue - target.liveExpectedPrice;
     const isFlexPosition = position => flexPositions.includes(position);
     const selectedTarget = () => currentState && currentState.availableTargets.find(target => target.name === selectedTargetName);
@@ -2866,6 +2868,21 @@ export const liveDraftHtml = `<!doctype html>
       focusCommandInput();
     };
 
+    const exportSessionBundle = async () => {
+      const response = await fetch('/api/export-bundle?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery());
+      const content = await response.text();
+      if (!response.ok) {
+        if (currentState) render({ ...currentState, errors: [{ input: '', message: content || 'Could not export draft bundle.' }] });
+        await refreshMockDraft();
+        focusCommandInput();
+        return;
+      }
+
+      downloadText('mockd-' + safeFilePart(currentDraftSession) + '-' + currentDraftMode + '-bundle.json', content, 'application/json');
+      await refreshMockDraft();
+      focusCommandInput();
+    };
+
     const importDraftLogFile = async file => {
       if (!file) return;
       const format = file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'json';
@@ -2970,6 +2987,7 @@ export const liveDraftHtml = `<!doctype html>
 
     byId('export-json-button').addEventListener('click', () => exportLog('json'));
     byId('export-csv-button').addEventListener('click', () => exportLog('csv'));
+    byId('export-bundle-button').addEventListener('click', () => exportSessionBundle());
     byId('import-log-button').addEventListener('click', () => byId('import-log-file').click());
     byId('import-log-file').addEventListener('change', event => importDraftLogFile(event.target.files[0]));
     byId('draft-session-select').addEventListener('change', event => setDraftSession(event.target.value));

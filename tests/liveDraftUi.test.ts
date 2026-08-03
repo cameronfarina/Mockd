@@ -17,6 +17,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"strategy-select\"");
     expect(liveDraftHtml).toContain("id=\"export-json-button\"");
     expect(liveDraftHtml).toContain("id=\"export-csv-button\"");
+    expect(liveDraftHtml).toContain("id=\"export-bundle-button\"");
     expect(liveDraftHtml).toContain("id=\"import-log-button\"");
     expect(liveDraftHtml).toContain("id=\"import-log-file\"");
     expect(liveDraftHtml).toContain("id=\"draft-session-select\"");
@@ -160,6 +161,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("event.input");
     expect(liveDraftHtml).toContain("exportLog('json')");
     expect(liveDraftHtml).toContain("exportLog('csv')");
+    expect(liveDraftHtml).toContain("const exportSessionBundle = async () =>");
+    expect(liveDraftHtml).toContain("fetch('/api/export-bundle?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery())");
+    expect(liveDraftHtml).toContain("downloadText('mockd-' + safeFilePart(currentDraftSession) + '-' + currentDraftMode + '-bundle.json'");
     expect(liveDraftHtml).toContain("importDraftLogFile");
     expect(liveDraftHtml).toContain("postJson('/api/import'");
   });

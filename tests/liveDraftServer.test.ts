@@ -451,6 +451,44 @@ describe("live draft server", () => {
     }
   });
 
+  it("exports a complete one-click draft session bundle", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const sale = await post(baseUrl, "/api/events", {
+        draftSession: "practice-wr-heavy",
+        mode: "real",
+        strategyKey: "wr-heavy",
+        command: realSaleCommand,
+      });
+      expect(sale.status).toBe(200);
+
+      const response = await fetch(`${baseUrl}/api/export-bundle?draftSession=practice-wr-heavy&mode=real&strategy=wr-heavy`);
+      expect(response.status).toBe(200);
+      const bundle = await response.json();
+      expect(bundle.version).toBe(1);
+      expect(bundle.activeDraftSession).toMatchObject({ key: "practice-wr-heavy", label: "Practice WR Heavy" });
+      expect(bundle.draftMode).toBe("real");
+      expect(bundle.session.commandCount).toBe(1);
+      expect(bundle.readiness.status).toMatch(/pass|warn/);
+      expect(bundle.currentSnapshot.commands).toEqual([realSaleCommand]);
+      expect(bundle.backupSnapshot.commands).toEqual([realSaleCommand]);
+      expect(bundle.commandsJson).toContain(realSaleCommand);
+      expect(bundle.commandsCsv).toContain("index,command");
+      expect(bundle.commandsCsv).toContain(realSaleCommand);
+      expect(bundle.auditLogJsonl).toContain(realSaleCommand);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it("serves mock results and returns complete optimized 14-team run payloads", async () => {
     const directory = await tempSessionDirectory();
     try {
