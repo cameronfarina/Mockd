@@ -13,6 +13,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"team-filter\"");
     expect(liveDraftHtml).toContain("id=\"bye-filter\"");
     expect(liveDraftHtml).toContain("id=\"sort-select\"");
+    expect(liveDraftHtml).toContain("id=\"export-json-button\"");
+    expect(liveDraftHtml).toContain("id=\"export-csv-button\"");
+    expect(liveDraftHtml).toContain("id=\"import-log-button\"");
+    expect(liveDraftHtml).toContain("id=\"import-log-file\"");
     expect(liveDraftHtml).toContain("id=\"add-owner\"");
     expect(liveDraftHtml).toContain("id=\"add-price\"");
     expect(liveDraftHtml).toContain("id=\"add-submit\"");
@@ -21,6 +25,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"roster-slots\"");
     expect(liveDraftHtml).toContain("id=\"owner-needs\"");
     expect(liveDraftHtml).toContain("id=\"position-market\"");
+    expect(liveDraftHtml).toContain("id=\"readiness-checks\"");
+    expect(liveDraftHtml).toContain("id=\"shortlist\"");
+    expect(liveDraftHtml).toContain("id=\"position-context\"");
     expect(liveDraftHtml).toContain("data-sort-key=\"personalValue\">Our");
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\">Gap");
     expect(liveDraftHtml).toContain("data-sort-key=\"byeWeek\">Bye");
@@ -34,10 +41,29 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST']");
     expect(liveDraftHtml).toContain("const valueGapFor = target => target.personalValue - target.liveExpectedPrice");
     expect(liveDraftHtml).toContain("const tierDropsFor = targets =>");
+    expect(liveDraftHtml).toContain("'next ' + target.position + ' -' + money(tierDrop)");
     expect(liveDraftHtml).toContain("const saleWarningsFor = (target, owner, price) =>");
     expect(liveDraftHtml).toContain("const renderPositionMarket = state =>");
     expect(liveDraftHtml).toContain("const renderOwnerNeeds = state =>");
+    expect(liveDraftHtml).toContain("const renderShortlist = state =>");
+    expect(liveDraftHtml).toContain("const renderPositionContext = state =>");
+    expect(liveDraftHtml).toContain("const renderReadiness = state =>");
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\"");
+  });
+
+  it("renders raw sale history and import/export draft-log actions", () => {
+    expect(liveDraftHtml).toContain("className = 'raw-command'");
+    expect(liveDraftHtml).toContain("event.input");
+    expect(liveDraftHtml).toContain("exportLog('json')");
+    expect(liveDraftHtml).toContain("exportLog('csv')");
+    expect(liveDraftHtml).toContain("importDraftLogFile");
+    expect(liveDraftHtml).toContain("postJson('/api/import'");
+  });
+
+  it("returns keyboard focus to the quick-sale command entry after sales", () => {
+    expect(liveDraftHtml).toContain("const focusCommandInput = () =>");
+    expect(liveDraftHtml).toContain("byId('quick-sale-command').focus()");
+    expect(liveDraftHtml).toContain("focusCommandInput();");
   });
 
   it("uses a custom select arrow with enough right-side spacing", () => {

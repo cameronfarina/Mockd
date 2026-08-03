@@ -99,6 +99,24 @@ describe("live draft room", () => {
     expect(overPositionLimitState.errors[0]?.message).toContain("Cam already has the maximum QB roster count");
   });
 
+  it("rejects ambiguous quick-sale player names with explicit match options", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+      commands: ["cam drafted brown for 12"],
+    });
+
+    expect(state.events).toHaveLength(0);
+    expect(state.errors[0]?.message).toContain("Ambiguous player \"brown\"");
+    expect(state.errors[0]?.message).toContain("A.J. Brown");
+    expect(state.errors[0]?.message).toContain("Chase Brown");
+  });
+
   it("exposes board metadata for a simple search-and-add interface", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
@@ -127,5 +145,21 @@ describe("live draft room", () => {
     expect(gibbs?.personalValue).toBeGreaterThanOrEqual(gibbs?.liveExpectedPrice ?? 0);
     expect(gibbs?.personalValue).toBeLessThanOrEqual(80);
     expect(gibbs?.recommendedMaxBid).toBeLessThanOrEqual(state.watchOwner.maxBid);
+    expect(state.shortlist[0]).toMatchObject({
+      name: "Jahmyr Gibbs",
+      position: "RB",
+    });
+    expect(state.shortlist[0]?.reasons).toContain("starter need");
+    expect(state.positionContexts.find(context => context.position === "RB")).toMatchObject({
+      position: "RB",
+      ownersNeeding: expect.arrayContaining(["Cam"]),
+    });
+    expect(state.positionContexts.find(context => context.position === "WR")?.blockers.length).toBeGreaterThan(0);
+    expect(state.readiness.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "engine-state", status: "pass" }),
+        expect.objectContaining({ key: "target-board", status: "pass" }),
+      ]),
+    );
   });
 });

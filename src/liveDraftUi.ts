@@ -145,6 +145,10 @@ export const liveDraftHtml = `<!doctype html>
       padding: 0 11px;
     }
 
+    .file-input {
+      display: none;
+    }
+
     .metrics {
       display: grid;
       grid-template-columns: repeat(5, minmax(120px, 1fr));
@@ -596,6 +600,49 @@ export const liveDraftHtml = `<!doctype html>
       white-space: nowrap;
     }
 
+    .summary-list {
+      display: grid;
+      gap: 6px;
+      padding: 0 10px 8px;
+    }
+
+    .summary-item {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+      padding: 7px 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: #fbfcfa;
+    }
+
+    .summary-item strong {
+      line-height: 1.15;
+    }
+
+    .summary-item.warn {
+      border-color: #f1dba0;
+      background: #fffaf0;
+    }
+
+    .summary-item.fail {
+      border-color: #f0d4cf;
+      background: #fff5f3;
+    }
+
+    .raw-command {
+      display: block;
+      margin-top: 4px;
+      padding: 3px 5px;
+      border-radius: 4px;
+      background: #f0f3f5;
+      color: #42514b;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
     .side-scroll {
       overflow: auto;
       max-height: calc(100vh - 332px);
@@ -697,6 +744,10 @@ export const liveDraftHtml = `<!doctype html>
         <button class="primary" type="submit">Log</button>
       </form>
       <div class="top-actions">
+        <button type="button" id="export-json-button">Export JSON</button>
+        <button type="button" id="export-csv-button">CSV</button>
+        <button type="button" id="import-log-button">Import</button>
+        <input class="file-input" id="import-log-file" type="file" accept=".json,.csv,application/json,text/csv">
         <button type="button" id="undo-button">Undo</button>
         <button type="button" id="reset-button">Reset</button>
       </div>
@@ -777,6 +828,10 @@ export const liveDraftHtml = `<!doctype html>
           <div class="owner-needs" id="owner-needs"></div>
         </div>
         <div class="side-scroll">
+          <div class="section-label">Readiness</div>
+          <div class="summary-list" id="readiness-checks"></div>
+          <div class="section-label">Cam Shortlist</div>
+          <div class="summary-list" id="shortlist"></div>
           <div class="section-label">Roster</div>
           <table>
             <tbody id="roster-slots"></tbody>
@@ -793,6 +848,8 @@ export const liveDraftHtml = `<!doctype html>
             </thead>
             <tbody id="owners"></tbody>
           </table>
+          <div class="section-label">Needs / Blockers</div>
+          <div class="summary-list" id="position-context"></div>
           <div class="section-label">Sales</div>
           <table>
             <tbody id="events"></tbody>
@@ -846,6 +903,10 @@ export const liveDraftHtml = `<!doctype html>
       element.textContent = cleanText(text);
       if (className) element.className = className;
       return element;
+    };
+
+    const focusCommandInput = () => {
+      requestAnimationFrame(() => byId('quick-sale-command').focus());
     };
 
     const postJson = async (url, body) => {
@@ -947,7 +1008,7 @@ export const liveDraftHtml = `<!doctype html>
       const gap = valueGapFor(target);
       if (gap >= 6) tags.unshift({ label: 'value ' + deltaMoney(gap), className: 'tag value' });
       if (gap <= -6) tags.unshift({ label: 'tax ' + deltaMoney(gap), className: 'tag warning' });
-      if (tierDrop >= 6) tags.push({ label: 'tier drop ' + money(tierDrop), className: 'tag warning' });
+      if (tierDrop >= 6) tags.push({ label: 'next ' + target.position + ' -' + money(tierDrop), className: 'tag warning' });
       if (target.recommendedMaxBid >= currentOwner().maxBid) tags.push({ label: 'max bid cap', className: 'tag warning' });
       return tags.slice(0, 5);
     };
@@ -1098,6 +1159,62 @@ export const liveDraftHtml = `<!doctype html>
       });
 
       byId('position-market').replaceChildren(...pills);
+    };
+
+    const renderReadiness = state => {
+      const checks = state.readiness && state.readiness.checks ? state.readiness.checks : [];
+      byId('readiness-checks').replaceChildren(...checks.map(check => {
+        const item = document.createElement('div');
+        item.className = 'summary-item ' + check.status;
+        item.replaceChildren(
+          textElement('strong', check.label + ' - ' + check.status.toUpperCase()),
+          textElement('span', check.detail, 'subtle')
+        );
+        return item;
+      }));
+    };
+
+    const renderShortlist = state => {
+      const rows = (state.shortlist || []).slice(0, 8).map(target => {
+        const item = document.createElement('div');
+        item.className = 'summary-item';
+        item.replaceChildren(
+          textElement('strong', target.name + ' - ' + target.position + ' ' + money(target.personalValue)),
+          textElement(
+            'span',
+            (target.teamAbbreviation || '-') + ' bye ' + (target.byeWeek || '-') + ' - live ' + money(target.liveExpectedPrice) + ' - gap ' + deltaMoney(target.valueGap),
+            'subtle'
+          ),
+          textElement('span', target.reasons.join(' - '), 'subtle')
+        );
+        item.addEventListener('click', () => {
+          selectedTargetName = target.name;
+          byId('add-price').value = String(target.personalValue);
+          renderSelected(currentState);
+        });
+        return item;
+      });
+
+      byId('shortlist').replaceChildren(...rows);
+    };
+
+    const renderPositionContext = state => {
+      const rows = (state.positionContexts || []).map(context => {
+        const item = document.createElement('div');
+        item.className = 'summary-item';
+        item.replaceChildren(
+          textElement('strong', context.position + ' - ' + context.ownersNeeding.length + ' need'),
+          textElement(
+            'span',
+            'Blockers: ' + (context.blockers.length ? context.blockers.join(', ') + ' up to ' + money(context.strongestBlockerMaxBid) : 'none'),
+            'subtle'
+          ),
+          textElement('span', 'Needs: ' + (context.ownersNeeding.length ? context.ownersNeeding.join(', ') : 'none'), 'subtle')
+        );
+        return item;
+      });
+
+      byId('position-context').replaceChildren(...rows);
     };
 
     const renderBoard = state => {
@@ -1264,12 +1381,16 @@ export const liveDraftHtml = `<!doctype html>
 
     const renderEvents = state => {
       byId('sale-count').textContent = String(state.events.length) + ' sales';
-      const rows = state.events.slice().reverse().slice(0, 18).map(event => {
+      const rows = state.events.slice().reverse().map(event => {
         const row = document.createElement('tr');
         const sale = tableCell(row, '', '');
+        const rawCommand = document.createElement('code');
+        rawCommand.className = 'raw-command';
+        rawCommand.textContent = event.input;
         sale.replaceChildren(
           textElement('div', event.owner + ' - ' + event.player, 'player-name'),
-          textElement('div', event.position + ' - exp ' + money(event.expectedPrice) + ' - ' + event.playerSource, 'subtle')
+          textElement('div', event.position + ' - exp ' + money(event.expectedPrice) + ' - ' + event.playerSource, 'subtle'),
+          rawCommand
         );
         tableCell(row, money(event.price), 'money');
         const delta = tableCell(row, deltaMoney(event.saleVsExpected), 'money');
@@ -1298,8 +1419,11 @@ export const liveDraftHtml = `<!doctype html>
       renderPositionMarket(state);
       renderBoard(state);
       renderSelected(state);
+      renderReadiness(state);
+      renderShortlist(state);
       renderRoster(state);
       renderOwners(state);
+      renderPositionContext(state);
       renderEvents(state);
       renderErrors(state);
     };
@@ -1310,7 +1434,46 @@ export const liveDraftHtml = `<!doctype html>
         selectedTargetName = data.availableTargets[0] ? data.availableTargets[0].name : null;
         render(data);
       }
+      focusCommandInput();
       return data;
+    };
+
+    const downloadText = (filename, content, contentType) => {
+      const blob = new Blob([content], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    };
+
+    const exportLog = async format => {
+      const response = await fetch('/api/export?format=' + format);
+      const content = await response.text();
+      if (!response.ok) {
+        if (currentState) render({ ...currentState, errors: [{ input: '', message: content || 'Could not export draft log.' }] });
+        focusCommandInput();
+        return;
+      }
+
+      downloadText(
+        'mockd-live-draft-log.' + format,
+        content,
+        format === 'csv' ? 'text/csv' : 'application/json'
+      );
+      focusCommandInput();
+    };
+
+    const importDraftLogFile = async file => {
+      if (!file) return;
+      const format = file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'json';
+      const content = await file.text();
+      await postJson('/api/import', { format, content });
+      byId('import-log-file').value = '';
+      focusCommandInput();
     };
 
     byId('board-search').addEventListener('input', () => {
@@ -1398,10 +1561,17 @@ export const liveDraftHtml = `<!doctype html>
       await submitCommand(command);
     });
 
-    byId('undo-button').addEventListener('click', () => postJson('/api/undo'));
-    byId('reset-button').addEventListener('click', () => postJson('/api/reset'));
+    byId('export-json-button').addEventListener('click', () => exportLog('json'));
+    byId('export-csv-button').addEventListener('click', () => exportLog('csv'));
+    byId('import-log-button').addEventListener('click', () => byId('import-log-file').click());
+    byId('import-log-file').addEventListener('change', event => importDraftLogFile(event.target.files[0]));
+    byId('undo-button').addEventListener('click', () => postJson('/api/undo').then(focusCommandInput));
+    byId('reset-button').addEventListener('click', () => postJson('/api/reset').then(focusCommandInput));
 
-    fetch('/api/state').then(response => response.json()).then(render);
+    fetch('/api/state').then(response => response.json()).then(state => {
+      render(state);
+      focusCommandInput();
+    });
   </script>
 </body>
 </html>`;

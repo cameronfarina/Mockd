@@ -122,6 +122,40 @@ export interface LiveDraftTarget {
   tags: string[];
 }
 
+export interface LiveDraftShortlistTarget {
+  name: string;
+  position: Position;
+  teamAbbreviation?: string;
+  byeWeek?: number;
+  liveExpectedPrice: number;
+  personalValue: number;
+  recommendedMaxBid: number;
+  valueGap: number;
+  valueScore: number;
+  reasons: string[];
+}
+
+export interface LiveDraftPositionContext {
+  position: "RB" | "WR" | "TE";
+  ownersNeeding: Owner[];
+  blockers: Owner[];
+  strongestBlockerMaxBid: number;
+}
+
+export type LiveDraftReadinessStatus = "pass" | "warn" | "fail";
+
+export interface LiveDraftReadinessCheck {
+  key: string;
+  label: string;
+  status: LiveDraftReadinessStatus;
+  detail: string;
+}
+
+export interface LiveDraftReadiness {
+  status: LiveDraftReadinessStatus;
+  checks: LiveDraftReadinessCheck[];
+}
+
 export interface LiveDraftState {
   scenario: KeeperScenario;
   room: LiveDraftRoomState;
@@ -130,6 +164,9 @@ export interface LiveDraftState {
   events: LiveDraftEvent[];
   errors: LiveDraftCommandError[];
   availableTargets: LiveDraftTarget[];
+  shortlist: LiveDraftShortlistTarget[];
+  positionContexts: LiveDraftPositionContext[];
+  readiness: LiveDraftReadiness;
 }
 
 export interface BuildLiveDraftStateOptions {
@@ -338,6 +375,7 @@ const resolvePlayer = (
   playerText: string,
   records: readonly LiveDraftPlayerRecord[],
 ): LiveDraftPlayerRecord => {
+  const query = searchKeyFor(playerText);
   const matches = records
     .map(record => ({ record, score: playerMatchScore(record, playerText) }))
     .filter(match => match.score > 0)
@@ -353,9 +391,14 @@ const resolvePlayer = (
   if (!best) throw new Error(`Unknown player "${playerText}".`);
 
   const tiedMatches = matches.filter(match => match.score === best.score);
-  if (tiedMatches.length > 1) {
+  const closeSingleTokenMatches = query.split(" ").length === 1
+    ? matches.filter(match => match.score >= 80 && best.score - match.score <= 10)
+    : [];
+  const ambiguousMatches = tiedMatches.length > 1 ? tiedMatches : closeSingleTokenMatches;
+
+  if (ambiguousMatches.length > 1) {
     throw new Error(
-      `Ambiguous player "${playerText}". Matches: ${tiedMatches.slice(0, 6).map(match => match.record.name).join(", ")}.`,
+      `Ambiguous player "${playerText}". Matches: ${ambiguousMatches.slice(0, 6).map(match => match.record.name).join(", ")}.`,
     );
   }
 
@@ -700,6 +743,120 @@ const buildTargets = ({
     )
     .slice(0, targetLimit);
 
+const shortlistReasonsFor = (target: LiveDraftTarget): string[] => {
+  const reasons: string[] = [];
+  const valueGap = target.personalValue - target.liveExpectedPrice;
+
+  if (valueGap >= 6) reasons.push(`value +$${Math.round(valueGap)}`);
+  for (const tag of target.tags) {
+    if (tag === "starter need" || tag === "3RB core" || tag === "flex need") reasons.push(tag);
+  }
+  if (target.liveExpectedPrice >= 40 && !target.tags.includes("not affordable")) reasons.push("premium target");
+
+  return [...new Set(reasons)];
+};
+
+const buildShortlist = (targets: readonly LiveDraftTarget[]): LiveDraftShortlistTarget[] =>
+  targets
+    .filter(target => !target.tags.includes("not affordable"))
+    .filter(target => shortlistReasonsFor(target).length > 0)
+    .slice(0, 10)
+    .map(target => ({
+      name: target.name,
+      position: target.position,
+      ...(target.teamAbbreviation === undefined ? {} : { teamAbbreviation: target.teamAbbreviation }),
+      ...(target.byeWeek === undefined ? {} : { byeWeek: target.byeWeek }),
+      liveExpectedPrice: target.liveExpectedPrice,
+      personalValue: target.personalValue,
+      recommendedMaxBid: target.recommendedMaxBid,
+      valueGap: target.personalValue - target.liveExpectedPrice,
+      valueScore: target.valueScore,
+      reasons: shortlistReasonsFor(target),
+    }));
+
+const skillStarterSlots =
+  leagueConfig.lineup.RB + leagueConfig.lineup.WR + leagueConfig.lineup.TE + leagueConfig.lineup.FLEX;
+
+const ownerNeedsSkillPosition = (
+  owner: LiveDraftOwnerState,
+  position: LiveDraftPositionContext["position"],
+): boolean => {
+  if (owner.rosterSlotsRemaining <= 0) return false;
+  if (owner.positionCounts[position] >= leagueConfig.rosterMaximums[position]) return false;
+  if (owner.positionCounts[position] < leagueConfig.lineup[position]) return true;
+
+  const skillCount = owner.positionCounts.RB + owner.positionCounts.WR + owner.positionCounts.TE;
+  return skillCount < skillStarterSlots;
+};
+
+const buildPositionContexts = (
+  owners: readonly LiveDraftOwnerState[],
+  watchOwner: LiveDraftOwnerState,
+): LiveDraftPositionContext[] =>
+  (["RB", "WR", "TE"] as const).map(position => {
+    const ownersNeeding = owners
+      .filter(owner => ownerNeedsSkillPosition(owner, position))
+      .map(owner => owner.owner);
+    const blockingMaxBidThreshold = Math.min(watchOwner.maxBid, 60);
+    const blockers = owners
+      .filter(owner => owner.owner !== watchOwner.owner)
+      .filter(owner => ownerNeedsSkillPosition(owner, position))
+      .filter(owner => owner.maxBid >= blockingMaxBidThreshold)
+      .map(owner => owner.owner);
+    const strongestBlockerMaxBid = owners
+      .filter(owner => blockers.includes(owner.owner))
+      .reduce((maxBid, owner) => Math.max(maxBid, owner.maxBid), 0);
+
+    return {
+      position,
+      ownersNeeding,
+      blockers,
+      strongestBlockerMaxBid,
+    };
+  });
+
+const readinessStatusFor = (checks: readonly LiveDraftReadinessCheck[]): LiveDraftReadinessStatus => {
+  if (checks.some(check => check.status === "fail")) return "fail";
+  if (checks.some(check => check.status === "warn")) return "warn";
+  return "pass";
+};
+
+const buildReadiness = ({
+  errors,
+  availableTargets,
+  owners,
+}: {
+  errors: readonly LiveDraftCommandError[];
+  availableTargets: readonly LiveDraftTarget[];
+  owners: readonly LiveDraftOwnerState[];
+}): LiveDraftReadiness => {
+  const checks: LiveDraftReadinessCheck[] = [
+    {
+      key: "engine-state",
+      label: "Engine state",
+      status: errors.length ? "warn" : "pass",
+      detail: errors.length ? `${errors.length} command issue${errors.length === 1 ? "" : "s"} need review.` : "Commands replay cleanly.",
+    },
+    {
+      key: "target-board",
+      label: "Target board",
+      status: availableTargets.length ? "pass" : "fail",
+      detail: availableTargets.length ? `${availableTargets.length} draftable targets loaded.` : "No draftable targets are available.",
+    },
+    {
+      key: "owner-rosters",
+      label: "Owner rosters",
+      status: owners.every(owner => owner.rosterSlotsRemaining >= 0 && owner.budgetRemaining >= 0) ? "pass" : "fail",
+      detail: "Owner budgets, roster slots, and max bids are rebuilt from commands.",
+    },
+  ];
+
+  return {
+    status: readinessStatusFor(checks),
+    checks,
+  };
+};
+
 export const buildLiveDraftState = ({
   projections,
   historicalRecords,
@@ -778,6 +935,14 @@ export const buildLiveDraftState = ({
   const currentWatchOwner = owners.find(owner => owner.owner === watchOwner);
   if (!currentWatchOwner) throw new Error(`Unknown watch owner "${watchOwner}".`);
 
+  const availableTargets = buildTargets({
+    records,
+    soldNames,
+    watchOwner: currentWatchOwner,
+    room,
+    targetLimit,
+  });
+
   return {
     scenario,
     room,
@@ -785,12 +950,9 @@ export const buildLiveDraftState = ({
     owners,
     events,
     errors,
-    availableTargets: buildTargets({
-      records,
-      soldNames,
-      watchOwner: currentWatchOwner,
-      room,
-      targetLimit,
-    }),
+    availableTargets,
+    shortlist: buildShortlist(availableTargets),
+    positionContexts: buildPositionContexts(owners, currentWatchOwner),
+    readiness: buildReadiness({ errors, availableTargets, owners }),
   };
 };
