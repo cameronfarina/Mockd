@@ -214,7 +214,7 @@ describe("live draft server", () => {
       expect(strategyState.strategy.key).toBe("wr-heavy");
       expect(strategyState.draftMode).toBe("real");
 
-      const mockState = await fetch(`${baseUrl}/api/mock/state?strategy=three-rb&seed=server-test`)
+      const mockState = await fetch(`${baseUrl}/api/mock/state?draftSession=practice-3rb&strategy=three-rb&seed=server-test`)
         .then(response => response.json());
       expect(mockState.draftMode).toBe("interactive-mock");
       expect(mockState.strategy.key).toBe("three-rb");
@@ -223,6 +223,7 @@ describe("live draft server", () => {
       expect(mockState.mockDraft.aiSaleCommand).toContain("drafted");
 
       const advanced = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "practice-3rb",
         strategyKey: "three-rb",
         seed: "server-test",
         action: "advance",
@@ -230,10 +231,11 @@ describe("live draft server", () => {
       expect(advanced.status).toBe(200);
       expect(advanced.data.events).toHaveLength(1);
       expect(advanced.data.session.commandCount).toBe(1);
-      expect(advanced.data.session.paths.directory).toBe(join(directory, "interactive-mock"));
+      expect(advanced.data.session.paths.directory).toBe(join(directory, "practice-3rb", "interactive-mock"));
       expect(advanced.data.mockDraft.commandCount).toBe(1);
 
       const undone = await post(baseUrl, "/api/undo", {
+        draftSession: "practice-3rb",
         mode: "interactive-mock",
         strategyKey: "wr-heavy",
       });
@@ -296,6 +298,7 @@ describe("live draft server", () => {
       expect(practiceBefore.events).toHaveLength(0);
 
       const practiceSale = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "practice-3rb",
         strategyKey: "three-rb",
         seed: "separate-mode-test",
         action: "advance",
@@ -332,7 +335,7 @@ describe("live draft server", () => {
 
       const realAfterBatch = await fetch(`${baseUrl}/api/state?mode=real&strategy=three-rb`)
         .then(response => response.json());
-      const practiceAfterBatch = await fetch(`${baseUrl}/api/state?mode=interactive-mock&strategy=three-rb`)
+      const practiceAfterBatch = await fetch(`${baseUrl}/api/state?draftSession=practice-3rb&mode=interactive-mock&strategy=three-rb`)
         .then(response => response.json());
       expect(realAfterBatch.session.commandCount).toBe(1);
       expect(practiceAfterBatch.session.commandCount).toBe(1);
@@ -412,6 +415,37 @@ describe("live draft server", () => {
       });
       expect(practiceMock.status).toBe(200);
       expect(practiceMock.data.session.paths.directory).toBe(join(directory, "practice-3rb", "interactive-mock"));
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("locks live draft-night sessions against interactive mock advances", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const lockedAdvance = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "live",
+        strategyKey: "three-rb",
+        seed: "locked-live-session",
+        action: "advance",
+      });
+      expect(lockedAdvance.status).toBe(423);
+      expect(lockedAdvance.data.draftNightLock).toMatchObject({ locked: true });
+      expect(lockedAdvance.data.errors[0]?.message).toContain("Live session is locked for mock draft advances");
+
+      const liveState = await fetch(`${baseUrl}/api/state?draftSession=live&mode=interactive-mock&strategy=three-rb`)
+        .then(response => response.json());
+      expect(liveState.draftNightLock).toMatchObject({ locked: true });
+      expect(liveState.session.commandCount).toBe(0);
+      expect(liveState.events).toHaveLength(0);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

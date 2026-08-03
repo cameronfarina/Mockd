@@ -60,6 +60,19 @@ interface LiveDraftModeDescriptor {
   description: string;
 }
 
+interface DraftNightLockStatus {
+  locked: boolean;
+  reason?: string;
+}
+
+const liveDraftNightLockReason =
+  "Live session is locked for mock draft advances. Switch to a practice session to run interactive mocks.";
+
+const draftNightLockFor = (draftSessionKey: string): DraftNightLockStatus =>
+  draftSessionKey === defaultLiveDraftSessionKey
+    ? { locked: true, reason: liveDraftNightLockReason }
+    : { locked: false };
+
 const liveDraftModes: readonly LiveDraftModeDescriptor[] = [
   {
     key: "real",
@@ -200,6 +213,7 @@ interface LiveDraftStateResponse extends LiveDraftState {
   draftModes: readonly LiveDraftModeDescriptor[];
   activeDraftSession: LiveDraftSessionDescriptor;
   draftSessions: readonly LiveDraftSessionDescriptor[];
+  draftNightLock: DraftNightLockStatus;
   session: LiveDraftSessionStatus;
   readiness: LiveDraftReadiness;
 }
@@ -483,6 +497,7 @@ export const createLiveDraftServer = async (
       draftModes: liveDraftModes,
       activeDraftSession: activeDraftSessionDescriptorFor(draftSessionKey),
       draftSessions: draftSessionDescriptorsFor(draftSessionKey),
+      draftNightLock: draftNightLockFor(draftSessionKey),
       session,
       readiness: readinessWithSession(state.readiness, session),
     };
@@ -721,6 +736,15 @@ export const createLiveDraftServer = async (
         const draftSessionKey = draftSessionKeyFromBody(body);
         const seed = seedFromValue(body.seed);
         const action = typeof body.action === "string" ? body.action.trim() : "";
+        const lock = draftNightLockFor(draftSessionKey);
+        if (lock.locked) {
+          sendJson(response, 423, {
+            ...await stateFor({ draftSessionKey, mode: "interactive-mock", strategyKey }),
+            errors: [{ input: "", message: lock.reason ?? "Live session is locked for mock draft advances." }],
+          });
+          return;
+        }
+
         if (!action) {
           sendJson(response, 422, {
             ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),

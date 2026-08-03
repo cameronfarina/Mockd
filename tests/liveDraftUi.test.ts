@@ -23,6 +23,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"scratch-session-name\"");
     expect(liveDraftHtml).toContain("id=\"open-scratch-session-button\"");
     expect(liveDraftHtml).toContain("id=\"active-session-label\"");
+    expect(liveDraftHtml).toContain("id=\"draft-lock-status\"");
     expect(liveDraftHtml).toContain("id=\"start-real-draft-button\"");
     expect(liveDraftHtml).toContain("id=\"start-mock-draft-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-batch-runs\"");
@@ -112,6 +113,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const setDraftSession = async draftSession =>");
     expect(liveDraftHtml).toContain("const openScratchSession = async () =>");
     expect(liveDraftHtml).toContain("syncDraftSession(state)");
+    expect(liveDraftHtml).toContain("const draftNightLockFor = state =>");
+    expect(liveDraftHtml).toContain("Live session locked");
+    expect(liveDraftHtml).toContain("startMock.disabled = locked");
+    expect(liveDraftHtml).toContain("if (draftNightLockFor(currentState))");
     expect(liveDraftHtml).toContain("aria-label=\"Start real draft\">Real draft");
     expect(liveDraftHtml).toContain("aria-label=\"Start mock draft\">Mock draft");
     expect(liveDraftHtml).toContain("Run mocks");

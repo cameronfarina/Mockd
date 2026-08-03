@@ -1321,6 +1321,7 @@ export const liveDraftHtml = `<!doctype html>
           <input id="scratch-session-name" autocomplete="off" placeholder="Scratch room">
           <button type="button" id="open-scratch-session-button">Open</button>
           <div class="active-session-label" id="active-session-label">Live session</div>
+          <div class="active-session-label" id="draft-lock-status">Live session locked</div>
         </div>
         <div class="top-actions">
           <button type="button" id="export-json-button">Export JSON</button>
@@ -1556,6 +1557,15 @@ export const liveDraftHtml = `<!doctype html>
     const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession);
     const stateUrl = () => '/api/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery();
     const mockDraftUrl = () => '/api/mock/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery() + '&seed=live-ui';
+    const draftNightLockFor = state => {
+      if (state && state.activeDraftSession && state.activeDraftSession.key !== currentDraftSession) return currentDraftSession === 'live';
+      if (state && state.draftNightLock) return Boolean(state.draftNightLock.locked);
+      return currentDraftSession === 'live';
+    };
+    const draftNightLockReasonFor = state =>
+      state && state.draftNightLock && state.draftNightLock.reason
+        ? state.draftNightLock.reason
+        : 'Live session locked. Switch to a practice session to run mocks.';
 
     const textElement = (tagName, text, className) => {
       const element = document.createElement(tagName);
@@ -1783,11 +1793,19 @@ export const liveDraftHtml = `<!doctype html>
 
     const renderDraftMode = state => {
       if (state && draftModes.includes(state.draftMode)) currentDraftMode = state.draftMode;
+      const locked = draftNightLockFor(state);
+      if (locked && currentDraftMode === 'interactive-mock') currentDraftMode = 'real';
       const copy = draftModeCopy[currentDraftMode] || draftModeCopy.real;
       const status = byId('draft-mode-status');
+      const startMock = byId('start-mock-draft-button');
       status.replaceChildren(textElement('strong', copy.label), textElement('span', copy.detail));
       byId('start-real-draft-button').setAttribute('aria-pressed', String(currentDraftMode === 'real'));
-      byId('start-mock-draft-button').setAttribute('aria-pressed', String(currentDraftMode === 'interactive-mock'));
+      startMock.disabled = locked;
+      startMock.title = locked ? draftNightLockReasonFor(state) : '';
+      startMock.setAttribute('aria-pressed', String(currentDraftMode === 'interactive-mock' && !locked));
+      byId('draft-lock-status').textContent = locked
+        ? 'Live session locked - practice rooms only for mocks.'
+        : 'Practice room unlocked for mocks.';
       byId('mock-draft-panel').hidden = currentDraftMode !== 'interactive-mock';
     };
 
@@ -2568,7 +2586,7 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const refreshMockDraft = async () => {
-      if (currentDraftMode !== 'interactive-mock') {
+      if (currentDraftMode !== 'interactive-mock' || draftNightLockFor(currentState)) {
         renderMockDraft(null);
         return null;
       }
@@ -2603,6 +2621,13 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const setDraftMode = async mode => {
+      if (mode === 'interactive-mock') {
+        if (draftNightLockFor(currentState)) {
+          byId('draft-lock-status').textContent = draftNightLockReasonFor(currentState);
+          focusCommandInput();
+          return;
+        }
+      }
       currentDraftMode = draftModes.includes(mode) ? mode : 'real';
       selectedTargetName = null;
       await refreshDraftRoom();
@@ -2788,6 +2813,13 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const advanceMockDraft = async action => {
+      if (draftNightLockFor(currentState)) {
+        window.alert(draftNightLockReasonFor(currentState));
+        currentDraftMode = 'real';
+        if (currentState) renderDraftMode(currentState);
+        focusCommandInput();
+        return null;
+      }
       if (currentDraftMode !== 'interactive-mock') {
         await setDraftMode('interactive-mock');
       }
