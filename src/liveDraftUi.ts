@@ -165,6 +165,7 @@ export const liveDraftHtml = `<!doctype html>
     .app {
       display: grid;
       grid-template-columns: var(--nav-rail-width) minmax(0, 1fr);
+      grid-template-rows: var(--global-menu-height) minmax(0, 1fr);
       height: 100vh;
       min-height: 100vh;
       overflow: hidden;
@@ -177,6 +178,10 @@ export const liveDraftHtml = `<!doctype html>
 
     .app.draft-active .sidebar {
       display: none;
+    }
+
+    .app.draft-active .workspace {
+      grid-column: 1;
     }
 
     .global-app-menu {
@@ -219,13 +224,48 @@ export const liveDraftHtml = `<!doctype html>
       line-height: 1.1;
     }
 
-    body[data-active-route="draft-room"] .global-app-menu {
-      width: var(--nav-rail-width);
+    body[data-active-route="draft-room"] > .global-app-menu {
+      display: none;
     }
 
-    .app.draft-active header {
+    .draft-header-menu-slot {
+      position: relative;
+      justify-self: start;
+      width: 38px;
+      height: 38px;
+      min-width: 38px;
+    }
+
+    .draft-header-menu-slot .global-app-menu {
+      position: static;
+      z-index: auto;
+      width: auto;
+      height: auto;
+      min-height: 0;
+      padding: 0;
+      border-bottom: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .draft-header-menu-slot .global-brand-row {
+      grid-template-columns: 38px;
+      gap: 0;
+    }
+
+    .draft-header-menu-slot .brand {
+      display: none;
+    }
+
+    .draft-header-menu-slot .app-menu-list {
+      top: calc(100% + 10px);
+      right: auto;
+      width: var(--global-menu-width);
+    }
+
+    .app.draft-active .draft-header {
       padding-right: 16px;
-      padding-left: 18px;
+      padding-left: 16px;
     }
 
     .app.draft-active .header-actions {
@@ -245,13 +285,16 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .sidebar {
+      grid-column: 1;
+      grid-row: 2;
       display: flex;
       flex-direction: column;
       gap: 16px;
-      height: 100vh;
+      height: 100%;
+      min-height: 0;
       min-width: 0;
       overflow-y: auto;
-      padding: calc(var(--global-menu-height) + 18px) 22px 20px;
+      padding: 18px 22px 20px;
       border-right: 1px solid var(--line);
       background: linear-gradient(180deg, #07111d 0%, #050b12 100%);
     }
@@ -276,24 +319,38 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .workspace {
+      grid-column: 2;
+      grid-row: 2;
       display: grid;
-      grid-template-rows: auto auto auto minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr);
       min-width: 0;
-      height: 100vh;
+      height: 100%;
       min-height: 0;
       overflow: hidden;
     }
 
-    header {
-      display: flex;
+    .draft-header {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto minmax(260px, 1fr);
       align-items: center;
-      justify-content: space-between;
       gap: 14px;
       min-width: 0;
-      min-height: 64px;
+      min-height: var(--global-menu-height);
       padding: 0 24px;
       border-bottom: 1px solid var(--line);
       background: rgba(5, 11, 18, 0.54);
+    }
+
+    .draft-title-group {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      justify-self: center;
+      gap: 12px;
+      min-width: 0;
+      text-align: center;
     }
 
     h1 {
@@ -309,9 +366,10 @@ export const liveDraftHtml = `<!doctype html>
       display: flex;
       align-items: center;
       justify-content: flex-end;
+      justify-self: end;
       gap: 8px;
+      width: 100%;
       min-width: 0;
-      margin-left: auto;
     }
 
     .search {
@@ -2476,30 +2534,42 @@ export const liveDraftHtml = `<!doctype html>
     @media (max-width: 1160px) {
       .app {
         grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
         height: auto;
         overflow: visible;
       }
 
+      .draft-header {
+        position: sticky;
+        top: 0;
+        z-index: 60;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        min-height: 56px;
+        padding: 0 12px;
+        background: #050b12;
+      }
+
+      .draft-title-group {
+        justify-self: center;
+      }
+
       .sidebar {
+        grid-column: 1;
+        grid-row: auto;
         border-right: 0;
         border-bottom: 1px solid var(--line);
         height: auto;
       }
 
       .workspace {
+        grid-column: 1;
+        grid-row: auto;
         height: auto;
         min-height: 100vh;
         overflow: visible;
       }
 
-      .workspace > header {
-        position: sticky;
-        top: var(--global-menu-height);
-        z-index: 60;
-        background: #050b12;
-      }
-
-      header {
+      .draft-header {
         min-height: 56px;
       }
 
@@ -2596,40 +2666,56 @@ export const liveDraftHtml = `<!doctype html>
   </style>
 </head>
 <body data-active-route="draft-room">
-  <div class="global-app-menu" id="app-menu">
-    <div class="global-brand-row">
-      <button type="button" class="app-menu-trigger" id="app-menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu-list" aria-label="Open app menu">
-        <span class="app-menu-icon" aria-hidden="true"><span></span><span></span><span></span></span>
-      </button>
-      <div class="brand">
-        <strong>Mockd</strong>
-        <span id="app-menu-current-label">Real draft</span>
-      </div>
-      <div class="app-menu-list" id="app-menu-list" role="menu" hidden>
-        <button type="button" class="app-menu-item" id="start-real-draft-button" role="menuitem" aria-current="page" data-menu-key="real-draft" data-menu-label="Real draft" aria-label="Start real draft">
-          <strong>Real draft</strong>
-          <span>Draft-night logger</span>
-        </button>
-        <button type="button" class="app-menu-item" id="start-mock-draft-button" role="menuitem" data-menu-key="mock-draft" data-menu-label="Mock draft" aria-label="Start mock draft">
-          <strong>Mock draft</strong>
-          <span>Interactive practice room</span>
-        </button>
-        <button type="button" class="app-menu-item" id="my-expert-button" role="menuitem" data-menu-key="my-expert" data-menu-label="My expert">
-          <strong>My expert</strong>
-          <span>Roster advice</span>
-        </button>
-        <button type="button" class="app-menu-item" id="player-news-button" role="menuitem" data-menu-key="player-news" data-menu-label="Player news">
-          <strong>Player news</strong>
-          <span>Fantasy updates feed</span>
-        </button>
-        <button type="button" class="app-menu-item" id="see-mock-results-button" role="menuitem" data-menu-key="mock-results" data-menu-label="Mock results" hidden>
-          <strong>Mock results</strong>
-          <span>Latest batch report</span>
-        </button>
-      </div>
-    </div>
-  </div>
   <div class="app" id="draft-room-view">
+    <header class="draft-header">
+      <div class="draft-header-menu-slot" id="draft-header-menu-slot">
+        <div class="global-app-menu" id="app-menu">
+          <div class="global-brand-row">
+            <button type="button" class="app-menu-trigger" id="app-menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu-list" aria-label="Open app menu">
+              <span class="app-menu-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+            </button>
+            <div class="brand">
+              <strong>Mockd</strong>
+              <span id="app-menu-current-label">Real draft</span>
+            </div>
+            <div class="app-menu-list" id="app-menu-list" role="menu" hidden>
+              <button type="button" class="app-menu-item" id="start-real-draft-button" role="menuitem" aria-current="page" data-menu-key="real-draft" data-menu-label="Real draft" aria-label="Start real draft">
+                <strong>Real draft</strong>
+                <span>Draft-night logger</span>
+              </button>
+              <button type="button" class="app-menu-item" id="start-mock-draft-button" role="menuitem" data-menu-key="mock-draft" data-menu-label="Mock draft" aria-label="Start mock draft">
+                <strong>Mock draft</strong>
+                <span>Interactive practice room</span>
+              </button>
+              <button type="button" class="app-menu-item" id="my-expert-button" role="menuitem" data-menu-key="my-expert" data-menu-label="My expert">
+                <strong>My expert</strong>
+                <span>Roster advice</span>
+              </button>
+              <button type="button" class="app-menu-item" id="player-news-button" role="menuitem" data-menu-key="player-news" data-menu-label="Player news">
+                <strong>Player news</strong>
+                <span>Fantasy updates feed</span>
+              </button>
+              <button type="button" class="app-menu-item" id="see-mock-results-button" role="menuitem" data-menu-key="mock-results" data-menu-label="Mock results" hidden>
+                <strong>Mock results</strong>
+                <span>Latest batch report</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="draft-title-group">
+        <h1 id="room-title">Dashboard</h1>
+        <div class="room-mode-indicator" id="room-mode-indicator"></div>
+      </div>
+      <div class="header-actions">
+        <input class="search header-search" id="header-board-search" autocomplete="off" placeholder="Search player, position, or team" hidden>
+        <form class="quick-sale header-sale-command" id="header-quick-sale-form" hidden>
+          <input id="header-quick-sale-command" autocomplete="off" placeholder="Quick sale: jakub kittle 28">
+          <button class="primary" type="submit">Log</button>
+        </form>
+        <button class="danger" type="button" id="end-draft-button" aria-label="End active draft" hidden>End draft</button>
+      </div>
+    </header>
     <nav class="sidebar" aria-label="Draft room controls">
       <input class="search" id="board-search" autocomplete="off" placeholder="Search player, position, or team">
       <div class="sidebar-section">
@@ -2681,18 +2767,6 @@ export const liveDraftHtml = `<!doctype html>
       </div>
     </nav>
     <div class="workspace">
-      <header>
-        <h1 id="room-title">Dashboard</h1>
-        <div class="room-mode-indicator" id="room-mode-indicator"></div>
-        <div class="header-actions">
-          <input class="search header-search" id="header-board-search" autocomplete="off" placeholder="Search player, position, or team" hidden>
-          <form class="quick-sale header-sale-command" id="header-quick-sale-form" hidden>
-            <input id="header-quick-sale-command" autocomplete="off" placeholder="Quick sale: jakub kittle 28">
-            <button class="primary" type="submit">Log</button>
-          </form>
-          <button class="danger" type="button" id="end-draft-button" aria-label="End active draft" hidden>End draft</button>
-        </div>
-      </header>
       <div class="draft-start-banner" id="draft-start-banner" hidden>
         <span id="draft-start-label">Draft starts in</span>
         <strong id="draft-countdown-value">5</strong>
@@ -3231,7 +3305,19 @@ export const liveDraftHtml = `<!doctype html>
       return (isActiveDraft() ? headerSearch : sidebarSearch).toLowerCase();
     };
 
+    const syncAppMenuHostForRoute = route => {
+      const appMenu = byId('app-menu');
+      const draftMenuSlot = byId('draft-header-menu-slot');
+      if (!appMenu || !draftMenuSlot) return;
+      if (route === 'draft-room') {
+        if (appMenu.parentElement !== draftMenuSlot) draftMenuSlot.append(appMenu);
+        return;
+      }
+      if (appMenu.parentElement !== document.body) document.body.insertBefore(appMenu, byId('draft-room-view'));
+    };
+
     const setActiveRouteShell = route => {
+      syncAppMenuHostForRoute(route);
       document.body.dataset.activeRoute = route;
     };
 
