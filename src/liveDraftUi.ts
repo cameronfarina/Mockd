@@ -147,7 +147,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .metrics {
       display: grid;
-      grid-template-columns: repeat(6, minmax(120px, 1fr));
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
       gap: 1px;
       border-bottom: 1px solid var(--line);
       background: var(--line);
@@ -1069,7 +1069,6 @@ export const liveDraftHtml = `<!doctype html>
     const renderMetrics = state => {
       const metrics = [
         ['Inflation', state.room.liveInflationFactor.toFixed(2) + 'x'],
-        ['Room Left', money(state.room.remainingBudget)],
         ['Open Slots', String(state.room.remainingRosterSlots)],
         ['Paid vs Exp', deltaMoney(state.room.saleVsExpected)],
         ['Cam Left', money(state.watchOwner.budgetRemaining)],

@@ -44,6 +44,16 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("background-position: right 12px center;");
   });
 
+  it("keeps room-wide budget totals out of the visible header metrics", () => {
+    expect(liveDraftHtml).toContain("['Inflation', state.room.liveInflationFactor.toFixed(2) + 'x']");
+    expect(liveDraftHtml).toContain("['Open Slots', String(state.room.remainingRosterSlots)]");
+    expect(liveDraftHtml).toContain("['Paid vs Exp', deltaMoney(state.room.saleVsExpected)]");
+    expect(liveDraftHtml).toContain("['Cam Left', money(state.watchOwner.budgetRemaining)]");
+    expect(liveDraftHtml).toContain("['Cam Max', money(state.watchOwner.maxBid)]");
+    expect(liveDraftHtml).toContain("grid-template-columns: repeat(5, minmax(120px, 1fr));");
+    expect(liveDraftHtml).not.toContain("Room Left");
+  });
+
   it("switches the board from the dense table to player cards on compact screens", () => {
     expect(liveDraftHtml).toContain("@media (max-width: 760px)");
     expect(liveDraftHtml).toContain(".scroll {\n        display: none;\n      }");
