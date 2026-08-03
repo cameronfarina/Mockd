@@ -69,6 +69,7 @@ npm run mock
 npm run mocks
 npm run teams -- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --format=markdown
 npm run draft:ready -- --owner=Cam --strategy=three-rb --scenario=expected --runs=50 --qa-runs=2
+npm run draft:ui
 npm run smoke
 npm run qa
 npm run backtest
@@ -204,6 +205,7 @@ npm run mock -- --scenario=expected --no-default-evidence
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run teams -- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --strategy-mode=force --format=markdown --seed-prefix=draft-prep
 npm run draft:ready -- --owner=Cam --strategy=three-rb --scenario=expected --runs=50 --qa-runs=2 --strategy-mode=force --seed-prefix=draft-ready
+npm run draft:ui -- --port=4317
 npm run smoke -- --scenario=expected --runs=2 --seed=smoke
 npm run qa -- --scenarios=expected --runs=2 --seed-prefix=qa
 npm run backtest
@@ -238,6 +240,8 @@ WR spend uses a very light position overbid damper so owner preferences can stil
 `teams` mines complete rosters from real mock batches for an owner and strategy. With `--strategy-mode=force`, the selected strategy is pushed into the auction engine before filtering results; with `--strategy-mode=filter`, the command only finds naturally occurring matches. The Cam true-three-RB strategy targets three premium RB slots, caps expensive fourth-RB depth, reserves room for paid WR starters, and reports the actual mock sale price plus the batch sale range for every player.
 
 `draft:ready` runs the draft-day readiness checklist: data inputs, QA, draft-plan match count, roster validity, and top candidate shape. It exits nonzero only for hard failures, so a `warn` status means there is tuning context to read, not that the prep flow is unusable.
+
+`draft:ui` starts the local live draft room at `http://localhost:4317` by default. Enter sale commands such as `Jakub drafted Kittle for 28`; the room resolves owner/player names, records the actual sale, removes the player from the target pool, updates owner budgets and max bids, and refreshes Cam's remaining targets from the live room state. Players outside the priced auction pool can still resolve from the 2026 ESPN projection dataset and are marked as projection fallback targets.
 
 `smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, compact winner/runner-up bid diagnostics, and warnings such as owners leaving too much budget unused.
 

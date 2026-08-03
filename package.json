@@ -27,6 +27,7 @@
     "mocks": "tsx src/cli.ts mocks",
     "teams": "tsx src/cli.ts teams",
     "draft:ready": "tsx src/cli.ts draft-ready",
+    "draft:ui": "tsx src/liveDraftServer.ts",
     "smoke": "tsx src/cli.ts smoke",
     "qa": "tsx src/cli.ts qa",
     "backtest": "tsx src/cli.ts backtest",
