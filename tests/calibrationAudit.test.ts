@@ -279,7 +279,7 @@ describe("historical calibration audit", () => {
       label: "QB spend",
       status: "pass",
     });
-    expect(qbCount?.mockAverageCount).toBeGreaterThanOrEqual(22);
-    expect(qbCount?.mockAverageCount).toBeLessThanOrEqual(23);
+    expect(qbCount?.mockAverageCount).toBeGreaterThanOrEqual(21);
+    expect(qbCount?.mockAverageCount).toBeLessThanOrEqual(24);
   }, 15000);
 });

@@ -142,6 +142,32 @@ const countDeclaredKeepers = (
   return counts;
 };
 
+const maxPositionAmounts = (
+  left: PositionAmounts,
+  right: PositionAmounts,
+): PositionAmounts => {
+  const amounts = emptyPositionAmounts();
+
+  for (const position of positions) {
+    amounts[position] = Math.max(left[position], right[position]);
+  }
+
+  return amounts;
+};
+
+const remainingKeeperCounts = (
+  keeperCounts: PositionAmounts,
+  declaredCounts: PositionAmounts,
+): PositionAmounts => {
+  const remaining = emptyPositionAmounts();
+
+  for (const position of positions) {
+    remaining[position] = Math.max(0, keeperCounts[position] - declaredCounts[position]);
+  }
+
+  return remaining;
+};
+
 const totalAverageKeeperCost = (
   keeperCounts: PositionAmounts,
   averageKeeperCosts: PositionAmounts,
@@ -173,10 +199,17 @@ export const buildKeeperScenarios = (
 ): KeeperScenario[] =>
   config.scenarios.map(definition => {
     const declaredKeepers = declaredKeepersFor(keepers, definition.includedKeeperStatuses);
-    const keeperCounts = definition.keeperCounts ?? countDeclaredKeepers(declaredKeepers);
+    const declaredCounts = countDeclaredKeepers(declaredKeepers);
+    const keeperCounts = definition.keeperCounts
+      ? maxPositionAmounts(definition.keeperCounts, declaredCounts)
+      : declaredCounts;
+    const declaredKeeperCost = declaredKeepers.reduce((total, keeper) => total + keeper.newCost, 0);
     const totalKeeperCost = definition.averageKeeperCosts
-      ? totalAverageKeeperCost(keeperCounts, definition.averageKeeperCosts)
-      : declaredKeepers.reduce((total, keeper) => total + keeper.newCost, 0);
+      ? declaredKeeperCost + totalAverageKeeperCost(
+        remainingKeeperCounts(keeperCounts, declaredCounts),
+        definition.averageKeeperCosts,
+      )
+      : declaredKeeperCost;
     const openAuctionDollars = config.leagueTotalBudget - totalKeeperCost;
     const globalFactor = openAuctionDollars / config.historicalOpenAuctionSpendBaseline;
 

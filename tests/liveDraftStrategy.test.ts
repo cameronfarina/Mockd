@@ -40,8 +40,8 @@ describe("live draft strategy values", () => {
     const threeRbGibbs = threeRb.availableTargets.find(target => target.name === "Jahmyr Gibbs");
     const balancedWalker = balanced.availableTargets.find(target => target.name === "Kenneth Walker III");
     const threeRbWalker = threeRb.availableTargets.find(target => target.name === "Kenneth Walker III");
-    const balancedHiggins = balanced.availableTargets.find(target => target.name === "Tee Higgins");
-    const wrHeavyHiggins = wrHeavy.availableTargets.find(target => target.name === "Tee Higgins");
+    const balancedLondon = balanced.availableTargets.find(target => target.name === "Drake London");
+    const wrHeavyLondon = wrHeavy.availableTargets.find(target => target.name === "Drake London");
 
     expect(Object.keys(liveDraftStrategies)).toEqual(["balanced", "three-rb", "hero-rb", "wr-heavy"]);
     expect(balanced.strategy.key).toBe("balanced");
@@ -51,7 +51,7 @@ describe("live draft strategy values", () => {
     expect(threeRbWalker?.personalValue).toBeGreaterThan(balancedWalker?.personalValue ?? 0);
     expect(threeRbGibbs?.tags).toContain("3RB core");
     expect(balancedGibbs?.tags).not.toContain("3RB core");
-    expect(wrHeavyHiggins?.liveExpectedPrice).toBe(balancedHiggins?.liveExpectedPrice);
-    expect(wrHeavyHiggins?.personalValue).toBeGreaterThan(balancedHiggins?.personalValue ?? 0);
+    expect(wrHeavyLondon?.liveExpectedPrice).toBe(balancedLondon?.liveExpectedPrice);
+    expect(wrHeavyLondon?.personalValue).toBeGreaterThan(balancedLondon?.personalValue ?? 0);
   });
 });

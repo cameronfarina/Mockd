@@ -196,7 +196,7 @@ describe("mock batch simulation", () => {
     );
     const rbCores = threeRbRuns.map(camRbCoreFor);
     const uniqueRbCores = new Set(rbCores.map(core => core.join("|")));
-    const hasHighHighLowBuild = threeRbRuns.some(run => {
+    const hasKeeperPlusFlexibleAuctionCore = threeRbRuns.some(run => {
       const camRoster = run.rosters.find(roster => roster.owner === "Cam");
       if (!camRoster) throw new Error("Missing Cam roster.");
       const rbPrices = camRoster.players
@@ -204,13 +204,14 @@ describe("mock batch simulation", () => {
         .map(player => player.price)
         .sort((left, right) => right - left);
       return (rbPrices[0] ?? 0) >= 60 &&
-        (rbPrices[1] ?? 0) >= 60 &&
-        (rbPrices[2] ?? 0) <= 30 &&
-        (rbPrices[2] ?? 0) >= 5;
+        (rbPrices[1] ?? 0) === 50 &&
+        (rbPrices[2] ?? 0) <= 40 &&
+        (rbPrices[2] ?? 0) >= 20;
     });
 
     expect(rbCores.every(core => core.length === 3)).toBe(true);
+    expect(rbCores.every(core => core.includes("De'Von Achane"))).toBe(true);
     expect(uniqueRbCores.size).toBeGreaterThan(1);
-    expect(hasHighHighLowBuild).toBe(true);
+    expect(hasKeeperPlusFlexibleAuctionCore).toBe(true);
   }, 20000);
 });

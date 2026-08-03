@@ -17,7 +17,6 @@ const commandsBeforeAffordableRb3Decision = [
   "Martins drafted Jonathan Taylor for 69",
   "PJ drafted Amon-Ra St. Brown for 69",
   "PJ drafted CeeDee Lamb for 69",
-  "Russ drafted De'Von Achane for 69",
   "Russ drafted Saquon Barkley for 69",
   "Cam drafted Derrick Henry for 62",
   "Hoody drafted Justin Jefferson for 66",
@@ -68,23 +67,25 @@ describe("interactive mock draft", () => {
   it("stops for Cam when his strategy value beats the AI price", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
+    const commandsBeforeCamNomination = commandsBeforeAffordableRb3Decision.slice(0, 10);
     const state = buildInteractiveMockDraftState({
       projections,
       historicalRecords,
       keepers,
-      commands: commandsBeforeAffordableRb3Decision,
+      commands: commandsBeforeCamNomination,
       watchOwner: "Cam",
       strategyKey: "three-rb",
       seed: "interactive-test",
+      nominatedPlayer: "Breece Hall",
     });
 
     expect(state.phase).toBe("human-decision");
     expect(state.nomination?.player).toBe("Breece Hall");
     expect(state.camDecision).toMatchObject({
-      maxBid: 42,
+      maxBid: 46,
       recommendedBid: 42,
       topAiBid: 41,
-      topAiBidOwner: "Chip",
+      topAiBidOwner: "Russ",
     });
     expect(state.camDecision?.maxBid).toBeGreaterThanOrEqual(state.camDecision?.recommendedBid ?? 0);
 
