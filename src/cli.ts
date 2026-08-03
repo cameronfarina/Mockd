@@ -283,7 +283,19 @@ const draftPlanPriceBandMarkdown = (
 ): string =>
   `${band.slot} $${band.minimumPrice}-$${band.maximumPrice}`;
 
+const draftPlanCoachBlueprintMarkdown = (
+  blueprint: DraftPlanReport["recommendations"]["strategyCoach"]["blueprint"][number],
+): string => {
+  const lockedNames = blueprint.lockedNames.map(name => `${name} locked`);
+  const names = [...lockedNames, ...blueprint.targetNames].join(" / ");
+  const fallbacks = blueprint.fallbackNames.length
+    ? `; fallback ${blueprint.fallbackPriceBand}: ${blueprint.fallbackNames.join(" / ")}`
+    : "";
+  return `${blueprint.slot} ${blueprint.priceBand}: ${names || "no recurring targets"}${fallbacks}`;
+};
+
 const draftPlanReportMarkdown = (report: DraftPlanReport): string => {
+  const coach = report.recommendations.strategyCoach;
   const lines = [
     `# ${report.owner} ${report.strategy.label} Draft Plans`,
     "",
@@ -297,6 +309,12 @@ const draftPlanReportMarkdown = (report: DraftPlanReport): string => {
     `Targets: ${report.recommendations.targetClusters.map(cluster => `${cluster.label} ${cluster.priceBand}`).join(" | ") || "none"}`,
     `Pivots: ${report.recommendations.pivotRules.map(rule => `${rule.label} - ${rule.action}`).join(" | ") || "none"}`,
     `Dead zones: ${report.recommendations.deadZoneWarnings.join(" | ") || "none"}`,
+    "",
+    "## Strategy Coach",
+    coach.headline,
+    `Blueprint: ${coach.blueprint.map(draftPlanCoachBlueprintMarkdown).join(" | ") || "none"}`,
+    `Contingencies: ${coach.contingencyPlans.map(plan => `${plan.label} - ${plan.action}`).join(" | ") || "none"}`,
+    `Risk guardrails: ${coach.riskGuardrails.map(guardrail => `${guardrail.label} (${guardrail.status}) - ${guardrail.detail}`).join(" | ") || "none"}`,
   ];
 
   for (const [index, candidate] of report.candidates.entries()) {

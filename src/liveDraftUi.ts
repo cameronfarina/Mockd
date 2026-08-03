@@ -2032,6 +2032,7 @@ export const liveDraftHtml = `<!doctype html>
       const strategyLeader = report.analytics.strategyLeaderboard[0];
       const camScoreRange = report.analytics.camScoreRange;
       const commonPath = report.analytics.topCamRosterPaths[0];
+      const strategyCoach = report.analytics.strategyCoach;
       root.replaceChildren(
         insightCard(
           'Strategy edge',
@@ -2056,6 +2057,22 @@ export const liveDraftHtml = `<!doctype html>
           commonPath ? commonPath.path : 'No common path yet',
           commonPath
             ? Math.round(commonPath.draftedRate * 100) + '% of runs / avg rank ' + scoreText(commonPath.averageRank)
+            : '-'
+        ),
+        insightCard(
+          'Strategy coach',
+          strategyCoach ? strategyCoach.headline : 'Run 3RB mocks for a coach view',
+          strategyCoach
+            ? (strategyCoach.blueprint || []).slice(0, 4).map(slot =>
+              slot.slot + ' ' + slot.priceBand + ' - ' + [
+                ...(slot.lockedNames || []).map(name => name + ' locked'),
+                ...(slot.targetNames || []).slice(0, 2)
+              ].join(' / ') + (
+                slot.fallbackNames && slot.fallbackNames.length
+                  ? ' / fallback ' + slot.fallbackPriceBand + ': ' + slot.fallbackNames.slice(0, 2).join(' / ')
+                  : ''
+              )
+            ).join(' / ')
             : '-'
         )
       );
@@ -2433,6 +2450,7 @@ export const liveDraftHtml = `<!doctype html>
       const nextBand = (path.maxPriceBands || []).find(band => band.status === 'next');
       const target = (path.targetClusters || [])[0];
       const pivot = (path.pivotRules || [])[0];
+      const risks = (path.riskAlerts || []).slice(0, 3);
       const deadZone = (path.deadZoneWarnings || [])[0];
       const rows = [
         mockDraftItem('Path', path.summary),
@@ -2452,6 +2470,7 @@ export const liveDraftHtml = `<!doctype html>
           'Pivot',
           pivot ? pivot.trigger + ' ' + pivot.action : 'No pivot needed yet.'
         ),
+        ...risks.map(risk => mockDraftItem('Risk - ' + risk.label, risk.detail)),
         mockDraftItem(
           'Dead zone',
           deadZone || 'None'

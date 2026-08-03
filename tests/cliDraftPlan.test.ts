@@ -36,6 +36,18 @@ describe("CLI draft plan report", () => {
       matchedRunCount: number;
       candidateLimit: number;
       recommendations: {
+        strategyCoach: {
+          headline: string;
+          blueprint: {
+            slot: string;
+            priceBand: string;
+            targetNames: string[];
+          }[];
+          contingencyPlans: {
+            label: string;
+            action: string;
+          }[];
+        };
         maxPriceBands: {
           slot: string;
           maximumPrice: number;
@@ -76,6 +88,23 @@ describe("CLI draft plan report", () => {
       label: "RB budget envelope",
       action: expect.stringContaining("third RB flex down"),
     }));
+    expect(report.recommendations.strategyCoach.headline).toContain("sampled");
+    expect(report.recommendations.strategyCoach.blueprint).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        slot: "RB1",
+        priceBand: expect.stringMatching(/^\$\d+-\$\d+$/),
+        targetNames: expect.any(Array),
+      }),
+      expect.objectContaining({
+        slot: "WR1",
+        targetNames: expect.any(Array),
+      }),
+    ]));
+    expect(report.recommendations.strategyCoach.contingencyPlans).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: "After elite RB spend",
+      }),
+    ]));
     expect(report.candidates.length).toBeGreaterThan(0);
     for (const candidate of report.candidates) {
       expect(candidate.owner).toBe("Cam");
@@ -158,6 +187,9 @@ describe("CLI draft plan report", () => {
     );
 
     expect(stdout).toContain("## Path Recommendations");
+    expect(stdout).toContain("## Strategy Coach");
+    expect(stdout).toContain("Blueprint:");
+    expect(stdout).toContain("Contingencies:");
     expect(stdout).toContain("Max bands: RB1 $50-$76");
     expect(stdout).toContain("Targets: RB core");
     expect(stdout).toContain("Pivots: RB budget envelope");

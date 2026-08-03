@@ -73,12 +73,12 @@ const testPlayer = (
 
 const testRosterPlayers = (owner: string) => [
   testPlayer(`${owner} QB`, "QB", 2, 18),
-  testPlayer(`${owner} RB starter low`, "RB", 20, 6),
-  testPlayer(`${owner} RB starter high`, "RB", 45, 22),
-  testPlayer(`${owner} RB flex`, "RB", 12, 14),
+  testPlayer(`${owner} RB starter low`, "RB", 45, 6),
+  testPlayer(`${owner} RB starter high`, "RB", 60, 22),
+  testPlayer(`${owner} RB flex`, "RB", 25, 14),
   testPlayer(`${owner} RB bench`, "RB", 4, 4),
-  testPlayer(`${owner} WR starter high`, "WR", 38, 20),
-  testPlayer(`${owner} WR starter low`, "WR", 18, 15),
+  testPlayer(`${owner} WR starter high`, "WR", 28, 20),
+  testPlayer(`${owner} WR starter low`, "WR", 14, 15),
   testPlayer(`${owner} WR bench`, "WR", 3, 5),
   testPlayer(`${owner} TE`, "TE", 8, 10),
   testPlayer(`${owner} TE bench`, "TE", 1, 2),
@@ -106,7 +106,7 @@ const mockBatchRunner: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner
         valid: true,
         errors: [],
         players,
-        positionSpend: { QB: 2, RB: 83, WR: 61, TE: 9, K: 1, DST: 1 },
+        positionSpend: { QB: 2, RB: 136, WR: 47, TE: 9, K: 1, DST: 1 },
       };
     });
 
@@ -162,6 +162,24 @@ const mockBatchRunner: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner
         averageSalePrice: 77,
         minimumSalePrice: 76,
         maximumSalePrice: 78,
+      }, {
+        name: "Cam RB starter high",
+        position: "RB",
+        draftedCount: runCount,
+        draftedRate: 1,
+        averageMarketPrice: 58,
+        averageSalePrice: 60,
+        minimumSalePrice: 60,
+        maximumSalePrice: 60,
+      }, {
+        name: "Cam RB flex",
+        position: "RB",
+        draftedCount: runCount,
+        draftedRate: 1,
+        averageMarketPrice: 23,
+        averageSalePrice: 25,
+        minimumSalePrice: 25,
+        maximumSalePrice: 25,
       }],
       owners: [{
         owner: "Cam",
@@ -732,6 +750,15 @@ describe("live draft server", () => {
       expect(latest.result.analytics.topCamRosterPaths[0]).toEqual(expect.objectContaining({
         count: 2,
         draftedRate: 1,
+      }));
+      expect(latest.result.analytics.strategyCoach).toEqual(expect.objectContaining({
+        headline: expect.stringContaining("sampled"),
+        blueprint: expect.arrayContaining([
+          expect.objectContaining({
+            slot: "RB1",
+            targetNames: expect.arrayContaining(["Cam RB starter high"]),
+          }),
+        ]),
       }));
     } finally {
       await rm(directory, { force: true, recursive: true });

@@ -172,6 +172,16 @@ describe("draft plan generation", () => {
             minimumSalePrice: 42,
             maximumSalePrice: 42,
           },
+          {
+            name: "Fallback RB",
+            position: "RB",
+            draftedCount: 2,
+            draftedRate: 1,
+            averageMarketPrice: 36,
+            averageSalePrice: 34,
+            minimumSalePrice: 32,
+            maximumSalePrice: 36,
+          },
         ],
         owners: [],
         ownerPlayerExposure: [],
@@ -236,6 +246,52 @@ describe("draft plan generation", () => {
       trigger: "The first two RBs use most of the RB core budget.",
     }));
     expect(report.recommendations.deadZoneWarnings).toEqual([]);
+    expect(report.recommendations.strategyCoach).toMatchObject({
+      sampleSize: 2,
+      headline: expect.stringContaining("Top 2 sampled"),
+      blueprint: expect.arrayContaining([
+        expect.objectContaining({
+          slot: "RB1",
+          position: "RB",
+          priceBand: "$62-$62",
+          targetNames: ["Elite RB"],
+        }),
+        expect.objectContaining({
+          slot: "RB3",
+          position: "RB",
+          priceBand: "$25-$42",
+          targetNames: ["Flex RB", "Light RB"],
+          fallbackPriceBand: "$25-$42",
+          fallbackNames: ["Fallback RB"],
+        }),
+        expect.objectContaining({
+          slot: "WR1",
+          position: "WR",
+          priceBand: "$20-$25",
+          targetNames: ["WR Value 1"],
+        }),
+      ]),
+      contingencyPlans: expect.arrayContaining([
+        expect.objectContaining({
+          label: "After elite RB spend",
+          action: expect.stringContaining("RB2"),
+        }),
+        expect.objectContaining({
+          label: "After elite RB spend",
+          action: expect.stringContaining("Fallback"),
+        }),
+        expect.objectContaining({
+          label: "WR value pocket",
+          action: expect.stringContaining("WR1"),
+        }),
+      ]),
+      riskGuardrails: expect.arrayContaining([
+        expect.objectContaining({
+          label: "RB core spend",
+          detail: expect.stringContaining("$137-$156"),
+        }),
+      ]),
+    });
     expect(report.candidates).toHaveLength(2);
     expect(report.candidates[0]).toMatchObject({
       seed: "draft-plan-test:expected:1",

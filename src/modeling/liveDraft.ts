@@ -183,6 +183,12 @@ export interface LiveDraftPathPivotRule {
   action: string;
 }
 
+export interface LiveDraftPathRiskAlert {
+  label: string;
+  status: LiveDraftReadinessStatus;
+  detail: string;
+}
+
 export interface LiveDraftPathRecommendation {
   strategyKey: LiveDraftStrategyKey;
   label: string;
@@ -190,6 +196,7 @@ export interface LiveDraftPathRecommendation {
   maxPriceBands: LiveDraftPathPriceBand[];
   targetClusters: LiveDraftPathTargetCluster[];
   pivotRules: LiveDraftPathPivotRule[];
+  riskAlerts: LiveDraftPathRiskAlert[];
   deadZoneWarnings: string[];
 }
 
@@ -1134,6 +1141,59 @@ const maxPriceBandsForThreeRb = (watchOwner: LiveDraftOwnerState): LiveDraftPath
   });
 };
 
+const openStarterSlotsFor = (
+  owner: LiveDraftOwnerState,
+  slots: readonly LiveDraftRosterSlotKey[],
+): number =>
+  owner.slots.filter(slot => slots.includes(slot.slot) && !slot.player).length;
+
+const riskStatusFor = (failed: boolean, warned: boolean): LiveDraftReadinessStatus => {
+  if (failed) return "fail";
+  if (warned) return "warn";
+  return "pass";
+};
+
+const threeRbRiskAlertsFor = (
+  watchOwner: LiveDraftOwnerState,
+  maxPriceBands: readonly LiveDraftPathPriceBand[],
+): LiveDraftPathRiskAlert[] => {
+  const rbCoreSpend = ownerPositionSpend(watchOwner, "RB");
+  const rbCoreFilled = Math.min(watchOwner.positionCounts.RB, threeRbPathRules.rbCoreBudget.targetCount);
+  const openCoreRbSlots = Math.max(0, threeRbPathRules.rbCoreBudget.targetCount - rbCoreFilled);
+  const rbBudgetRemaining = Math.max(0, threeRbPathRules.rbCoreBudget.hardBudget - rbCoreSpend);
+  const futureRbReserve = openCoreRbSlots * threeRbPathRules.rbCoreBudget.minimumFutureCorePrice;
+  const nextRbBand = maxPriceBands.find(band => band.position === "RB" && band.status === "next");
+  const wrBands = maxPriceBands.filter(band => band.position === "WR");
+  const openWrStarterSlots = openStarterSlotsFor(watchOwner, ["WR1", "WR2"]);
+  const wrBandText = wrBands.map(priceBandText).join(" / ");
+  const dollarSlotCount = Math.max(0, watchOwner.rosterSlotsRemaining - 4);
+
+  return [
+    {
+      label: "RB budget remaining",
+      status: riskStatusFor(
+        openCoreRbSlots > 0 && rbBudgetRemaining < futureRbReserve,
+        openCoreRbSlots > 0 && nextRbBand !== undefined && rbBudgetRemaining < nextRbBand.minimumPrice + futureRbReserve,
+      ),
+      detail: openCoreRbSlots > 0
+        ? `${priceBandText({ minimumPrice: 0, maximumPrice: rbBudgetRemaining })} left for ${openCoreRbSlots} core RB slots; next RB lane is ${nextRbBand ? priceBandText(nextRbBand) : "unavailable"}.`
+        : `Core RB slots are filled at $${rbCoreSpend}; stop buying meaningful RB depth unless value falls hard.`,
+    },
+    {
+      label: "WR value pocket",
+      status: riskStatusFor(false, openWrStarterSlots > 0 && watchOwner.budgetRemaining < 30),
+      detail: openWrStarterSlots > 0
+        ? `Keep WR starters in ${wrBandText || "$12-$26"} while the RB core is unfinished.`
+        : "WR starters are filled; use the board for value depth only.",
+    },
+    {
+      label: "Roster thinness",
+      status: riskStatusFor(false, dollarSlotCount >= 9),
+      detail: `${watchOwner.rosterSlotsRemaining} slots remain with max bid $${watchOwner.maxBid}; avoid turning too many bench spots into $1 fixes.`,
+    },
+  ];
+};
+
 const targetNamesFor = (
   targets: readonly LiveDraftTarget[],
   position: Position,
@@ -1206,6 +1266,7 @@ const buildThreeRbDraftPath = (
       trigger: rule.trigger,
       action: rule.action,
     })),
+    riskAlerts: threeRbRiskAlertsFor(watchOwner, maxPriceBands),
     deadZoneWarnings,
   };
 };
@@ -1238,6 +1299,7 @@ const buildDraftPath = (
       trigger: "Core strategy targets clear above Cam's max bid.",
       action: "Move to best value-score targets that still fill starter or flex needs.",
     }],
+    riskAlerts: [],
     deadZoneWarnings: [],
   };
 };

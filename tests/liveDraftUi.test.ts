@@ -186,7 +186,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("Path");
     expect(liveDraftHtml).toContain("Target");
     expect(liveDraftHtml).toContain("Pivot");
+    expect(liveDraftHtml).toContain("Risk");
     expect(liveDraftHtml).toContain("Dead zone");
+    expect(liveDraftHtml).toContain("path.riskAlerts");
+    expect(liveDraftHtml).toContain("strategyCoach");
+    expect(liveDraftHtml).toContain("slot.fallbackPriceBand");
+    expect(liveDraftHtml).toContain("slot.fallbackNames");
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\"");
   });
 

@@ -4,6 +4,11 @@ import { lineupScore, optimizeLineup } from "../lineupOptimizer.js";
 import type { LineupEntry, Player, StarterSlot } from "../types.js";
 import type { MockBatch, MockBatchSummary, MockRosterSummary, MockRun } from "./mockBatch.js";
 import type { LiveDraftStrategyKey } from "./liveDraftStrategies.js";
+import {
+  buildDraftPlanReport,
+  type DraftPlanStrategyCoach,
+  type DraftPlanStrategyKey,
+} from "./draftPlan.js";
 
 export type MockResultsPlayerSlot = StarterSlot | "BENCH";
 
@@ -114,6 +119,7 @@ export interface MockResultsAnalytics {
   strategyLeaderboard: MockResultsStrategyAnalytics[];
   camScoreRange: MockResultsCamScoreRange;
   topCamRosterPaths: MockResultsRosterPath[];
+  strategyCoach?: DraftPlanStrategyCoach;
 }
 
 export interface MockResultsRun {
@@ -550,11 +556,36 @@ const topCamRosterPathsFor = (runs: readonly MockResultsRun[]): MockResultsRoste
     .slice(0, 8);
 };
 
-const analyticsFor = (runs: readonly MockResultsRun[]): MockResultsAnalytics => ({
-  strategyLeaderboard: strategyLeaderboardFor(runs),
-  camScoreRange: camScoreRangeFor(runs),
-  topCamRosterPaths: topCamRosterPathsFor(runs),
-});
+const isDraftPlanStrategyKey = (strategyKey: LiveDraftStrategyKey): strategyKey is DraftPlanStrategyKey =>
+  strategyKey === "three-rb";
+
+const strategyCoachFor = (
+  batch: MockBatch,
+  strategyKey: LiveDraftStrategyKey,
+): DraftPlanStrategyCoach | undefined =>
+  isDraftPlanStrategyKey(strategyKey)
+    ? buildDraftPlanReport({
+      batch,
+      owner: "Cam",
+      strategyKey,
+      limit: 5,
+    }).recommendations.strategyCoach
+    : undefined;
+
+const analyticsFor = (
+  runs: readonly MockResultsRun[],
+  batch: MockBatch,
+  strategyKey: LiveDraftStrategyKey,
+): MockResultsAnalytics => {
+  const strategyCoach = strategyCoachFor(batch, strategyKey);
+
+  return {
+    strategyLeaderboard: strategyLeaderboardFor(runs),
+    camScoreRange: camScoreRangeFor(runs),
+    topCamRosterPaths: topCamRosterPathsFor(runs),
+    ...(strategyCoach === undefined ? {} : { strategyCoach }),
+  };
+};
 
 const runResultFor = (
   run: MockRun,
@@ -608,7 +639,7 @@ export const buildMockResultsReport = (
     summary: batch.summary,
     runStrategyKeys: resolvedRunStrategyKeys,
     runs,
-    analytics: analyticsFor(runs),
+    analytics: analyticsFor(runs, batch, strategyKey),
     ...(cam === undefined ? {} : { cam }),
     camTopExposures: batch.summary.ownerPlayerExposure
       .filter(exposure => exposure.owner === "Cam")

@@ -39,11 +39,52 @@ export interface DraftPlanPivotRule {
   action: string;
 }
 
+export type DraftPlanRiskStatus = "pass" | "warn" | "fail";
+
+export interface DraftPlanSlotBlueprint {
+  slot: string;
+  position: Position;
+  sampleCount: number;
+  minimumPrice: number;
+  maximumPrice: number;
+  averagePrice: number;
+  priceBand: string;
+  lockedNames: string[];
+  targetNames: string[];
+  fallbackPriceBand: string;
+  fallbackNames: string[];
+  note: string;
+}
+
+export interface DraftPlanContingencyPlan {
+  label: string;
+  trigger: string;
+  action: string;
+  targetNames: string[];
+  priceBand: string;
+}
+
+export interface DraftPlanRiskGuardrail {
+  label: string;
+  status: DraftPlanRiskStatus;
+  detail: string;
+}
+
+export interface DraftPlanStrategyCoach {
+  headline: string;
+  sampleSize: number;
+  averageWeeks1To4Score: number;
+  blueprint: DraftPlanSlotBlueprint[];
+  contingencyPlans: DraftPlanContingencyPlan[];
+  riskGuardrails: DraftPlanRiskGuardrail[];
+}
+
 export interface DraftPlanRecommendations {
   maxPriceBands: DraftPlanPriceBand[];
   targetClusters: DraftPlanTargetCluster[];
   pivotRules: DraftPlanPivotRule[];
   deadZoneWarnings: string[];
+  strategyCoach: DraftPlanStrategyCoach;
 }
 
 export interface DraftPlanPlayerMarket {
@@ -377,6 +418,9 @@ export const draftPlanAuctionOverridesFor = ({
 const roundToTwo = (value: number): number =>
   Math.round((value + Number.EPSILON) * 100) / 100;
 
+const average = (values: readonly number[]): number =>
+  values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
+
 const sortPlayers = (players: readonly Player[]): Player[] =>
   [...players].sort(
     (left, right) =>
@@ -427,6 +471,9 @@ const joinedPlayerSummaries = (players: readonly DraftPlanPlayer[]): string =>
 
 const priceBandText = (band: Pick<DraftPlanPriceBand, "minimumPrice" | "maximumPrice">): string =>
   `$${band.minimumPrice}-$${band.maximumPrice}`;
+
+const priceWindowText = (minimumPrice: number, maximumPrice: number): string =>
+  `$${minimumPrice}-$${maximumPrice}`;
 
 const playerAtPosition = (
   candidate: DraftPlanCandidate,
@@ -575,7 +622,364 @@ const buildCandidate = (
   };
 };
 
-const buildRecommendations = (candidates: readonly DraftPlanCandidate[]): DraftPlanRecommendations => {
+type CoachSlotKey = "RB1" | "RB2" | "RB3" | "WR1" | "WR2" | "TE";
+
+interface CoachSlotDefinition {
+  slot: CoachSlotKey;
+  position: Position;
+  playerForCandidate: (candidate: DraftPlanCandidate) => DraftPlanPlayer | undefined;
+  note: string;
+}
+
+const coachCohortLimit = 12;
+const fallbackWindowCushion = 8;
+const minimumFallbackPrice = 1;
+
+const coachSlotDefinitions: readonly CoachSlotDefinition[] = [
+  {
+    slot: "RB1",
+    position: "RB",
+    playerForCandidate: candidate => candidate.rbCore[0],
+    note: "Primary RB spend lane from the best sampled builds.",
+  },
+  {
+    slot: "RB2",
+    position: "RB",
+    playerForCandidate: candidate => candidate.rbCore[1],
+    note: "Second RB lane that keeps the three-RB structure alive.",
+  },
+  {
+    slot: "RB3",
+    position: "RB",
+    playerForCandidate: candidate => candidate.rbCore[2],
+    note: "Flex RB lane; this is where the plan absorbs expensive early buys.",
+  },
+  {
+    slot: "WR1",
+    position: "WR",
+    playerForCandidate: candidate => playerAtPosition(candidate, "WR", 0),
+    note: "WR1 pocket from winning builds after RB spend is protected.",
+  },
+  {
+    slot: "WR2",
+    position: "WR",
+    playerForCandidate: candidate => playerAtPosition(candidate, "WR", 1),
+    note: "WR2 pocket that prevents a panic buy after RB spend.",
+  },
+  {
+    slot: "TE",
+    position: "TE",
+    playerForCandidate: candidate => playerAtPosition(candidate, "TE", 0),
+    note: "TE lane; expensive TE only makes sense if the core came in under budget.",
+  },
+];
+
+const topCoachCandidates = (candidates: readonly DraftPlanCandidate[]): DraftPlanCandidate[] =>
+  candidates.slice(0, Math.min(candidates.length, coachCohortLimit));
+
+const pathBandForSlot = (slot: CoachSlotKey): DraftPlanPriceBand | undefined =>
+  threeRbPathRules.priceBands.find(band => band.slot === slot);
+
+const fallbackWindowForBlueprint = (
+  definition: CoachSlotDefinition,
+  minimumPrice: number,
+  maximumPrice: number,
+  averagePrice: number,
+): Pick<DraftPlanPriceBand, "minimumPrice" | "maximumPrice"> => {
+  const pathBand = pathBandForSlot(definition.slot);
+  const minimum = Math.max(
+    minimumFallbackPrice,
+    Math.min(minimumPrice, Math.floor(averagePrice - fallbackWindowCushion)),
+  );
+  const uncappedMaximum = Math.max(maximumPrice, Math.ceil(averagePrice + fallbackWindowCushion));
+  const maximum = pathBand ? Math.min(pathBand.maximumPrice, uncappedMaximum) : uncappedMaximum;
+
+  return {
+    minimumPrice: minimum,
+    maximumPrice: Math.max(minimum, maximum),
+  };
+};
+
+const lockedNamesForBlueprint = (
+  players: readonly DraftPlanPlayer[],
+  candidateCount: number,
+): string[] => {
+  const firstPlayer = players[0];
+  if (!firstPlayer || firstPlayer.market || players.length !== candidateCount) return [];
+  const locked = players.every(player =>
+    player.name === firstPlayer.name &&
+    player.price === firstPlayer.price &&
+    !player.market
+  );
+
+  return locked ? [firstPlayer.name] : [];
+};
+
+const targetNamesForBlueprint = (
+  players: readonly DraftPlanPlayer[],
+  lockedNames: readonly string[],
+): string[] => {
+  const lockedNameSet = new Set(lockedNames);
+  const summaries = new Map<string, { name: string; count: number; weeks1To4: number; price: number }>();
+
+  for (const player of players) {
+    if (lockedNameSet.has(player.name)) continue;
+    const summary = summaries.get(player.name) ?? {
+      name: player.name,
+      count: 0,
+      weeks1To4: 0,
+      price: 0,
+    };
+    summary.count += 1;
+    summary.weeks1To4 += player.weeks1To4;
+    summary.price += player.price;
+    summaries.set(player.name, summary);
+  }
+
+  return [...summaries.values()]
+    .sort(
+      (left, right) =>
+        right.count - left.count ||
+        (right.weeks1To4 / right.count) - (left.weeks1To4 / left.count) ||
+        (right.price / right.count) - (left.price / left.count) ||
+        left.name.localeCompare(right.name),
+    )
+    .slice(0, 5)
+    .map(summary => summary.name);
+};
+
+const fallbackNamesForBlueprint = ({
+  definition,
+  marketPlayers,
+  window,
+  lockedNames,
+  targetNames,
+}: {
+  definition: CoachSlotDefinition;
+  marketPlayers: readonly PlayerBatchSummary[];
+  window: Pick<DraftPlanPriceBand, "minimumPrice" | "maximumPrice">;
+  lockedNames: readonly string[];
+  targetNames: readonly string[];
+}): string[] => {
+  const excludedNames = new Set([...lockedNames, ...targetNames]);
+  const center = (window.minimumPrice + window.maximumPrice) / 2;
+
+  return marketPlayers
+    .filter(player => player.position === definition.position)
+    .filter(player => !excludedNames.has(player.name))
+    .filter(player => player.draftedRate >= 0.15)
+    .filter(player =>
+      player.averageSalePrice >= window.minimumPrice &&
+      player.averageSalePrice <= window.maximumPrice
+    )
+    .sort(
+      (left, right) =>
+        right.averageMarketPrice - left.averageMarketPrice ||
+        right.draftedRate - left.draftedRate ||
+        Math.abs(left.averageSalePrice - center) - Math.abs(right.averageSalePrice - center) ||
+        left.name.localeCompare(right.name),
+    )
+    .slice(0, 5)
+    .map(player => player.name);
+};
+
+const slotBlueprintFor = (
+  definition: CoachSlotDefinition,
+  candidates: readonly DraftPlanCandidate[],
+  marketPlayers: readonly PlayerBatchSummary[],
+): DraftPlanSlotBlueprint | undefined => {
+  const players = candidates
+    .map(candidate => definition.playerForCandidate(candidate))
+    .filter((player): player is DraftPlanPlayer => player !== undefined);
+
+  if (players.length === 0) return undefined;
+
+  const prices = players.map(player => player.price);
+  const minimumPrice = Math.min(...prices);
+  const maximumPrice = Math.max(...prices);
+  const lockedNames = lockedNamesForBlueprint(players, candidates.length);
+  const targetNames = targetNamesForBlueprint(players, lockedNames);
+  const fallbackWindow = fallbackWindowForBlueprint(
+    definition,
+    minimumPrice,
+    maximumPrice,
+    average(prices),
+  );
+
+  return {
+    slot: definition.slot,
+    position: definition.position,
+    sampleCount: players.length,
+    minimumPrice,
+    maximumPrice,
+    averagePrice: roundToTwo(average(prices)),
+    priceBand: priceWindowText(minimumPrice, maximumPrice),
+    lockedNames,
+    targetNames,
+    fallbackPriceBand: priceBandText(fallbackWindow),
+    fallbackNames: fallbackNamesForBlueprint({
+      definition,
+      marketPlayers,
+      window: fallbackWindow,
+      lockedNames,
+      targetNames,
+    }),
+    note: definition.note,
+  };
+};
+
+const blueprintBySlot = (
+  blueprint: readonly DraftPlanSlotBlueprint[],
+): ReadonlyMap<string, DraftPlanSlotBlueprint> =>
+  new Map(blueprint.map(slot => [slot.slot, slot]));
+
+const targetText = (names: readonly string[]): string =>
+  names.length ? names.slice(0, 5).join(" / ") : "the next value tier";
+
+const fallbackActionText = (slots: readonly DraftPlanSlotBlueprint[]): string => {
+  const fallbackPlans = slots.flatMap(slot =>
+    slot.fallbackNames.length
+      ? [`${slot.slot} fallback ${slot.fallbackPriceBand}: ${targetText(slot.fallbackNames)}`]
+      : []
+  );
+
+  return fallbackPlans.length ? ` ${fallbackPlans.join("; ")}` : "";
+};
+
+const contingencyPlansFor = (
+  blueprint: readonly DraftPlanSlotBlueprint[],
+): DraftPlanContingencyPlan[] => {
+  const bySlot = blueprintBySlot(blueprint);
+  const rb1 = bySlot.get("RB1");
+  const rb2 = bySlot.get("RB2");
+  const rb3 = bySlot.get("RB3");
+  const wr1 = bySlot.get("WR1");
+  const wr2 = bySlot.get("WR2");
+  const te = bySlot.get("TE");
+  const plans: DraftPlanContingencyPlan[] = [];
+
+  if (rb1 && rb2 && rb3) {
+    plans.push({
+      label: "After elite RB spend",
+      trigger: `RB1 lands in ${rb1.priceBand}.`,
+      action: `Preserve RB2 ${rb2.priceBand} and RB3 ${rb3.priceBand}; target ${targetText([...rb2.targetNames, ...rb3.targetNames])}.${fallbackActionText([rb2, rb3])}`,
+      targetNames: [...new Set([...rb2.targetNames, ...rb3.targetNames])].slice(0, 5),
+      priceBand: `${rb2.priceBand} / ${rb3.priceBand}`,
+    });
+  }
+
+  if (rb2 && rb3 && wr1) {
+    plans.push({
+      label: "RB2 pocket closes",
+      trigger: `The RB2 tier clears above ${rb2.priceBand}.`,
+      action: `Do not chase the miss; move WR1 into ${wr1.priceBand} and keep RB3 opportunistic at ${rb3.priceBand}.${fallbackActionText([wr1, rb3])}`,
+      targetNames: [...new Set([...wr1.targetNames, ...rb3.targetNames])].slice(0, 5),
+      priceBand: `${wr1.priceBand} / ${rb3.priceBand}`,
+    });
+  }
+
+  if (wr1 && wr2) {
+    plans.push({
+      label: "WR value pocket",
+      trigger: `WR starters are available in ${wr1.priceBand} and ${wr2.priceBand}.`,
+      action: `Draft WR1 from ${targetText(wr1.targetNames)} and WR2 from ${targetText(wr2.targetNames)} instead of solving receiver with one panic spend.${fallbackActionText([wr1, wr2])}`,
+      targetNames: [...new Set([...wr1.targetNames, ...wr2.targetNames])].slice(0, 5),
+      priceBand: `${wr1.priceBand} / ${wr2.priceBand}`,
+    });
+  }
+
+  if (te) {
+    plans.push({
+      label: "TE risk control",
+      trigger: `TE remains in ${te.priceBand} in the best sampled builds.`,
+      action: `Keep TE cheap unless an earlier RB or WR slot comes in below plan; target ${targetText(te.targetNames)}.${fallbackActionText([te])}`,
+      targetNames: te.targetNames,
+      priceBand: te.priceBand,
+    });
+  }
+
+  return plans;
+};
+
+const guardrailStatus = (failed: boolean, warned: boolean): DraftPlanRiskStatus => {
+  if (failed) return "fail";
+  if (warned) return "warn";
+  return "pass";
+};
+
+const riskGuardrailsFor = (
+  candidates: readonly DraftPlanCandidate[],
+): DraftPlanRiskGuardrail[] => {
+  if (candidates.length === 0) {
+    return [{
+      label: "Strategy sample",
+      status: "fail",
+      detail: "No sampled roster reached the requested strategy shape; do not treat this path as live-ready yet.",
+    }];
+  }
+
+  const rbCoreSpends = candidates.map(candidate => candidate.rbCoreSpend);
+  const wrStarterSpends = candidates.map(candidate =>
+    (playerAtPosition(candidate, "WR", 0)?.price ?? 0) +
+    (playerAtPosition(candidate, "WR", 1)?.price ?? 0),
+  );
+  const dollarPlayerCounts = candidates.map(candidate =>
+    candidate.players.filter(player => player.price <= 1).length,
+  );
+  const rbMinimum = Math.min(...rbCoreSpends);
+  const rbMaximum = Math.max(...rbCoreSpends);
+  const wrMinimum = Math.min(...wrStarterSpends);
+  const wrMaximum = Math.max(...wrStarterSpends);
+  const averageDollarPlayers = roundToTwo(average(dollarPlayerCounts));
+
+  return [
+    {
+      label: "RB core spend",
+      status: guardrailStatus(
+        rbMinimum > threeRbPathRules.rbCoreBudget.hardBudget,
+        rbMaximum > threeRbPathRules.rbCoreBudget.hardBudget,
+      ),
+      detail: `Best sampled teams spent ${priceWindowText(rbMinimum, rbMaximum)} on the three-RB core; ${priceWindowText(threeRbPathRules.rbCoreBudget.minimumSpend, threeRbPathRules.rbCoreBudget.hardBudget)} is the planned lane.`,
+    },
+    {
+      label: "WR starter pocket",
+      status: guardrailStatus(wrMinimum === 0, wrMaximum > 50),
+      detail: `Best sampled teams reserved ${priceWindowText(wrMinimum, wrMaximum)} for the top two WR slots instead of buying one receiver at any price.`,
+    },
+    {
+      label: "Dollar-player exposure",
+      status: guardrailStatus(averageDollarPlayers >= 11, averageDollarPlayers >= 9),
+      detail: `Best sampled teams averaged ${averageDollarPlayers.toFixed(1)} $1 players; crossing 9 means the roster is leaning thin.`,
+    },
+  ];
+};
+
+const strategyCoachFor = (
+  candidates: readonly DraftPlanCandidate[],
+  marketPlayers: readonly PlayerBatchSummary[],
+): DraftPlanStrategyCoach => {
+  const coachCandidates = topCoachCandidates(candidates);
+  const blueprint = coachSlotDefinitions
+    .map(definition => slotBlueprintFor(definition, coachCandidates, marketPlayers))
+    .filter((slot): slot is DraftPlanSlotBlueprint => slot !== undefined);
+  const averageWeeks1To4Score = roundToTwo(average(coachCandidates.map(candidate => candidate.weeks1To4Score)));
+
+  return {
+    headline: coachCandidates.length
+      ? `Top ${coachCandidates.length} sampled ${coachCandidates.length === 1 ? "build" : "builds"} averaged ${averageWeeks1To4Score.toFixed(1)} Weeks 1-4 points. Use the bands as guardrails, not guarantees.`
+      : "No winning roster blueprint yet; run more mocks or loosen the strategy filters.",
+    sampleSize: coachCandidates.length,
+    averageWeeks1To4Score,
+    blueprint,
+    contingencyPlans: contingencyPlansFor(blueprint),
+    riskGuardrails: riskGuardrailsFor(coachCandidates),
+  };
+};
+
+const buildRecommendations = (
+  candidates: readonly DraftPlanCandidate[],
+  marketPlayers: readonly PlayerBatchSummary[],
+): DraftPlanRecommendations => {
   const topCandidate = candidates[0];
   const rbBands = threeRbPathRules.priceBands.filter(band => band.position === "RB");
   const wrBands = threeRbPathRules.priceBands.filter(band => band.position === "WR");
@@ -625,6 +1029,7 @@ const buildRecommendations = (candidates: readonly DraftPlanCandidate[]): DraftP
     targetClusters,
     pivotRules: threeRbPathRules.pivotRules.map(rule => ({ ...rule })),
     deadZoneWarnings: topCandidate ? [] : ["No sampled roster matched the true 3RB path."],
+    strategyCoach: strategyCoachFor(candidates, marketPlayers),
   };
 };
 
@@ -667,7 +1072,7 @@ export const buildDraftPlanReport = ({
     runCount: batch.runs.length,
     matchedRunCount: candidates.length,
     candidateLimit: limit,
-    recommendations: buildRecommendations(candidates),
+    recommendations: buildRecommendations(candidates, batch.summary.players),
     candidates: candidates.slice(0, limit),
   };
 };

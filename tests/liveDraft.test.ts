@@ -211,6 +211,16 @@ describe("live draft room", () => {
           action: expect.stringContaining("third RB flex down"),
         }),
       ]),
+      riskAlerts: expect.arrayContaining([
+        expect.objectContaining({
+          label: "RB budget remaining",
+          detail: expect.stringContaining("core RB slots"),
+        }),
+        expect.objectContaining({
+          label: "WR value pocket",
+          detail: expect.stringContaining("$12-$26"),
+        }),
+      ]),
       deadZoneWarnings: [],
     });
     expect(state.shortlist[0]).toMatchObject({
