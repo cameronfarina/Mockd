@@ -49,7 +49,16 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("'next ' + target.position + ' -' + money(tierDrop)");
     expect(liveDraftHtml).toContain("const saleWarningsFor = (target, owner, price) =>");
     expect(liveDraftHtml).toContain("const renderMockDraft = mockDraft =>");
+    expect(liveDraftHtml).toContain("const syncMockNominationSelection = mockDraft =>");
+    expect(liveDraftHtml).toContain("const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.personalValue");
+    expect(liveDraftHtml).toContain("byId('add-price').value = String(nominationPrice)");
     expect(liveDraftHtml).toContain("const advanceMockDraft = async action =>");
+    expect(liveDraftHtml).toContain("advanceMockDraft('cam-bid')");
+    expect(liveDraftHtml).toContain("'Bid ' + money(mockDraft.camDecision.recommendedBid)");
+    expect(liveDraftHtml).toContain("mockDraftItem('Current nomination'");
+    expect(liveDraftHtml).toContain("mockDraftItem('Top AI bids'");
+    expect(liveDraftHtml).toContain("recommended + ' beats ' + topAiOwner + ' bid ' + topAiBid + ' / Cam max ' + maxBid");
+    expect(liveDraftHtml).not.toContain("mockDraftItem('AI max bids'");
     expect(liveDraftHtml).toContain("strategyKey: currentStrategyKey");
     expect(liveDraftHtml).toContain("const renderPositionMarket = state =>");
     expect(liveDraftHtml).toContain("const renderOwnerNeeds = state =>");

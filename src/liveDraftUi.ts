@@ -869,7 +869,7 @@ export const liveDraftHtml = `<!doctype html>
             </div>
             <div class="mock-actions">
               <button type="button" id="mock-advance-button" disabled>Advance AI Sale</button>
-              <button type="button" id="mock-cam-win-button" disabled>Cam Wins</button>
+              <button type="button" id="mock-cam-win-button" disabled>Bid</button>
               <button type="button" id="mock-pass-button" disabled>Pass</button>
             </div>
           </div>
@@ -1295,11 +1295,26 @@ export const liveDraftHtml = `<!doctype html>
       return bid.owner + (amount == null ? '' : ' ' + money(amount));
     };
 
+    const syncMockNominationSelection = mockDraft => {
+      if (!currentState || !mockDraft || !mockDraft.nomination || !mockDraft.nomination.player) return;
+
+      const target = currentState.availableTargets.find(candidate => candidate.name === mockDraft.nomination.player);
+      if (!target || selectedTargetName === target.name) return;
+
+      selectedTargetName = target.name;
+      const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.personalValue;
+      byId('add-price').value = String(nominationPrice);
+      renderSelected(currentState);
+      renderBoard(currentState);
+    };
+
     const renderMockDraft = mockDraft => {
       const details = byId('mock-draft-details');
       const phase = mockDraft ? mockDraft.phase : '';
+      const camBidButton = byId('mock-cam-win-button');
       byId('mock-advance-button').disabled = phase !== 'ai-sale';
-      byId('mock-cam-win-button').disabled = phase !== 'human-decision' || !mockDraft.camDecision;
+      camBidButton.disabled = phase !== 'human-decision' || !mockDraft.camDecision;
+      camBidButton.textContent = mockDraft && mockDraft.camDecision ? 'Bid ' + money(mockDraft.camDecision.recommendedBid) : 'Bid';
       byId('mock-pass-button').disabled = phase !== 'human-decision';
 
       if (!mockDraft) {
@@ -1310,9 +1325,11 @@ export const liveDraftHtml = `<!doctype html>
       const nomination = mockDraft.nomination || {};
       const nominationText = nomination.player || nomination.name || mockDraft.nominatedPlayer || '-';
       const aiBids = (mockDraft.aiBids || []).slice(0, 5);
+      const currentNomination = mockDraft.nominator && nominationText !== '-'
+        ? mockDraft.nominator + ' nominated ' + nominationText
+        : nominationText;
       const items = [
-        mockDraftItem('Nominator', mockDraft.nominator || nomination.nominator || '-'),
-        mockDraftItem('Nominated player', nominationText),
+        mockDraftItem('Current nomination', currentNomination),
         mockDraftCommandItem(mockDraft.aiSaleCommand),
         mockDraftItem('Top AI bids', aiBids.length ? aiBids.map(bidText).join(' / ') : '-')
       ];
@@ -1322,10 +1339,15 @@ export const liveDraftHtml = `<!doctype html>
           ? '-'
           : money(mockDraft.camDecision.recommendedBid);
         const maxBid = mockDraft.camDecision.maxBid == null ? '-' : money(mockDraft.camDecision.maxBid);
-        items.push(mockDraftItem('Cam recommended bid', recommended + ' / max ' + maxBid));
+        const topAiOwner = mockDraft.camDecision.topAiBidOwner || (aiBids[0] && aiBids[0].owner) || 'AI';
+        const topAiBid = mockDraft.camDecision.topAiBid == null ? '-' : money(mockDraft.camDecision.topAiBid);
+        items.push(mockDraftItem('Cam bid', recommended + ' beats ' + topAiOwner + ' bid ' + topAiBid + ' / Cam max ' + maxBid));
+      } else if (aiBids.length) {
+        items.push(mockDraftItem('Cam bid', aiBids[0].owner + ' can go to ' + money(aiBids[0].amount) + '. Use AI sale unless you want to manually override.'));
       }
 
       details.replaceChildren(...items);
+      syncMockNominationSelection(mockDraft);
     };
 
     const renderBoard = state => {
@@ -1741,7 +1763,7 @@ export const liveDraftHtml = `<!doctype html>
     byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
     byId('reset-button').addEventListener('click', () => postJsonAndRefresh('/api/reset'));
     byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
-    byId('mock-cam-win-button').addEventListener('click', () => advanceMockDraft('cam-win'));
+    byId('mock-cam-win-button').addEventListener('click', () => advanceMockDraft('cam-bid'));
     byId('mock-pass-button').addEventListener('click', () => advanceMockDraft('pass'));
 
     refreshDraftRoom().then(() => {

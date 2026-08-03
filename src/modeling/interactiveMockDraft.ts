@@ -58,7 +58,7 @@ export type InteractiveMockDraftPhase =
   | "complete"
   | "blocked";
 
-export type InteractiveMockDraftAction = "advance" | "pass" | "cam-win";
+export type InteractiveMockDraftAction = "advance" | "pass" | "cam-bid" | "cam-win";
 
 export interface InteractiveMockDraftNomination {
   player: string;
@@ -87,6 +87,7 @@ export interface InteractiveMockDraftCamDecision {
   maxBid: number;
   recommendedBid: number;
   topAiBid: number;
+  topAiBidOwner: Owner;
   aiSalePrice: number;
   valueGap: number;
 }
@@ -603,12 +604,14 @@ const camDecisionFor = ({
   watchOwnerState,
   player,
   topAiBid,
+  topAiBidOwner,
   aiSalePrice,
 }: {
   liveState: LiveDraftState;
   watchOwnerState: AuctionOwnerState;
   player: Player;
   topAiBid: number;
+  topAiBidOwner: Owner;
   aiSalePrice: number;
 }): InteractiveMockDraftCamDecision | undefined => {
   if (!watchOwnerCanRoster(watchOwnerState, player)) return undefined;
@@ -625,6 +628,7 @@ const camDecisionFor = ({
     maxBid,
     recommendedBid: Math.min(maxBid, topAiBid + 1),
     topAiBid,
+    topAiBidOwner,
     aiSalePrice,
     valueGap: target.personalValue - target.liveExpectedPrice,
   };
@@ -735,7 +739,9 @@ export const buildInteractiveMockDraftState = ({
     };
   }
 
-  const topAiBid = aiSale.bids[0]?.amount ?? aiSale.price;
+  const topAiBidder = aiSale.bids[0];
+  const topAiBid = topAiBidder?.amount ?? aiSale.price;
+  const topAiBidOwner = topAiBidder?.owner ?? aiSale.winner;
   const watchOwnerState = prepared.ownerStates.find(state => state.owner === watchOwner);
   if (!watchOwnerState) throw new Error(`Unknown watch owner "${watchOwner}".`);
 
@@ -744,6 +750,7 @@ export const buildInteractiveMockDraftState = ({
     watchOwnerState,
     player: nomination.player,
     topAiBid,
+    topAiBidOwner,
     aiSalePrice: aiSale.price,
   });
   const phase: InteractiveMockDraftPhase = camDecision ? "human-decision" : "ai-sale";
@@ -769,7 +776,7 @@ export const resolveInteractiveMockDraftAction = (
   state: InteractiveMockDraftState,
   action: InteractiveMockDraftAction,
 ): { command: string } => {
-  if (action === "cam-win") {
+  if (action === "cam-bid" || action === "cam-win") {
     if (!state.nomination || !state.camDecision) {
       throw new Error("Cam does not have a live decision to win.");
     }

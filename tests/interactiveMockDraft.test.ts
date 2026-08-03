@@ -30,6 +30,7 @@ describe("interactive mock draft", () => {
     expect(state.camDecision).toMatchObject({
       recommendedBid: 79,
       topAiBid: 78,
+      topAiBidOwner: "Beaton",
     });
     expect(state.aiBids[0]).toMatchObject({
       player: "Jahmyr Gibbs",
@@ -58,9 +59,9 @@ describe("interactive mock draft", () => {
     expect(state.nomination?.player).toBeTruthy();
     expect(state.camDecision?.maxBid).toBeGreaterThanOrEqual(state.camDecision?.recommendedBid ?? 0);
 
-    const camWin = resolveInteractiveMockDraftAction(state, "cam-win");
+    const camBid = resolveInteractiveMockDraftAction(state, "cam-bid");
     const pass = resolveInteractiveMockDraftAction(state, "pass");
-    expect(camWin.command).toBe(`Cam drafted ${state.nomination?.player} for ${state.camDecision?.recommendedBid}`);
+    expect(camBid.command).toBe(`Cam drafted ${state.nomination?.player} for ${state.camDecision?.recommendedBid}`);
     expect(pass.command).toBe(state.aiSaleCommand);
   });
 });
