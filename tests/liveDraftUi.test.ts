@@ -24,6 +24,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"run-mock-batch-button\"");
     expect(liveDraftHtml).toContain("id=\"draft-mode-status\"");
     expect(liveDraftHtml).toContain("id=\"mock-batch-results\"");
+    expect(liveDraftHtml).toContain("id=\"draft-room-view\"");
+    expect(liveDraftHtml).toContain("id=\"mock-results-view\"");
+    expect(liveDraftHtml).toContain("id=\"mock-results-run-list\"");
+    expect(liveDraftHtml).toContain("id=\"mock-results-grid\"");
+    expect(liveDraftHtml).toContain("id=\"mock-results-title\"");
+    expect(liveDraftHtml).toContain("id=\"back-to-draft-room-button\"");
     expect(liveDraftHtml).toContain("id=\"add-owner\"");
     expect(liveDraftHtml).toContain("id=\"add-price\"");
     expect(liveDraftHtml).toContain("id=\"add-submit\"");
@@ -61,6 +67,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderDraftMode = state =>");
     expect(liveDraftHtml).toContain("const setDraftMode = async mode =>");
     expect(liveDraftHtml).toContain("const runMockBatch = async () =>");
+    expect(liveDraftHtml).toContain("const pollMockBatchJob = async jobId =>");
+    expect(liveDraftHtml).toContain("const renderMockBatchButtonState = job =>");
+    expect(liveDraftHtml).toContain("const renderMockResultsRoute = report =>");
+    expect(liveDraftHtml).toContain("const renderMockResultsGrid = run =>");
+    expect(liveDraftHtml).toContain("const renderMockResultsRankingsCard = rankings =>");
+    expect(liveDraftHtml).toContain("window.location.assign('/mock-results')");
     expect(liveDraftHtml).toContain("const syncMockNominationSelection = mockDraft =>");
     expect(liveDraftHtml).toContain("const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.personalValue");
     expect(liveDraftHtml).toContain("byId('add-price').value = String(nominationPrice)");
@@ -76,6 +88,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("Start real draft");
     expect(liveDraftHtml).toContain("Start mock draft");
     expect(liveDraftHtml).toContain("Run mocks");
+    expect(liveDraftHtml).toContain("See results");
+    expect(liveDraftHtml).toContain("Mock Results");
+    expect(liveDraftHtml).toContain("grid-template-columns: repeat(5, minmax(220px, 1fr));");
     expect(liveDraftHtml).not.toContain("mockDraftItem('AI max bids'");
     expect(liveDraftHtml).toContain("strategyKey: currentStrategyKey");
     expect(liveDraftHtml).toContain("const renderPositionMarket = state =>");

@@ -263,6 +263,29 @@ export const liveDraftHtml = `<!doctype html>
       text-align: right;
     }
 
+    #run-mock-batch-button {
+      --mock-progress: 0%;
+      min-width: 0;
+      min-height: 34px;
+      background:
+        linear-gradient(90deg, rgba(99, 168, 255, 0.58) var(--mock-progress), transparent var(--mock-progress)),
+        rgba(12, 32, 51, 0.9);
+      color: #d9e7f5;
+      font-weight: 750;
+    }
+
+    #run-mock-batch-button.mock-batch-running:disabled {
+      opacity: 1;
+    }
+
+    #run-mock-batch-button.mock-batch-ready {
+      border-color: rgba(31, 207, 143, 0.72);
+      background:
+        linear-gradient(90deg, rgba(31, 207, 143, 0.78) var(--mock-progress), transparent var(--mock-progress)),
+        rgba(12, 32, 51, 0.9);
+      color: #eafff7;
+    }
+
     .mode-status {
       display: grid;
       gap: 2px;
@@ -881,6 +904,222 @@ export const liveDraftHtml = `<!doctype html>
       font-size: 13px;
     }
 
+    .results-view {
+      min-height: 100vh;
+      background: linear-gradient(180deg, rgba(8, 24, 38, 0.96), rgba(5, 11, 18, 0.98));
+      color: var(--text);
+    }
+
+    .results-view[hidden], .app[hidden] {
+      display: none;
+    }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 72px;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(5, 11, 18, 0.72);
+    }
+
+    .results-title-block {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .results-header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .results-header-actions button {
+      min-height: 34px;
+      padding: 0 12px;
+      font-weight: 650;
+    }
+
+    .results-main {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      min-height: auto;
+      padding: 18px 24px 28px;
+    }
+
+    .results-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .run-selector {
+      position: relative;
+      min-width: 220px;
+    }
+
+    #mock-results-run-button {
+      width: 100%;
+      min-height: 36px;
+      padding: 0 12px;
+      text-align: left;
+      font-weight: 750;
+    }
+
+    .run-options {
+      position: absolute;
+      z-index: 5;
+      top: calc(100% + 6px);
+      left: 0;
+      display: grid;
+      width: min(320px, 84vw);
+      max-height: 340px;
+      overflow: auto;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #07131f;
+      box-shadow: var(--shadow);
+    }
+
+    .run-options[hidden] {
+      display: none;
+    }
+
+    .run-option {
+      width: 100%;
+      min-height: 32px;
+      padding: 0 9px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+    }
+
+    .run-option[aria-selected="true"] {
+      background: rgba(99, 168, 255, 0.16);
+      color: #e7f2ff;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(220px, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .mock-results-card {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-width: 0;
+      min-height: 430px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(8, 24, 38, 0.92);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .mock-results-card-header {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(5, 11, 18, 0.34);
+    }
+
+    .mock-results-card-header strong {
+      color: #f4f8fc;
+      font-size: 15px;
+      line-height: 1.1;
+    }
+
+    .mock-results-scoreline {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .mock-results-scoreline span {
+      min-width: 0;
+      padding: 5px 6px;
+      border: 1px solid var(--line-soft);
+      border-radius: 5px;
+      background: rgba(12, 32, 51, 0.62);
+      color: var(--muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.15;
+    }
+
+    .mock-results-scoreline b {
+      display: block;
+      margin-top: 2px;
+      color: #f4f8fc;
+      font-size: 13px;
+    }
+
+    .mock-results-player-list {
+      display: grid;
+      align-content: start;
+      gap: 5px;
+      min-height: 0;
+      overflow: auto;
+      padding: 8px;
+    }
+
+    .mock-results-player {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) 38px 44px;
+      gap: 6px;
+      align-items: center;
+      min-height: 28px;
+      padding: 5px 6px;
+      border: 1px solid rgba(21, 50, 77, 0.72);
+      border-radius: 5px;
+      background: rgba(5, 11, 18, 0.28);
+      font-size: 12px;
+    }
+
+    .mock-results-player.bench {
+      opacity: 0.72;
+    }
+
+    .mock-results-slot {
+      color: var(--accent);
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .mock-results-name {
+      min-width: 0;
+      overflow: hidden;
+      color: #d9e7f5;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mock-results-money, .mock-results-score {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .mock-results-score {
+      color: var(--muted);
+    }
+
+    .rankings-card .mock-results-player {
+      grid-template-columns: 28px minmax(0, 1fr) 48px 54px;
+    }
+
     .delta-up {
       color: #ff9a94;
       font-weight: 700;
@@ -950,7 +1189,7 @@ export const liveDraftHtml = `<!doctype html>
   </style>
 </head>
 <body>
-  <div class="app">
+  <div class="app" id="draft-room-view">
     <nav class="sidebar" aria-label="Draft room controls">
       <div class="window-controls" aria-hidden="true">
         <span class="window-dot red"></span>
@@ -1134,6 +1373,27 @@ export const liveDraftHtml = `<!doctype html>
       </main>
     </div>
   </div>
+  <div class="results-view" id="mock-results-view" hidden>
+    <header class="results-header">
+      <div class="results-title-block">
+        <h1>Mock Results</h1>
+        <div class="subtle" id="mock-results-title">No completed mock batch yet.</div>
+      </div>
+      <div class="results-header-actions">
+        <button type="button" id="back-to-draft-room-button">Draft room</button>
+      </div>
+    </header>
+    <main class="results-main">
+      <div class="results-toolbar">
+        <div class="run-selector">
+          <button type="button" id="mock-results-run-button">Run results</button>
+          <div class="run-options" id="mock-results-run-list" hidden></div>
+        </div>
+        <div class="subtle" id="mock-results-status"></div>
+      </div>
+      <div class="results-grid" id="mock-results-grid"></div>
+    </main>
+  </div>
   <script>
     let currentState = null;
     let selectedTargetName = null;
@@ -1144,6 +1404,8 @@ export const liveDraftHtml = `<!doctype html>
     let currentStrategyKey = 'three-rb';
     let currentDraftMode = 'real';
     let latestMockBatchReport = null;
+    let latestMockBatchJob = null;
+    let selectedMockResultsRunIndex = 0;
 
     const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST'];
     const strategyKeys = ['balanced', 'three-rb', 'hero-rb', 'wr-heavy'];
@@ -1175,6 +1437,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const byId = id => document.getElementById(id);
     const money = value => '$' + Math.round(Number(value || 0));
+    const scoreText = value => Number(value || 0).toFixed(1);
     const deltaMoney = value => {
       const rounded = Math.round(Number(value || 0));
       if (rounded === 0) return '$0';
@@ -1199,7 +1462,9 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const focusCommandInput = () => {
-      requestAnimationFrame(() => byId('quick-sale-command').focus());
+      requestAnimationFrame(() => {
+        if (!byId('draft-room-view').hidden) byId('quick-sale-command').focus();
+      });
     };
 
     const postJson = async (url, body) => {
@@ -1430,6 +1695,156 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       root.replaceChildren(...items);
+    };
+
+    const mockResultsPlayerRow = player => {
+      const row = document.createElement('div');
+      row.className = 'mock-results-player' + (player.starter ? '' : ' bench');
+      row.replaceChildren(
+        textElement('span', player.slot, 'mock-results-slot'),
+        textElement('span', player.name, 'mock-results-name'),
+        textElement('span', money(player.price), 'mock-results-money'),
+        textElement('span', scoreText(player.week1), 'mock-results-score')
+      );
+      return row;
+    };
+
+    const mockResultsTeamCard = team => {
+      const card = document.createElement('div');
+      card.className = 'mock-results-card';
+
+      const header = document.createElement('div');
+      header.className = 'mock-results-card-header';
+      const scoreline = document.createElement('div');
+      scoreline.className = 'mock-results-scoreline';
+      for (const [label, value] of [
+        ['Week 1', scoreText(team.week1Score)],
+        ['Weeks 1-4', scoreText(team.weeks1To4Score)],
+        ['Spend', money(team.spend)]
+      ]) {
+        const metric = document.createElement('span');
+        metric.replaceChildren(document.createTextNode(label), textElement('b', value));
+        scoreline.appendChild(metric);
+      }
+      header.replaceChildren(textElement('strong', team.owner), scoreline);
+
+      const players = document.createElement('div');
+      players.className = 'mock-results-player-list';
+      players.replaceChildren(...team.players.map(mockResultsPlayerRow));
+      card.replaceChildren(header, players);
+      return card;
+    };
+
+    const renderMockResultsRankingsCard = rankings => {
+      const card = document.createElement('div');
+      card.className = 'mock-results-card rankings-card';
+
+      const header = document.createElement('div');
+      header.className = 'mock-results-card-header';
+      const topScore = rankings[0] ? scoreText(rankings[0].projectedFinishScore) : '0.0';
+      const scoreline = document.createElement('div');
+      scoreline.className = 'mock-results-scoreline';
+      const metric = document.createElement('span');
+      metric.replaceChildren(document.createTextNode('Top score'), textElement('b', topScore));
+      scoreline.appendChild(metric);
+      header.replaceChildren(textElement('strong', 'AI Rankings'), scoreline);
+
+      const list = document.createElement('div');
+      list.className = 'mock-results-player-list';
+      list.replaceChildren(...rankings.map(ranking => {
+        const row = document.createElement('div');
+        row.className = 'mock-results-player';
+        row.replaceChildren(
+          textElement('span', '#' + ranking.rank, 'mock-results-slot'),
+          textElement('span', ranking.owner, 'mock-results-name'),
+          textElement('span', scoreText(ranking.week1Score), 'mock-results-score'),
+          textElement('span', scoreText(ranking.projectedFinishScore), 'mock-results-score')
+        );
+        return row;
+      }));
+
+      card.replaceChildren(header, list);
+      return card;
+    };
+
+    const renderMockResultsGrid = run => {
+      const root = byId('mock-results-grid');
+      if (!run) {
+        root.replaceChildren(mockDraftItem('No run selected', 'Run mocks from the draft room first.'));
+        return;
+      }
+
+      root.replaceChildren(
+        ...run.teams.map(mockResultsTeamCard),
+        renderMockResultsRankingsCard(run.rankings)
+      );
+    };
+
+    const renderMockResultsRunSelector = report => {
+      const runs = report && report.runs ? report.runs : [];
+      const selectedRun = runs[selectedMockResultsRunIndex] || runs[0];
+      const button = byId('mock-results-run-button');
+      const list = byId('mock-results-run-list');
+      button.textContent = selectedRun ? selectedRun.label : 'Run results';
+      list.replaceChildren(...runs.map((run, index) => {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.className = 'run-option';
+        option.textContent = run.label;
+        option.setAttribute('aria-selected', String(index === selectedMockResultsRunIndex));
+        option.addEventListener('click', () => {
+          selectedMockResultsRunIndex = index;
+          list.hidden = true;
+          renderMockResultsRoute(latestMockBatchReport);
+        });
+        return option;
+      }));
+    };
+
+    const renderMockResultsRoute = report => {
+      latestMockBatchReport = report || latestMockBatchReport;
+      byId('draft-room-view').hidden = true;
+      byId('mock-results-view').hidden = false;
+
+      if (!latestMockBatchReport || !latestMockBatchReport.runs || !latestMockBatchReport.runs.length) {
+        byId('mock-results-title').textContent = 'No completed mock batch yet.';
+        byId('mock-results-status').textContent = 'Start a batch from the draft room.';
+        byId('mock-results-run-button').textContent = 'Run results';
+        byId('mock-results-run-list').replaceChildren();
+        byId('mock-results-grid').replaceChildren(mockDraftItem('No results yet', 'Run mocks, wait for the progress bar, then come back here.'));
+        return;
+      }
+
+      selectedMockResultsRunIndex = Math.min(selectedMockResultsRunIndex, latestMockBatchReport.runs.length - 1);
+      const run = latestMockBatchReport.runs[selectedMockResultsRunIndex];
+      const strategyNames = [...new Set(latestMockBatchReport.runs.map(candidate => candidate.strategyKey))];
+      const strategySummary = strategyNames.length > 1 ? 'strategy comparison' : latestMockBatchReport.options.strategyKey;
+      byId('mock-results-title').textContent =
+        latestMockBatchReport.summary.runCount + ' completed runs - ' + strategySummary + ' - expected keepers';
+      byId('mock-results-status').textContent =
+        run.label + ' / ' + run.scenarioLabel + ' / seed ' + run.seed;
+      renderMockResultsRunSelector(latestMockBatchReport);
+      renderMockResultsGrid(run);
+    };
+
+    const renderMockResultsLoading = job => {
+      byId('draft-room-view').hidden = true;
+      byId('mock-results-view').hidden = false;
+      byId('mock-results-title').textContent = 'Mock batch running.';
+      byId('mock-results-status').textContent = String(job.percent || 0) + '% complete';
+      byId('mock-results-run-button').textContent = 'Waiting for results';
+      byId('mock-results-run-list').replaceChildren();
+      byId('mock-results-grid').replaceChildren(mockDraftItem('Running mocks', String(job.percent || 0) + '% complete'));
+    };
+
+    const renderMockResultsError = message => {
+      byId('draft-room-view').hidden = true;
+      byId('mock-results-view').hidden = false;
+      byId('mock-results-title').textContent = 'Mock results unavailable.';
+      byId('mock-results-status').textContent = message;
+      byId('mock-results-run-button').textContent = 'Run results';
+      byId('mock-results-run-list').replaceChildren();
+      byId('mock-results-grid').replaceChildren(mockDraftItem('Could not load results', message));
     };
 
     const targetMatchesQuery = (target, query) => {
@@ -1910,11 +2325,78 @@ export const liveDraftHtml = `<!doctype html>
       focusCommandInput();
     };
 
-    const runMockBatch = async () => {
+    const renderMockBatchButtonState = job => {
       const button = byId('run-mock-batch-button');
+      const input = byId('mock-batch-runs');
+      const status = job ? job.status : '';
+      const percent = Math.max(0, Math.min(100, Number(job && job.percent ? job.percent : 0)));
+      const isRunning = status === 'queued' || status === 'running';
+      const isReady = status === 'complete' && job && job.result;
+
+      button.style.setProperty('--mock-progress', percent + '%');
+      button.classList.toggle('mock-batch-running', isRunning);
+      button.classList.toggle('mock-batch-ready', Boolean(isReady));
+      button.disabled = isRunning;
+      input.disabled = isRunning;
+
+      if (isRunning) {
+        button.textContent = percent > 0 ? percent + '% complete' : 'Starting mocks';
+        return;
+      }
+
+      if (isReady) {
+        button.textContent = 'See results';
+        return;
+      }
+
+      button.textContent = 'Run mocks';
+    };
+
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+    const fetchMockBatchJob = async jobId => {
+      const response = await fetch('/api/mock-batch/' + encodeURIComponent(jobId));
+      const job = await response.json();
+      if (!response.ok) throw new Error(job.error || 'Could not load mock batch job.');
+      return job;
+    };
+
+    const pollMockBatchJob = async jobId => {
+      const job = await fetchMockBatchJob(jobId);
+      latestMockBatchJob = job;
+      if (job.result) {
+        latestMockBatchReport = job.result;
+        renderMockBatchResults(job.result);
+      }
+      renderMockBatchButtonState(job);
+
+      if (window.location.pathname === '/mock-results') {
+        if (job.status === 'complete' && job.result) renderMockResultsRoute(job.result);
+        else renderMockResultsLoading(job);
+      }
+
+      if (job.status === 'complete') return job;
+      if (job.status === 'failed') throw new Error(job.error || 'Mock batch failed.');
+
+      await wait(250);
+      return pollMockBatchJob(jobId);
+    };
+
+    const loadLatestMockBatchJob = async () => {
+      const response = await fetch('/api/mock-batch/latest');
+      const job = await response.json();
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(job.error || 'Could not load mock batch results.');
+      return job;
+    };
+
+    const runMockBatch = async () => {
+      if (latestMockBatchJob && latestMockBatchJob.status === 'complete' && latestMockBatchJob.result) {
+        window.location.assign('/mock-results');
+        return;
+      }
+
       const runs = Number(byId('mock-batch-runs').value || 25);
-      button.disabled = true;
-      button.textContent = 'Running';
       try {
         const response = await fetch('/api/mock-batch', {
           method: 'POST',
@@ -1925,17 +2407,63 @@ export const liveDraftHtml = `<!doctype html>
             seedPrefix: 'live-ui-' + currentStrategyKey
           })
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Could not run mock batch.');
-        renderMockBatchResults(data);
+        const job = await response.json();
+        if (!response.ok) throw new Error(job.error || 'Could not run mock batch.');
+        latestMockBatchJob = job;
+        renderMockBatchButtonState(job);
+        await pollMockBatchJob(job.jobId);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not run mock batch.';
         byId('mock-batch-results').replaceChildren(mockDraftItem('Mock batch failed', message));
-      } finally {
-        button.disabled = false;
-        button.textContent = 'Run mocks';
+        latestMockBatchJob = { status: 'failed', percent: 0, error: message };
+        renderMockBatchButtonState(latestMockBatchJob);
+      }
+
+      if (window.location.pathname !== '/mock-results') {
         focusCommandInput();
       }
+    };
+
+    const renderDraftRoomRoute = async () => {
+      byId('draft-room-view').hidden = false;
+      byId('mock-results-view').hidden = true;
+      await refreshDraftRoom();
+      renderMockBatchButtonState(latestMockBatchJob);
+      focusCommandInput();
+    };
+
+    const renderMockResultsPage = async () => {
+      byId('draft-room-view').hidden = true;
+      byId('mock-results-view').hidden = false;
+
+      try {
+        const job = await loadLatestMockBatchJob();
+        latestMockBatchJob = job;
+        if (!job) {
+          renderMockResultsRoute(null);
+          return;
+        }
+
+        if (job.result) latestMockBatchReport = job.result;
+        if (job.status === 'complete' && job.result) {
+          renderMockResultsRoute(job.result);
+          return;
+        }
+
+        renderMockResultsLoading(job);
+        await pollMockBatchJob(job.jobId);
+      } catch (error) {
+        renderMockResultsError(error instanceof Error ? error.message : 'Could not load mock results.');
+      }
+    };
+
+    const renderCurrentRoute = async () => {
+      if (window.location.pathname === '/mock-results') {
+        await renderMockResultsPage();
+        return;
+      }
+
+      await renderDraftRoomRoute();
     };
 
     const postJsonAndRefresh = async (url, body) => {
@@ -2116,10 +2644,16 @@ export const liveDraftHtml = `<!doctype html>
     byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
     byId('mock-cam-win-button').addEventListener('click', () => advanceMockDraft('cam-bid'));
     byId('mock-pass-button').addEventListener('click', () => advanceMockDraft('pass'));
-
-    refreshDraftRoom().then(() => {
-      focusCommandInput();
+    byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign('/'));
+    byId('mock-results-run-button').addEventListener('click', () => {
+      const list = byId('mock-results-run-list');
+      list.hidden = !list.hidden;
     });
+    document.addEventListener('click', event => {
+      if (!event.target.closest || !event.target.closest('.run-selector')) byId('mock-results-run-list').hidden = true;
+    });
+
+    renderCurrentRoute();
   </script>
 </body>
 </html>`;

@@ -53,6 +53,24 @@ export interface RunMockBatchOptions extends Omit<RunMockOptions, "scenarioKey" 
   seedPrefix?: string;
 }
 
+export interface RunMockBatchProgress {
+  run: MockRun;
+  completedRuns: number;
+  totalRuns: number;
+}
+
+export interface RunMockBatchRunContext {
+  scenarioKey: KeeperScenarioKey;
+  runIndex: number;
+  completedRuns: number;
+  seed: string;
+}
+
+export interface RunMockBatchProgressiveOptions extends RunMockBatchOptions {
+  auctionConfigOverridesForRun?: (context: RunMockBatchRunContext) => AuctionEngineConfigOverrides;
+  onRunComplete?: (progress: RunMockBatchProgress) => void | Promise<void>;
+}
+
 export interface MockInputCounts {
   pricedPlayers: number;
   auctionPlayers: number;
@@ -605,6 +623,69 @@ export const runMockBatch = ({
       ),
     ),
   );
+
+  return {
+    options: {
+      scenarioKeys: normalizedScenarioKeys,
+      runsPerScenario,
+      seedPrefix,
+      ...(diagnosticsMode === "full" ? {} : { diagnosticsMode }),
+    },
+    runs,
+    summary: summarizeMockBatch(runs),
+  };
+};
+
+export const runMockBatchProgressively = async ({
+  projections,
+  historicalRecords,
+  keepers,
+  scenarioKeys = defaultScenarioKeys,
+  runsPerScenario = defaultRunsPerScenario,
+  seedPrefix = defaultSeedPrefix,
+  pricingConfig = defaultPricingConfig,
+  auctionConfigOverrides = {},
+  auctionConfigOverridesForRun,
+  diagnosticsMode = "full",
+  onRunComplete,
+}: RunMockBatchProgressiveOptions): Promise<MockBatch> => {
+  const normalizedScenarioKeys = [...scenarioKeys];
+  const preparation = prepareMockInputs({
+    projections,
+    historicalRecords,
+    keepers,
+    scenarioKeys: normalizedScenarioKeys,
+    pricingConfig,
+  });
+  const totalRuns = preparation.scenarios.length * runsPerScenario;
+  const runs: MockRun[] = [];
+
+  for (const preparedScenario of preparation.scenarios) {
+    for (let index = 0; index < runsPerScenario; index += 1) {
+      const seed = `${seedPrefix}:${preparedScenario.scenario.key}:${index + 1}`;
+      const runContext: RunMockBatchRunContext = {
+        scenarioKey: preparedScenario.scenario.key,
+        runIndex: index + 1,
+        completedRuns: runs.length,
+        seed,
+      };
+      const run = runPreparedScenario(
+        preparedScenario,
+        preparation.ownerDemandMultipliers,
+        preparation.ownerBehaviors,
+        preparation.ownerRosterMaximums,
+        seed,
+        auctionConfigOverridesForRun?.(runContext) ?? auctionConfigOverrides,
+        diagnosticsMode,
+      );
+      runs.push(run);
+      await onRunComplete?.({
+        run,
+        completedRuns: runs.length,
+        totalRuns,
+      });
+    }
+  }
 
   return {
     options: {

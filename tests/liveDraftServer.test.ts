@@ -2,10 +2,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { ownerOrder } from "../config/league.js";
 import {
   createLiveDraftServer,
   type CreateLiveDraftServerOptions,
 } from "../src/liveDraftServer.js";
+import type { MockBatch } from "../src/modeling/mockBatch.js";
 
 const tempSessionDirectory = async (): Promise<string> =>
   mkdtemp(join(tmpdir(), "mockd-live-draft-server-"));
@@ -29,55 +31,134 @@ const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiv
   },
 };
 
-const mockBatchRunner: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner"]> = options => ({
-  options: {
-    scenarioKeys: [...(options.scenarioKeys ?? ["expected"])],
-    runsPerScenario: options.runsPerScenario ?? 1,
-    seedPrefix: options.seedPrefix ?? "test",
-    ...(options.diagnosticsMode === undefined ? {} : { diagnosticsMode: options.diagnosticsMode }),
-  },
-  runs: [],
-  summary: {
-    runCount: options.runsPerScenario ?? 1,
-    scenarios: [{
-      key: "expected",
-      label: "Expected",
-      runCount: options.runsPerScenario ?? 1,
-      invalidRosterCount: 0,
-      averagePickCount: 218,
-    }],
-    players: [{
-      name: "Jahmyr Gibbs",
-      position: "RB",
-      draftedCount: options.runsPerScenario ?? 1,
-      draftedRate: 1,
-      averageMarketPrice: 72,
-      averageSalePrice: 77,
-      minimumSalePrice: 76,
-      maximumSalePrice: 78,
-    }],
-    owners: [{
-      owner: "Cam",
-      runCount: options.runsPerScenario ?? 1,
-      invalidRosterCount: 0,
-      averageSpend: 199,
-      minimumSpend: 198,
-      maximumSpend: 200,
-      averageWeek1Score: 104,
-      averageWeeks1To4Score: 410,
-      averageBudgetRemaining: 1,
-      averagePositionSpend: { QB: 2, RB: 150, WR: 40, TE: 5, K: 1, DST: 1 },
-    }],
-    ownerPlayerExposure: [{
-      owner: "Cam",
-      player: "Jahmyr Gibbs",
-      position: "RB",
-      draftedCount: options.runsPerScenario ?? 1,
-      draftedRate: 1,
-      averagePrice: 77,
-    }],
-  },
+const testPlayer = (
+  name: string,
+  position: "QB" | "RB" | "WR" | "TE" | "K" | "DST",
+  price: number,
+  week1: number,
+) => ({
+  name,
+  position,
+  price,
+  week1,
+  weeks1To4: week1 * 4,
 });
+
+const testRosterPlayers = (owner: string) => [
+  testPlayer(`${owner} QB`, "QB", 2, 18),
+  testPlayer(`${owner} RB starter low`, "RB", 20, 6),
+  testPlayer(`${owner} RB starter high`, "RB", 45, 22),
+  testPlayer(`${owner} RB flex`, "RB", 12, 14),
+  testPlayer(`${owner} RB bench`, "RB", 4, 4),
+  testPlayer(`${owner} WR starter high`, "WR", 38, 20),
+  testPlayer(`${owner} WR starter low`, "WR", 18, 15),
+  testPlayer(`${owner} WR bench`, "WR", 3, 5),
+  testPlayer(`${owner} TE`, "TE", 8, 10),
+  testPlayer(`${owner} TE bench`, "TE", 1, 2),
+  testPlayer(`${owner} K`, "K", 1, 8),
+  testPlayer(`${owner} DST`, "DST", 1, 7),
+  testPlayer(`${owner} Bench WR 1`, "WR", 1, 3),
+  testPlayer(`${owner} Bench WR 2`, "WR", 1, 2),
+  testPlayer(`${owner} Bench RB 1`, "RB", 1, 1),
+  testPlayer(`${owner} Bench RB 2`, "RB", 1, 0.5),
+];
+
+const mockBatchRunner: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner"]> = options => {
+  const runCount = options.runsPerScenario ?? 1;
+  const runs: MockBatch["runs"] = Array.from({ length: runCount }, (_, index) => {
+    const rosters = ownerOrder.map((owner, ownerIndex) => {
+      const players = testRosterPlayers(owner);
+      const spend = players.reduce((total, player) => total + player.price, 0);
+      const week1Score = 104 + ownerIndex + index;
+      return {
+        owner,
+        spend,
+        budgetRemaining: 200 - spend,
+        week1Score,
+        weeks1To4Score: week1Score * 4,
+        valid: true,
+        errors: [],
+        players,
+        positionSpend: { QB: 2, RB: 83, WR: 61, TE: 9, K: 1, DST: 1 },
+      };
+    });
+
+    return {
+      seed: `test-seed-${index + 1}`,
+      keeperScenario: {
+        key: "expected",
+        label: "Expected",
+        includedKeeperStatuses: ["confirmed", "assumed"],
+        keeperCounts: { QB: 1, RB: 6, WR: 6, TE: 1, K: 0, DST: 0 },
+        totalKeeperCost: 100,
+        openAuctionDollars: 2700,
+        globalFactor: 1.04,
+        positionFactors: { QB: 1, RB: 1.04, WR: 1.03, TE: 1.02, K: 1, DST: 1 },
+      },
+      inputCounts: {
+        pricedPlayers: 500,
+        auctionPlayers: 220,
+        lockedKeepers: 6,
+      },
+      pickCount: 218,
+      picks: [],
+      budgetTrajectory: [],
+      rosters,
+      invalidRosterCount: 0,
+      unsoldPlayerCount: 0,
+    };
+  });
+
+  return {
+    options: {
+      scenarioKeys: [...(options.scenarioKeys ?? ["expected"])],
+      runsPerScenario: runCount,
+      seedPrefix: options.seedPrefix ?? "test",
+      ...(options.diagnosticsMode === undefined ? {} : { diagnosticsMode: options.diagnosticsMode }),
+    },
+    runs,
+    summary: {
+      runCount,
+      scenarios: [{
+        key: "expected",
+        label: "Expected",
+        runCount,
+        invalidRosterCount: 0,
+        averagePickCount: 218,
+      }],
+      players: [{
+        name: "Jahmyr Gibbs",
+        position: "RB",
+        draftedCount: runCount,
+        draftedRate: 1,
+        averageMarketPrice: 72,
+        averageSalePrice: 77,
+        minimumSalePrice: 76,
+        maximumSalePrice: 78,
+      }],
+      owners: [{
+        owner: "Cam",
+        runCount,
+        invalidRosterCount: 0,
+        averageSpend: 199,
+        minimumSpend: 198,
+        maximumSpend: 200,
+        averageWeek1Score: 104,
+        averageWeeks1To4Score: 410,
+        averageBudgetRemaining: 1,
+        averagePositionSpend: { QB: 2, RB: 150, WR: 40, TE: 5, K: 1, DST: 1 },
+      }],
+      ownerPlayerExposure: [{
+        owner: "Cam",
+        player: "Jahmyr Gibbs",
+        position: "RB",
+        draftedCount: runCount,
+        draftedRate: 1,
+        averagePrice: 77,
+      }],
+    },
+  };
+};
 
 const listen = async (server: TestServer): Promise<string> =>
   new Promise(resolve => {
@@ -98,6 +179,16 @@ const post = async (baseUrl: string, path: string, body: Record<string, unknown>
     status: response.status,
     data: await response.json(),
   };
+};
+
+const waitForMockBatchJob = async (baseUrl: string, jobId: string) => {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const job = await fetch(`${baseUrl}/api/mock-batch/${jobId}`).then(response => response.json());
+    if (job.status === "complete" || job.status === "failed") return job;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+
+  throw new Error(`Mock batch job ${jobId} did not complete in test.`);
 };
 
 describe("live draft server", () => {
@@ -225,11 +316,17 @@ describe("live draft server", () => {
         runs: 3,
         seedPrefix: "server-batch",
       });
-      expect(batch.status).toBe(200);
-      expect(batch.data.mode).toBe("batch-mock");
-      expect(batch.data.summary.runCount).toBe(3);
-      expect(batch.data.cam.owner).toBe("Cam");
-      expect(batch.data.camTopExposures).toEqual([
+      expect(batch.status).toBe(202);
+      expect(batch.data.status).toMatch(/queued|running|complete/);
+      expect(batch.data.totalRuns).toBe(3);
+
+      const completedBatch = await waitForMockBatchJob(baseUrl, batch.data.jobId);
+      expect(completedBatch.status).toBe("complete");
+      expect(completedBatch.percent).toBe(100);
+      expect(completedBatch.result.mode).toBe("batch-mock");
+      expect(completedBatch.result.summary.runCount).toBe(3);
+      expect(completedBatch.result.cam.owner).toBe("Cam");
+      expect(completedBatch.result.camTopExposures).toEqual([
         expect.objectContaining({ player: "Jahmyr Gibbs", draftedRate: 1 }),
       ]);
 
@@ -239,6 +336,58 @@ describe("live draft server", () => {
         .then(response => response.json());
       expect(realAfterBatch.session.commandCount).toBe(1);
       expect(practiceAfterBatch.session.commandCount).toBe(1);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("serves mock results and returns complete optimized 14-team run payloads", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const resultsPage = await fetch(`${baseUrl}/mock-results`);
+      expect(resultsPage.status).toBe(200);
+      expect(await resultsPage.text()).toContain("id=\"mock-results-view\"");
+
+      const started = await post(baseUrl, "/api/mock-batch", {
+        strategyKey: "three-rb",
+        runs: 2,
+        seedPrefix: "results-test",
+      });
+      const completed = await waitForMockBatchJob(baseUrl, started.data.jobId);
+      expect(completed.result.runs).toHaveLength(2);
+      expect(completed.result.runs[0].label).toBe("Run 1: 3rb");
+      expect(completed.result.runs[0].teams).toHaveLength(ownerOrder.length);
+      expect(completed.result.runs[0].rankings).toHaveLength(ownerOrder.length);
+
+      const cam = completed.result.runs[0].teams.find((team: { owner: string }) => team.owner === "Cam");
+      expect(cam.players).toHaveLength(16);
+      expect(cam.starters.map((player: { slot: string }) => player.slot)).toEqual([
+        "QB",
+        "RB1",
+        "RB2",
+        "WR1",
+        "WR2",
+        "TE",
+        "FLEX",
+        "K",
+        "DST",
+      ]);
+      expect(cam.starters.find((player: { slot: string }) => player.slot === "RB1").name).toBe("Cam RB starter high");
+      expect(cam.starters.find((player: { slot: string }) => player.slot === "RB2").name).toBe("Cam RB flex");
+      expect(cam.starters.find((player: { slot: string }) => player.slot === "FLEX").name).toBe("Cam RB starter low");
+
+      const latest = await fetch(`${baseUrl}/api/mock-batch/latest`).then(response => response.json());
+      expect(latest.jobId).toBe(started.data.jobId);
+      expect(latest.result.runs[1].label).toBe("Run 2: balanced");
+      expect(latest.result.runStrategyKeys).toEqual(["three-rb", "balanced"]);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

@@ -25,10 +25,16 @@ import {
 import { strategyAuctionOverridesFor } from "./modeling/interactiveMockDraft.js";
 import {
   defaultLiveDraftStrategyKey,
+  liveDraftStrategies,
   parseLiveDraftStrategyKey,
   type LiveDraftStrategyKey,
 } from "./modeling/liveDraftStrategies.js";
-import { runMockBatch, type MockBatch, type RunMockBatchOptions } from "./modeling/mockBatch.js";
+import {
+  runMockBatchProgressively,
+  type MockBatch,
+  type RunMockBatchOptions,
+} from "./modeling/mockBatch.js";
+import { buildMockResultsReport, type MockResultsReport } from "./modeling/mockResults.js";
 import { loadEspnWeeksOneToFour, type ProjectionRecord } from "./projections.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
@@ -170,17 +176,6 @@ interface LiveDraftStateResponse extends LiveDraftState {
   readiness: LiveDraftReadiness;
 }
 
-interface CompactMockBatchReport {
-  mode: "batch-mock";
-  options: MockBatch["options"] & {
-    strategyKey: LiveDraftStrategyKey;
-  };
-  summary: MockBatch["summary"];
-  cam?: MockBatch["summary"]["owners"][number];
-  camTopExposures: MockBatch["summary"]["ownerPlayerExposure"];
-  topPlayers: MockBatch["summary"]["players"];
-}
-
 interface InteractiveMockDraftModule {
   buildInteractiveMockDraftState(options: {
     projections: readonly ProjectionRecord[];
@@ -195,6 +190,22 @@ interface InteractiveMockDraftModule {
 }
 
 type MockBatchRunner = (options: RunMockBatchOptions) => MockBatch;
+
+type MockBatchJobStatus = "queued" | "running" | "complete" | "failed";
+
+interface MockBatchJob {
+  jobId: string;
+  status: MockBatchJobStatus;
+  strategyKey: LiveDraftStrategyKey;
+  runStrategyKeys: readonly LiveDraftStrategyKey[];
+  totalRuns: number;
+  completedRuns: number;
+  percent: number;
+  startedAt: string;
+  updatedAt: string;
+  result?: MockResultsReport;
+  error?: string;
+}
 
 export interface CreateLiveDraftServerOptions {
   sessionDirectory?: string;
@@ -279,26 +290,6 @@ const seedFromValue = (value: unknown): string | undefined => {
   return seed ? seed : undefined;
 };
 
-const compactMockBatchReport = (
-  batch: MockBatch,
-  strategyKey: LiveDraftStrategyKey,
-): CompactMockBatchReport => {
-  const cam = batch.summary.owners.find(owner => owner.owner === "Cam");
-  return {
-    mode: "batch-mock",
-    options: {
-      ...batch.options,
-      strategyKey,
-    },
-    summary: batch.summary,
-    ...(cam === undefined ? {} : { cam }),
-    camTopExposures: batch.summary.ownerPlayerExposure
-      .filter(exposure => exposure.owner === "Cam")
-      .slice(0, 12),
-    topPlayers: batch.summary.players.slice(0, 12),
-  };
-};
-
 const commandFromInteractiveMockAction = (result: unknown): string => {
   if (!result || typeof result !== "object") {
     throw new Error("Interactive mock action did not return a sale command.");
@@ -317,6 +308,22 @@ const mockDraftRequestFor = (
   seed: string | undefined,
 ): { strategyKey: LiveDraftStrategyKey; seed?: string } =>
   seed === undefined ? { strategyKey } : { strategyKey, seed };
+
+const mockBatchStrategySequence = (
+  preferredStrategyKey: LiveDraftStrategyKey,
+  runCount: number,
+): LiveDraftStrategyKey[] => {
+  const strategyOrder = [
+    preferredStrategyKey,
+    ...(Object.keys(liveDraftStrategies) as LiveDraftStrategyKey[])
+      .filter(strategyKey => strategyKey !== preferredStrategyKey),
+  ];
+
+  return Array.from(
+    { length: runCount },
+    (_value, index) => strategyOrder[index % strategyOrder.length] ?? preferredStrategyKey,
+  );
+};
 
 export const createLiveDraftServer = async (
   options: CreateLiveDraftServerOptions = {},
@@ -395,12 +402,126 @@ export const createLiveDraftServer = async (
       mockDraft: await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed), commands }),
     };
   };
+  const mockBatchJobs = new Map<string, MockBatchJob>();
+  let latestMockBatchJobId: string | undefined;
+
+  const mockBatchJobResponseFor = (job: MockBatchJob): MockBatchJob => ({
+    jobId: job.jobId,
+    status: job.status,
+    strategyKey: job.strategyKey,
+    runStrategyKeys: job.runStrategyKeys,
+    totalRuns: job.totalRuns,
+    completedRuns: job.completedRuns,
+    percent: job.percent,
+    startedAt: job.startedAt,
+    updatedAt: job.updatedAt,
+    ...(job.result === undefined ? {} : { result: job.result }),
+    ...(job.error === undefined ? {} : { error: job.error }),
+  });
+
+  const updateMockBatchJobProgress = (
+    job: MockBatchJob,
+    completedRuns: number,
+  ): void => {
+    job.completedRuns = completedRuns;
+    job.percent = job.totalRuns <= 0 ? 100 : Math.round((completedRuns / job.totalRuns) * 100);
+    job.updatedAt = new Date().toISOString();
+  };
+
+  const yieldToEventLoop = async (): Promise<void> =>
+    new Promise(resolve => {
+      setTimeout(resolve, 0);
+    });
+
+  const runMockBatchJob = async ({
+    job,
+    runsPerScenario,
+    seedPrefix,
+  }: {
+    job: MockBatchJob;
+    runsPerScenario: number;
+    seedPrefix: string;
+  }): Promise<void> => {
+    job.status = "running";
+    job.updatedAt = new Date().toISOString();
+
+    try {
+      const batch = options.mockBatchRunner
+        ? options.mockBatchRunner({
+          projections,
+          historicalRecords,
+          keepers,
+          scenarioKeys: ["expected"],
+          runsPerScenario,
+          seedPrefix,
+          auctionConfigOverrides: strategyAuctionOverridesFor("Cam", job.strategyKey),
+          diagnosticsMode: "summary",
+        })
+        : await runMockBatchProgressively({
+          projections,
+          historicalRecords,
+          keepers,
+          scenarioKeys: ["expected"],
+          runsPerScenario,
+          seedPrefix,
+          auctionConfigOverridesForRun: context =>
+            strategyAuctionOverridesFor("Cam", job.runStrategyKeys[context.completedRuns] ?? job.strategyKey),
+          diagnosticsMode: "summary",
+          onRunComplete: async progress => {
+            updateMockBatchJobProgress(job, progress.completedRuns);
+            await yieldToEventLoop();
+          },
+        });
+
+      updateMockBatchJobProgress(job, job.totalRuns);
+      job.status = "complete";
+      job.result = buildMockResultsReport(batch, job.strategyKey, job.runStrategyKeys);
+      job.updatedAt = new Date().toISOString();
+    } catch (error) {
+      job.status = "failed";
+      job.error = error instanceof Error ? error.message : "Unknown mock batch error.";
+      job.updatedAt = new Date().toISOString();
+    }
+  };
+
+  const startMockBatchJob = ({
+    strategyKey,
+    runsPerScenario,
+    seedPrefix,
+  }: {
+    strategyKey: LiveDraftStrategyKey;
+    runsPerScenario: number;
+    seedPrefix: string;
+  }): MockBatchJob => {
+    const now = new Date().toISOString();
+    const job: MockBatchJob = {
+      jobId: `mock-batch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      status: "queued",
+      strategyKey,
+      runStrategyKeys: mockBatchStrategySequence(strategyKey, runsPerScenario),
+      totalRuns: runsPerScenario,
+      completedRuns: 0,
+      percent: 0,
+      startedAt: now,
+      updatedAt: now,
+    };
+
+    mockBatchJobs.set(job.jobId, job);
+    latestMockBatchJobId = job.jobId;
+    void runMockBatchJob({ job, runsPerScenario, seedPrefix });
+    return job;
+  };
 
   const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
 
       if (request.method === "GET" && url.pathname === "/") {
+        sendHtml(response);
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/mock-results") {
         sendHtml(response);
         return;
       }
@@ -504,18 +625,35 @@ export const createLiveDraftServer = async (
         const strategyKey = strategyKeyFromBody(body);
         const runsPerScenario = batchRunsPerScenarioFromValue(body.runs ?? body.runsPerScenario);
         const seedPrefix = seedPrefixFromValue(body.seedPrefix);
-        const mockBatchRunner = options.mockBatchRunner ?? runMockBatch;
-        const batch = mockBatchRunner({
-          projections,
-          historicalRecords,
-          keepers,
-          scenarioKeys: ["expected"],
+        const job = startMockBatchJob({
+          strategyKey,
           runsPerScenario,
           seedPrefix,
-          auctionConfigOverrides: strategyAuctionOverridesFor("Cam", strategyKey),
-          diagnosticsMode: "summary",
         });
-        sendJson(response, 200, compactMockBatchReport(batch, strategyKey));
+        sendJson(response, 202, mockBatchJobResponseFor(job));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/mock-batch/latest") {
+        const job = latestMockBatchJobId === undefined ? undefined : mockBatchJobs.get(latestMockBatchJobId);
+        if (!job) {
+          sendJson(response, 404, { error: "No mock batch job has run yet." });
+          return;
+        }
+
+        sendJson(response, 200, mockBatchJobResponseFor(job));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname.startsWith("/api/mock-batch/")) {
+        const jobId = decodeURIComponent(url.pathname.slice("/api/mock-batch/".length));
+        const job = mockBatchJobs.get(jobId);
+        if (!job) {
+          sendJson(response, 404, { error: `Unknown mock batch job "${jobId}".` });
+          return;
+        }
+
+        sendJson(response, 200, mockBatchJobResponseFor(job));
         return;
       }
 
