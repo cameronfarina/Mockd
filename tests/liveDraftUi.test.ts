@@ -132,6 +132,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("class=\"sidebar\"");
     expect(liveDraftHtml).toContain("class=\"workspace\"");
     expect(liveDraftHtml).toContain("class=\"sidebar-section\"");
+    expect(liveDraftHtml).toContain(".app.draft-active .header-actions");
+    expect(liveDraftHtml).toContain("grid-template-columns: minmax(0, 1fr) clamp(340px, 24vw, 410px)");
     expect(liveDraftHtml).toContain("data-sort-key=\"personalValue\">Our");
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\">Gap");
     expect(liveDraftHtml).toContain("data-sort-key=\"byeWeek\">Bye");

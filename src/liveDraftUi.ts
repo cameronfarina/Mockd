@@ -223,6 +223,27 @@ export const liveDraftHtml = `<!doctype html>
       width: var(--nav-rail-width);
     }
 
+    .app.draft-active header {
+      padding-right: 16px;
+      padding-left: 18px;
+    }
+
+    .app.draft-active .header-actions {
+      flex: 1 1 420px;
+      max-width: 520px;
+    }
+
+    .app.draft-active .header-search {
+      flex: 1 1 180px;
+      width: auto;
+      min-width: 160px;
+    }
+
+    .app.draft-active #end-draft-button {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
     .sidebar {
       display: flex;
       flex-direction: column;
@@ -619,6 +640,13 @@ export const liveDraftHtml = `<!doctype html>
       min-width: 0;
       min-height: 0;
       padding: 16px 24px 22px;
+    }
+
+    .app.draft-active main {
+      grid-template-columns: minmax(0, 1fr) clamp(340px, 24vw, 410px);
+      gap: 14px;
+      padding-right: 16px;
+      padding-left: 16px;
     }
 
     section, aside {
@@ -2495,6 +2523,10 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       main {
+        grid-template-columns: 1fr;
+      }
+
+      .app.draft-active main {
         grid-template-columns: 1fr;
       }
 
