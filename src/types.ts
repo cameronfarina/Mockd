@@ -8,6 +8,7 @@ export interface Player {
   price: number;
   week1: number;
   weeks1To4: number;
+  seasonProjection?: number;
   contextAdjustmentPercent?: number;
   contextEvidenceCount?: number;
 }

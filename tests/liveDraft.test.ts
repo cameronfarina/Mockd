@@ -88,6 +88,63 @@ describe("live draft room", () => {
     );
   });
 
+  it("prioritizes targets from full-season projection and current live price", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const initialState = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+    });
+    const discountedMarketState = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+      commands: ["jakub drafted kittle for 28"],
+    });
+
+    const initialGibbs = initialState.availableTargets.find(target => target.name === "Jahmyr Gibbs");
+    const discountedGibbs = discountedMarketState.availableTargets.find(target => target.name === "Jahmyr Gibbs");
+    const mccaffrey = initialState.availableTargets.find(target => target.name === "Christian McCaffrey");
+    const bijan = initialState.availableTargets.find(target => target.name === "Bijan Robinson");
+
+    expect(initialGibbs).toBeDefined();
+    expect(discountedGibbs).toBeDefined();
+    expect(mccaffrey).toBeDefined();
+    expect(bijan).toBeDefined();
+    expect(bijan?.seasonProjection).toBeGreaterThan(mccaffrey?.seasonProjection ?? 0);
+    expect(mccaffrey?.weeks1To4).toBeGreaterThan(bijan?.weeks1To4 ?? 0);
+    expect(bijan?.valueScore).toBeGreaterThan(mccaffrey?.valueScore ?? 0);
+    expect(discountedMarketState.room.liveInflationFactor).toBeLessThan(initialState.room.liveInflationFactor);
+    expect(discountedGibbs?.liveExpectedPrice).toBeLessThan(initialGibbs?.liveExpectedPrice ?? 0);
+    expect(discountedGibbs?.valueScore).toBeGreaterThan(initialGibbs?.valueScore ?? 0);
+  });
+
+  it("uses a full-season fallback when projection imports only have Weeks 1-4 totals", async () => {
+    const projections = (await loadEspnWeeksOneToFour(projectionPath)).map(projection => {
+      if (projection.name !== "Jahmyr Gibbs") return projection;
+      const { seasonProjection: _seasonProjection, ...projectionWithoutSeason } = projection;
+      return projectionWithoutSeason;
+    });
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+    });
+
+    const gibbs = state.availableTargets.find(target => target.name === "Jahmyr Gibbs");
+
+    expect(gibbs).toBeDefined();
+    expect(gibbs?.seasonProjection).toBeCloseTo((gibbs?.weeks1To4 ?? 0) * 4, 1);
+  });
+
   it("rejects impossible sale commands before changing the live draft state", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();

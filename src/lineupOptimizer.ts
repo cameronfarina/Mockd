@@ -1,11 +1,20 @@
 import type { LineupEntry, MockRoster, Player } from "./types.js";
 
-const byMetric = (metric: "week1" | "weeks1To4") => (a: Player, b: Player): number =>
-  b[metric] - a[metric] || a.price - b.price || a.name.localeCompare(b.name);
+export type LineupMetric = "week1" | "weeks1To4" | "seasonProjection";
+
+export const playerMetricValue = (player: Player, metric: LineupMetric): number => {
+  if (metric === "seasonProjection") return player.seasonProjection ?? player.weeks1To4 * 4;
+  return player[metric];
+};
+
+const byMetric = (metric: LineupMetric) => (a: Player, b: Player): number =>
+  playerMetricValue(b, metric) - playerMetricValue(a, metric) ||
+  a.price - b.price ||
+  a.name.localeCompare(b.name);
 
 export const optimizeLineup = (
   roster: MockRoster,
-  metric: "week1" | "weeks1To4",
+  metric: LineupMetric,
 ): LineupEntry[] => {
   const grouped = roster.players.reduce<Map<Player["position"], Player[]>>((map, player) => {
     const group = map.get(player.position) ?? [];
@@ -50,5 +59,5 @@ export const optimizeLineup = (
 
 export const lineupScore = (
   lineup: LineupEntry[],
-  metric: "week1" | "weeks1To4",
-): number => lineup.reduce((total, entry) => total + entry.player[metric], 0);
+  metric: LineupMetric,
+): number => lineup.reduce((total, entry) => total + playerMetricValue(entry.player, metric), 0);

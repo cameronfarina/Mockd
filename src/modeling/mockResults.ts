@@ -1,6 +1,6 @@
 import type { Owner, Position } from "../../config/league.js";
 import { ownerOrder } from "../../config/league.js";
-import { lineupScore, optimizeLineup } from "../lineupOptimizer.js";
+import { lineupScore, optimizeLineup, playerMetricValue } from "../lineupOptimizer.js";
 import type { LineupEntry, Player, StarterSlot } from "../types.js";
 import type { MockBatch, MockBatchSummary, MockRosterSummary, MockRun } from "./mockBatch.js";
 import type { LiveDraftStrategyKey } from "./liveDraftStrategies.js";
@@ -19,6 +19,7 @@ export interface MockResultsPlayer {
   price: number;
   week1: number;
   weeks1To4: number;
+  seasonProjection: number;
   starter: boolean;
 }
 
@@ -209,6 +210,7 @@ const playerResultFor = (
   price: player.price,
   week1: roundToTwo(player.week1),
   weeks1To4: roundToTwo(player.weeks1To4),
+  seasonProjection: roundToTwo(playerMetricValue(player, "seasonProjection")),
   starter,
 });
 
@@ -234,7 +236,7 @@ const benchPlayersFor = (
 };
 
 const seasonLineupFor = (roster: MockRosterSummary): LineupEntry[] =>
-  optimizeLineup({ strategy: "mock-results-season", players: roster.players }, "weeks1To4");
+  optimizeLineup({ strategy: "mock-results-season", players: roster.players }, "seasonProjection");
 
 const depthScoreFor = (
   roster: MockRosterSummary,
@@ -247,32 +249,38 @@ const depthScoreFor = (
     .filter(player => player.position !== "K" && player.position !== "DST")
     .sort(
       (left, right) =>
-        right.weeks1To4 - left.weeks1To4 ||
+        playerMetricValue(right, "seasonProjection") - playerMetricValue(left, "seasonProjection") ||
         right.week1 - left.week1 ||
         left.name.localeCompare(right.name),
     )
     .slice(0, weights.length);
 
   return roundToTwo(depthPlayers.reduce(
-    (total, player, index) => total + player.weeks1To4 * (weights[index] ?? 0),
+    (total, player, index) => total + playerMetricValue(player, "seasonProjection") * (weights[index] ?? 0),
     0,
   ));
 };
 
 const consistencyScoreFor = (seasonLineup: readonly LineupEntry[]): number =>
   roundToTwo(seasonLineup.reduce((total, entry) => {
-    const weekOnePace = entry.player.week1 * 4;
-    const strongerProjection = Math.max(weekOnePace, entry.player.weeks1To4, 1);
-    const steadiness = Math.min(weekOnePace, entry.player.weeks1To4) / strongerProjection;
+    const weekOnePace = entry.player.week1 * 17;
+    const seasonProjection = playerMetricValue(entry.player, "seasonProjection");
+    const strongerProjection = Math.max(weekOnePace, seasonProjection, 1);
+    const steadiness = Math.min(weekOnePace, seasonProjection) / strongerProjection;
     return total + steadiness * 1.5;
   }, 0));
 
 const teamResultFor = (roster: MockRosterSummary): MockResultsTeam => {
   const starters = optimizedWeekOneLineup(roster);
   const seasonLineup = seasonLineupFor(roster);
+  const weeksOneToFourLineup = optimizeLineup(
+    { strategy: "mock-results-weeks-1-4", players: roster.players },
+    "weeks1To4",
+  );
   const starterPlayers = starters.map(entry => playerResultFor(entry.player, entry.slot, true));
   const bench = benchPlayersFor(roster, starters);
-  const starterSeasonScore = roundToTwo(roster.weeks1To4Score ?? lineupScore(seasonLineup, "weeks1To4"));
+  const weeks1To4Score = roundToTwo(roster.weeks1To4Score ?? lineupScore(weeksOneToFourLineup, "weeks1To4"));
+  const starterSeasonScore = roundToTwo(lineupScore(seasonLineup, "seasonProjection"));
   const depthScore = depthScoreFor(roster, seasonLineup);
   const consistencyScore = consistencyScoreFor(seasonLineup);
 
@@ -281,7 +289,7 @@ const teamResultFor = (roster: MockRosterSummary): MockResultsTeam => {
     spend: roster.spend,
     budgetRemaining: roster.budgetRemaining,
     week1Score: roundToTwo(lineupScore(starters, "week1")),
-    weeks1To4Score: starterSeasonScore,
+    weeks1To4Score,
     starterSeasonScore,
     depthScore,
     consistencyScore,
@@ -298,7 +306,7 @@ const topStarterFor = (team: MockResultsTeam): MockResultsPlayer | undefined =>
   [...team.starters].sort(
     (left, right) =>
       right.week1 - left.week1 ||
-      right.weeks1To4 - left.weeks1To4 ||
+      right.seasonProjection - left.seasonProjection ||
       right.price - left.price ||
       left.name.localeCompare(right.name),
   )[0];
@@ -316,7 +324,7 @@ const corePlayersFor = (team: MockResultsTeam): MockResultsPlayer[] =>
     .sort(
       (left, right) =>
         right.week1 - left.week1 ||
-        right.weeks1To4 - left.weeks1To4 ||
+        right.seasonProjection - left.seasonProjection ||
         right.price - left.price ||
         left.name.localeCompare(right.name),
     )

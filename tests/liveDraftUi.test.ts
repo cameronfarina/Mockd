@@ -78,15 +78,19 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("data-sort-key=\"byeWeek\">Bye");
     expect(liveDraftHtml).toContain("data-sort-key=\"week1Projection\">W1");
     expect(liveDraftHtml).toContain("data-sort-key=\"seasonProjection\">Season");
-    expect(liveDraftHtml).toContain("<th class=\"money\" style=\"width:70px\">Score</th>");
+    expect(liveDraftHtml).toContain("<option value=\"valueScore:desc\">Draft priority</option>");
+    expect(liveDraftHtml).toContain("<th class=\"money\" style=\"width:86px\">Priority</th>");
     expect(liveDraftHtml).not.toContain("id=\"hide-deep-filter\"");
     expect(liveDraftHtml).not.toContain("Hide $1/fallback");
-    expect(liveDraftHtml).not.toContain("data-sort-key=\"valueScore\">Score");
+    expect(liveDraftHtml).not.toContain("data-sort-key=\"valueScore\">Priority");
   });
 
   it("includes board behavior for position filters, sortable values, and draft-day guardrails", () => {
     expect(liveDraftHtml).toContain("const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST']");
     expect(liveDraftHtml).toContain("const valueGapFor = target => target.personalValue - target.liveExpectedPrice");
+    expect(liveDraftHtml).toContain("const priorityAtPriceFor = (target, price)");
+    expect(liveDraftHtml).toContain("['Bid', money(bidPrice), '']");
+    expect(liveDraftHtml).toContain("['Priority', scoreText(priorityAtPriceFor(target, bidPrice)), '']");
     expect(liveDraftHtml).toContain("const strategyValueLabels =");
     expect(liveDraftHtml).toContain("const renderStrategyValues = target =>");
     expect(liveDraftHtml).toContain("target.strategyValues");

@@ -11,12 +11,14 @@ const player = (
   price: number,
   week1: number,
   weeks1To4: number,
+  seasonProjection = weeks1To4 * 4,
 ): Player => ({
   name: `${owner} ${label}`,
   position,
   price,
   week1,
   weeks1To4,
+  seasonProjection,
 });
 
 const rosterPlayers = (
@@ -140,5 +142,49 @@ describe("mock results report", () => {
       depthScore: expect.any(Number),
       consistencyScore: expect.any(Number),
     });
+  });
+
+  it("uses full-season projection for projected finish when it differs from Weeks 1-4", () => {
+    const rosters = ownerOrder.map(owner => {
+      const summary = owner === "Martins"
+        ? rosterSummary(owner, 0, 30, 0)
+        : rosterSummary(owner, 0, owner === "Cam" ? -10 : 0, 0);
+
+      if (owner === "Martins") {
+        return {
+          ...summary,
+          players: summary.players.map(current => ({
+            ...current,
+            seasonProjection: current.weeks1To4 * 2,
+          })),
+        };
+      }
+
+      if (owner === "Cam") {
+        return {
+          ...summary,
+          players: summary.players.map(current => ({
+            ...current,
+            seasonProjection: current.weeks1To4 * 7,
+          })),
+        };
+      }
+
+      return summary;
+    });
+
+    const report = buildMockResultsReport(mockBatch(rosters), "three-rb");
+    const run = report.runs[0];
+    expect(run).toBeDefined();
+    if (!run) throw new Error("Expected one mock results run");
+
+    const cam = run.teams.find(team => team.owner === "Cam");
+    const martins = run.teams.find(team => team.owner === "Martins");
+
+    expect(cam).toBeDefined();
+    expect(martins).toBeDefined();
+    expect(martins?.weeks1To4Score).toBeGreaterThan(cam?.weeks1To4Score ?? 0);
+    expect(cam?.starterSeasonScore).toBeGreaterThan(martins?.starterSeasonScore ?? 0);
+    expect(run.rankings[0]?.owner).toBe("Cam");
   });
 });

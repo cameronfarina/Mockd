@@ -352,6 +352,21 @@ const roundToTwo = (value: number): number =>
 const roundPrice = (value: number): number =>
   Math.max(1, Math.round(value));
 
+const draftPriorityScoreFor = ({
+  player,
+  needMultiplier,
+  liveExpectedPrice,
+}: {
+  player: LiveDraftPlayerRecord;
+  needMultiplier: number;
+  liveExpectedPrice: number;
+}): number => {
+  const seasonValueSignal = player.seasonProjection / 4;
+  const pricePenalty = liveExpectedPrice * 0.35;
+
+  return roundToTwo((seasonValueSignal * needMultiplier) - pricePenalty);
+};
+
 const teamMetadataFor = (
   proTeamId: number | undefined,
 ): { teamAbbreviation?: string; byeWeek?: number } => {
@@ -422,7 +437,7 @@ const liveRecordFromPrice = (price: ScenarioAdjustedPrice): LiveDraftPlayerRecor
   expectedPrice: price.scenarioPrice,
   week1: price.weeks[1] ?? 0,
   weeks1To4: price.weeks1To4,
-  seasonProjection: price.seasonProjection ?? price.weeks1To4,
+  seasonProjection: price.seasonProjection ?? price.weeks1To4 * 4,
   source: "pricedPool",
   ...teamMetadataFor(price.proTeamId),
   projectionRank: price.projectionRank,
@@ -439,7 +454,7 @@ const liveRecordFromProjection = (
   expectedPrice: projectionPriceFor(projection, scenario),
   week1: projection.weeks[1] ?? 0,
   weeks1To4: projection.weeks1To4,
-  seasonProjection: projection.seasonProjection ?? projection.weeks1To4,
+  seasonProjection: projection.seasonProjection ?? projection.weeks1To4 * 4,
   source: "projectionFallback",
   ...teamMetadataFor(projection.proTeamId),
   projectionRank: projection.projectionRank,
@@ -475,7 +490,7 @@ const keeperTargetFromDeclaration = ({
     : keeper.newCost;
   const week1 = projection?.weeks[1] ?? 0;
   const weeks1To4 = projection?.weeks1To4 ?? 0;
-  const seasonProjection = projection?.seasonProjection ?? weeks1To4;
+  const seasonProjection = projection?.seasonProjection ?? weeks1To4 * 4;
   const metadata = teamMetadataFor(projection?.proTeamId);
 
   return {
@@ -1093,7 +1108,11 @@ const buildTargets = ({
       const recommendedMaxBid = fitsWatchOwnerRoster
         ? Math.min(personalValue, strategyPathMaxBid ?? personalValue)
         : 0;
-      const valueScore = roundToTwo((player.weeks1To4 * needMultiplier) - recommendedMaxBid * 0.35);
+      const valueScore = draftPriorityScoreFor({
+        player,
+        needMultiplier,
+        liveExpectedPrice,
+      });
       const tags = targetTagsFor(player, watchOwner, strategy);
       if (strategyPathMaxBid !== undefined && strategyPathMaxBid < personalValue) {
         tags.push(`path max $${strategyPathMaxBid}`);

@@ -42,12 +42,14 @@ const projection = (
   name: string,
   position: Position,
   weeks1To4: number,
+  seasonProjection = weeks1To4 * 4,
 ): ProjectionRecord => ({
   id,
   name,
   position,
   weeks: { 1: weeks1To4 },
   weeks1To4,
+  seasonProjection,
 });
 
 describe("auction engine economics", () => {
@@ -99,6 +101,29 @@ describe("auction engine economics", () => {
     });
 
     expect(pool.map(poolPlayer => poolPlayer.price)).toEqual([1, 1, 1]);
+  });
+
+  it("carries full-season projections through priced and replacement auction players", () => {
+    const pool = buildAuctionPlayerPool({
+      pricedPlayers: [
+        {
+          id: 1,
+          name: "Priced RB",
+          position: "RB",
+          price: 12,
+          weeks1To4: 50,
+          seasonProjection: 260,
+        },
+      ],
+      projections: [
+        projection(1, "Priced RB", "RB", 50, 260),
+        projection(2, "Replacement 1", "RB", 49, 280),
+      ],
+      targetCount: 2,
+    });
+
+    expect(pool.find(poolPlayer => poolPlayer.name === "Priced RB")?.seasonProjection).toBe(260);
+    expect(pool.find(poolPlayer => poolPlayer.name === "Replacement 1")?.seasonProjection).toBe(280);
   });
 
   it("keeps replacement kickers and defenses at the fallback price", () => {

@@ -1591,7 +1591,7 @@ export const liveDraftHtml = `<!doctype html>
             <option value="wr-heavy">WR Heavy</option>
           </select>
           <select id="sort-select" aria-label="Board sort">
-            <option value="valueScore:desc">Best score</option>
+            <option value="valueScore:desc">Draft priority</option>
             <option value="valueGap:desc">Best value gap</option>
             <option value="tierDrop:desc">Biggest tier drop</option>
             <option value="personalValue:desc">Our value</option>
@@ -1622,7 +1622,7 @@ export const liveDraftHtml = `<!doctype html>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="personalValue">Our</button></th>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="valueGap">Gap</button></th>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="recommendedMaxBid">Max</button></th>
-                <th class="money" style="width:70px">Score</th>
+                <th class="money" style="width:86px">Priority</th>
               </tr>
             </thead>
             <tbody id="board"></tbody>
@@ -1800,7 +1800,7 @@ export const liveDraftHtml = `<!doctype html>
       personalValue: 'Our',
       valueGap: 'Gap',
       recommendedMaxBid: 'Max',
-      valueScore: 'Score'
+      valueScore: 'Priority'
     };
 
     const byId = id => document.getElementById(id);
@@ -1814,6 +1814,12 @@ export const liveDraftHtml = `<!doctype html>
     const cleanText = value => String(value == null ? '' : value);
     const safeFilePart = value => cleanText(value).replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '') || 'draft';
     const valueGapFor = target => target.personalValue - target.liveExpectedPrice;
+    const activeBidPriceFor = target => {
+      const price = priceInputValue();
+      return Number.isFinite(price) && price > 0 ? price : target.recommendedMaxBid;
+    };
+    const valueGapAtPriceFor = (target, price) => target.personalValue - price;
+    const priorityAtPriceFor = (target, price) => target.valueScore + (target.liveExpectedPrice - price) * 0.35;
     const isFlexPosition = position => flexPositions.includes(position);
     const selectedTarget = () => currentState && currentState.availableTargets.find(target => target.name === selectedTargetName);
     const ownerByName = name => currentState.owners.find(owner => owner.owner === name) || currentState.watchOwner;
@@ -3023,15 +3029,16 @@ export const liveDraftHtml = `<!doctype html>
         target.position + ' ' + (target.teamAbbreviation || '-') + ' - bye ' + (target.byeWeek || '-'),
         'subtle'
       );
+      const bidPrice = activeBidPriceFor(target);
       const values = document.createElement('div');
       values.className = 'selected-values';
       for (const [label, value, className] of [
         ['Exp', money(target.expectedPrice), ''],
         ['Live', money(target.liveExpectedPrice), ''],
+        ['Bid', money(bidPrice), ''],
         ['Our', money(target.personalValue), ''],
-        ['Gap', deltaMoney(valueGapFor(target)), gapClassFor(valueGapFor(target))],
-        ['W1', scoreText(target.week1Projection), ''],
-        ['Season', scoreText(target.seasonProjection), '']
+        ['Bid gap', deltaMoney(valueGapAtPriceFor(target, bidPrice)), gapClassFor(valueGapAtPriceFor(target, bidPrice))],
+        ['Priority', scoreText(priorityAtPriceFor(target, bidPrice)), '']
       ]) {
         const cell = document.createElement('div');
         cell.className = 'selected-value ' + className;

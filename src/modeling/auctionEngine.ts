@@ -388,6 +388,7 @@ export interface AuctionPricedPlayer {
   week1?: number;
   weeks?: Record<number, number>;
   weeks1To4: number;
+  seasonProjection?: number;
   contextAdjustmentPercent?: number;
   contextEvidence?: readonly unknown[];
   contextEvidenceCount?: number;
@@ -418,6 +419,9 @@ const targetAnchorRosterCount = 2;
 const onePlayerRosterCountThreshold = 1.4;
 const defaultReplacementPrice = 1;
 const defaultReplacementPriceLadder: readonly ReplacementPriceTier[] = [];
+
+const seasonProjectionForPlayer = (player: Pick<Player, "seasonProjection" | "weeks1To4">): number =>
+  player.seasonProjection ?? player.weeks1To4 * 4;
 
 const emptyPositionAmounts = (): PositionAmounts => ({
   QB: 0,
@@ -1667,6 +1671,7 @@ export const resolveAuctionSale = (
 
 const compareAuctionPlayers = (left: Player, right: Player): number =>
   right.price - left.price ||
+  seasonProjectionForPlayer(right) - seasonProjectionForPlayer(left) ||
   right.weeks1To4 - left.weeks1To4 ||
   left.name.localeCompare(right.name);
 
@@ -1689,7 +1694,7 @@ const highestMarketPrice = (players: readonly Player[]): number =>
   players.reduce((highest, player) => Math.max(highest, player.price), 0);
 
 const highestProjectionTotal = (players: readonly Player[]): number =>
-  players.reduce((highest, player) => Math.max(highest, player.weeks1To4), 0);
+  players.reduce((highest, player) => Math.max(highest, seasonProjectionForPlayer(player)), 0);
 
 export const nextNominationTurn = (
   ownerStates: readonly AuctionOwnerState[],
@@ -1945,7 +1950,8 @@ const nominationScoreFor = ({
   if (!nominatorContext) throw new Error(`Missing auction state for ${nominator}.`);
 
   const marketPriceScore = player.price / Math.max(1, topMarketPrice);
-  const projectionScore = player.weeks1To4 / Math.max(1, topProjectionTotal);
+  const projectionTotal = seasonProjectionForPlayer(player);
+  const projectionScore = projectionTotal / Math.max(1, topProjectionTotal);
   const ownerNeedScore = nominatorContext.needScore[player.position];
   const affordabilityScore = nominationAffordabilityScoreFor(
     nominatorContext,
@@ -2004,7 +2010,7 @@ const nominationScoreFor = ({
     player: player.name,
     position: player.position,
     marketPrice: player.price,
-    projectionTotal: player.weeks1To4,
+    projectionTotal,
     score,
     scoreComponents,
     weightedComponents,
@@ -2297,6 +2303,7 @@ export const buildInitialRostersFromKeepers = (
       price: declaration.newCost,
       week1: projection ? projectionWeekOne(projection) : 0,
       weeks1To4: projection?.weeks1To4 ?? 0,
+      ...(projection?.seasonProjection === undefined ? {} : { seasonProjection: projection.seasonProjection }),
     };
 
     rosters[declaration.owner] = [...(rosters[declaration.owner] ?? []), keeperPlayer];
@@ -2319,6 +2326,7 @@ const playerFromPricedRecord = (record: AuctionPricedPlayer): Player => {
     price: record.scenarioPrice ?? record.price,
     week1: record.week1 ?? record.weeks?.[1] ?? 0,
     weeks1To4: record.weeks1To4,
+    ...(record.seasonProjection === undefined ? {} : { seasonProjection: record.seasonProjection }),
     ...contextAdjustment,
     ...(contextEvidenceCount === undefined ? {} : { contextEvidenceCount }),
   };
@@ -2360,7 +2368,12 @@ export const buildAuctionPlayerPool = ({
 
   if (players.length < requestedCount) {
     const replacements = buildProjectionRankings(projections)
-      .sort((left, right) => right.weeks1To4 - left.weeks1To4 || left.name.localeCompare(right.name));
+      .sort(
+        (left, right) =>
+          (right.seasonProjection ?? right.weeks1To4 * 4) - (left.seasonProjection ?? left.weeks1To4 * 4) ||
+          right.weeks1To4 - left.weeks1To4 ||
+          left.name.localeCompare(right.name),
+      );
     let premiumReplacementIndex = 0;
 
     for (const replacement of replacements) {
@@ -2381,6 +2394,7 @@ export const buildAuctionPlayerPool = ({
         price,
         week1: projectionWeekOne(replacement),
         weeks1To4: replacement.weeks1To4,
+        ...(replacement.seasonProjection === undefined ? {} : { seasonProjection: replacement.seasonProjection }),
       });
       usedNames.add(replacement.normalizedName);
       if (isPremiumPosition(replacement.position)) premiumReplacementIndex += 1;
