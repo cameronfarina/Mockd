@@ -76,6 +76,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"mock-draft-panel\"");
     expect(liveDraftHtml).toContain("id=\"mock-active-nomination\"");
     expect(liveDraftHtml).toContain("id=\"mock-auction-feed\"");
+    expect(liveDraftHtml).toContain("class=\"mock-actions mock-auction-actions\"");
     expect(liveDraftHtml).toContain("id=\"mock-advance-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-nominate-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-cam-win-button\"");
@@ -178,6 +179,14 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("advanceMockDraft('next-round')");
     expect(liveDraftHtml).toContain("advanceMockDraft('complete-mock')");
     expect(liveDraftHtml).toContain("'Bid ' + money(mockDraft.auction.nextCamBid)");
+    expect(liveDraftHtml).toContain("'Sell to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price)");
+    expect(liveDraftHtml).toContain("'Ready to sell to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price)");
+    expect(liveDraftHtml).toContain("const mockAuctionResolutionEvents = auction =>");
+    expect(liveDraftHtml).toContain("const mockAuctionCamBidEvents = mockDraft =>");
+    expect(liveDraftHtml).toContain("await animateMockAuctionResolution();");
+    expect(liveDraftHtml).toContain("await animateMockCamBid();");
+    expect(liveDraftHtml).toContain("action === 'cam-bid'");
+    expect(liveDraftHtml).toContain("['advance', 'pass'].includes(action)");
     expect(liveDraftHtml).toContain("mockAuctionFeedLines(mockDraft)");
     expect(liveDraftHtml).toContain("className = 'mock-feed-line ' + event.type");
     expect(liveDraftHtml).toContain("mockDraftItem('Current nomination'");
@@ -187,6 +196,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("Mock mode - use auction controls");
     expect(liveDraftHtml).toContain("Mock auction sold ");
     expect(liveDraftHtml).toContain("Manual sale logging is disabled here.");
+    expect(liveDraftHtml).not.toContain("'AI sale ready at ' + money(auction.currentBid)");
     expect(liveDraftHtml).toContain("if (currentDraftMode === 'interactive-mock') focusCommandInput();");
     expect(liveDraftHtml).toContain("mode: currentDraftMode");
     expect(liveDraftHtml).toContain("mode=' + currentDraftMode");

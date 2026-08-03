@@ -66,7 +66,57 @@ describe("interactive mock draft", () => {
     });
   });
 
-  it("stops for Cam when his strategy value beats the AI price", async () => {
+  it("keeps AI sale previews open until the advance action logs the sale", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildInteractiveMockDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      commands: ["Cam drafted Jahmyr Gibbs for 80"],
+      watchOwner: "Cam",
+      strategyKey: "three-rb",
+      seed: "y",
+    });
+
+    expect(state.phase).toBe("ai-sale");
+    expect(state.auction?.status).toBe("ai-sale");
+    expect(state.auction?.resolution?.command).toBe(state.aiSaleCommand);
+    expect(state.auction?.feed.map(event => event.type)).toEqual([
+      "nomination",
+      "bid",
+      "bid",
+      "bid",
+      "bid",
+    ]);
+
+    const resolved = resolveInteractiveMockDraftAction(state, "advance");
+    expect(resolved.command).toBe(state.aiSaleCommand);
+  });
+
+  it("pauses for Cam when his value can still beat the room price", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildInteractiveMockDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      commands: [],
+      watchOwner: "Cam",
+      strategyKey: "three-rb",
+      seed: "y",
+    });
+
+    expect(state.nomination?.player).toBe("Puka Nacua");
+    expect(state.phase).toBe("human-decision");
+    expect(state.auction).toMatchObject({
+      currentBid: 74,
+      nextCamBid: 75,
+    });
+    expect(state.camDecision?.maxBid).toBeGreaterThanOrEqual(75);
+  });
+
+  it("stops for Cam when his player value beats the AI price", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const commandsBeforeCamNomination = commandsBeforeAffordableRb3Decision.slice(0, 10);
@@ -84,7 +134,7 @@ describe("interactive mock draft", () => {
     expect(state.phase).toBe("human-decision");
     expect(state.nomination?.player).toBe("Breece Hall");
     expect(state.camDecision).toMatchObject({
-      maxBid: 46,
+      maxBid: 49,
       recommendedBid: 40,
     });
     expect(state.camDecision?.topAiBid).toBeGreaterThanOrEqual(state.auction?.currentBid ?? 0);

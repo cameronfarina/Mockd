@@ -1285,6 +1285,10 @@ export const liveDraftHtml = `<!doctype html>
       gap: 6px;
     }
 
+    .mock-auction-actions {
+      grid-template-columns: repeat(7, minmax(86px, 1fr));
+    }
+
     .mock-actions button {
       min-height: 32px;
       padding: 0 7px;
@@ -1843,6 +1847,15 @@ export const liveDraftHtml = `<!doctype html>
         <div class="market-strip" id="position-market"></div>
         <div class="mock-auction-feed" id="mock-auction-feed" hidden>
           <div class="mock-auction-nomination" id="mock-active-nomination"></div>
+          <div class="mock-actions mock-auction-actions">
+            <button type="button" id="mock-advance-button" disabled>Advance AI Sale</button>
+            <button type="button" id="mock-nominate-button" disabled>Nominate</button>
+            <button type="button" id="mock-cam-win-button" disabled>Bid</button>
+            <button type="button" id="mock-pass-button" disabled>Pass</button>
+            <button type="button" id="mock-next-decision-button" disabled>Next Cam</button>
+            <button type="button" id="mock-next-round-button" disabled>Next Round</button>
+            <button type="button" id="mock-complete-button" disabled>Complete</button>
+          </div>
           <div class="mock-auction-feed-lines" id="mock-auction-feed-lines"></div>
         </div>
         <div class="scroll">
@@ -1936,15 +1949,6 @@ export const liveDraftHtml = `<!doctype html>
                   <strong>Loading</strong>
                   <span class="subtle">Preparing the interactive mock.</span>
                 </div>
-              </div>
-              <div class="mock-actions">
-                <button type="button" id="mock-advance-button" disabled>Advance AI Sale</button>
-                <button type="button" id="mock-nominate-button" disabled>Nominate</button>
-                <button type="button" id="mock-cam-win-button" disabled>Bid</button>
-                <button type="button" id="mock-pass-button" disabled>Pass</button>
-                <button type="button" id="mock-next-decision-button" disabled>Next Cam</button>
-                <button type="button" id="mock-next-round-button" disabled>Next Round</button>
-                <button type="button" id="mock-complete-button" disabled>Complete</button>
               </div>
             </div>
             <div class="section-label">Mock Results</div>
@@ -3231,6 +3235,71 @@ export const liveDraftHtml = `<!doctype html>
         ? mockDraft.auction.feed
         : [];
 
+    const mockAuctionResolutionEvents = auction => {
+      if (!auction) return [];
+      const resolution = auction.resolution || (
+        auction.currentBidOwner && auction.currentBid
+          ? { owner: auction.currentBidOwner, price: auction.currentBid }
+          : null
+      );
+      if (!resolution) return [];
+      const soldText = 'Sold to ' + resolution.owner + ' for ' + money(resolution.price);
+      return [5, 4, 3, 2, 1].map(countdown => ({
+        type: 'countdown',
+        text: String(countdown),
+        countdown
+      })).concat([{
+        type: 'sold',
+        text: soldText,
+        owner: resolution.owner,
+        amount: resolution.price
+      }]);
+    };
+
+    const auctionEventFor = (owner, amount) => ({
+      type: 'bid',
+      text: cleanText(owner) + ' bid ' + money(amount),
+      owner,
+      amount
+    });
+
+    const mockAuctionCamBidEvents = mockDraft => {
+      if (!mockDraft || !mockDraft.auction || !mockDraft.camDecision) return [];
+      const auction = mockDraft.auction;
+      const camBid = auction.nextCamBid || mockDraft.camDecision.recommendedBid;
+      const maxBid = mockDraft.camDecision.maxBid;
+      if (!camBid || camBid > maxBid) return [];
+
+      const events = [auctionEventFor(mockDraft.watchOwner || 'Cam', camBid)];
+      const aiRaise = (mockDraft.aiBids || [])
+        .filter(bid => bid.amount >= camBid + 1)
+        .sort((left, right) => right.amount - left.amount || cleanText(left.owner).localeCompare(cleanText(right.owner)))[0];
+
+      if (!aiRaise) {
+        return events.concat(mockAuctionResolutionEvents({
+          ...auction,
+          resolution: {
+            owner: mockDraft.watchOwner || 'Cam',
+            price: camBid
+          }
+        }));
+      }
+
+      const aiResponseAmount = camBid + 1;
+      events.push(auctionEventFor(aiRaise.owner, aiResponseAmount));
+      if (aiResponseAmount + 1 <= maxBid) return events;
+
+      return events.concat(mockAuctionResolutionEvents({
+        ...auction,
+        currentBidOwner: aiRaise.owner,
+        currentBid: aiResponseAmount,
+        resolution: {
+          owner: aiRaise.owner,
+          price: aiResponseAmount
+        }
+      }));
+    };
+
     const mockDraftNominationText = mockDraft => {
       if (!mockDraft || !mockDraft.auction) return '';
       const auction = mockDraft.auction;
@@ -3246,10 +3315,19 @@ export const liveDraftHtml = `<!doctype html>
       if (mockDraft.phase === 'human-decision' && auction.nextCamBid != null) {
         return 'Current ' + money(auction.currentBid) + ' - Cam can bid ' + money(auction.nextCamBid);
       }
-      if (mockDraft.phase === 'ai-sale') {
-        return 'AI sale ready at ' + money(auction.currentBid);
+      if (mockDraft.phase === 'ai-sale' && auction.resolution) {
+        return 'Ready to sell to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price);
       }
       return cleanText(mockDraft.phase || 'Mock auction');
+    };
+
+    const renderMockAuctionFeedEvents = events => {
+      byId('mock-auction-feed-lines').replaceChildren(...events.map(event => {
+        const item = document.createElement('span');
+        item.className = 'mock-feed-line ' + event.type;
+        item.textContent = cleanText(event.text);
+        return item;
+      }));
     };
 
     const renderMockAuctionFeed = mockDraft => {
@@ -3268,12 +3346,31 @@ export const liveDraftHtml = `<!doctype html>
         textElement('strong', mockDraftNominationText(mockDraft)),
         textElement('span', mockDraftPhaseLabel(mockDraft), 'mock-auction-phase')
       );
-      lines.replaceChildren(...mockAuctionFeedLines(mockDraft).map(event => {
-        const item = document.createElement('span');
-        item.className = 'mock-feed-line ' + event.type;
-        item.textContent = cleanText(event.text);
-        return item;
-      }));
+      renderMockAuctionFeedEvents(mockAuctionFeedLines(mockDraft));
+    };
+
+    const animateMockAuctionResolution = async () => {
+      const auction = currentMockDraft && currentMockDraft.auction;
+      const resolutionEvents = mockAuctionResolutionEvents(auction);
+      if (!resolutionEvents.length) return;
+
+      const baseEvents = mockAuctionFeedLines(currentMockDraft);
+      for (let index = 0; index < resolutionEvents.length; index += 1) {
+        renderMockAuctionFeedEvents(baseEvents.concat(resolutionEvents.slice(0, index + 1)));
+        await wait(index < resolutionEvents.length - 1 ? 180 : 260);
+      }
+    };
+
+    const animateMockCamBid = async () => {
+      const camBidEvents = mockAuctionCamBidEvents(currentMockDraft);
+      if (!camBidEvents.length) return;
+
+      const baseEvents = mockAuctionFeedLines(currentMockDraft);
+      for (let index = 0; index < camBidEvents.length; index += 1) {
+        renderMockAuctionFeedEvents(baseEvents.concat(camBidEvents.slice(0, index + 1)));
+        const event = camBidEvents[index];
+        await wait(event && (event.type === 'countdown' || event.type === 'sold') ? 180 : 240);
+      }
     };
 
     const syncMockNominationSelection = mockDraft => {
@@ -3297,6 +3394,7 @@ export const liveDraftHtml = `<!doctype html>
       const isMockMode = currentDraftMode === 'interactive-mock';
       const phase = mockDraft ? mockDraft.phase : '';
       const camBidButton = byId('mock-cam-win-button');
+      const advanceButton = byId('mock-advance-button');
       const nominateButton = byId('mock-nominate-button');
       const nextDecisionButton = byId('mock-next-decision-button');
       const nextRoundButton = byId('mock-next-round-button');
@@ -3304,7 +3402,13 @@ export const liveDraftHtml = `<!doctype html>
       const target = selectedTarget();
       const terminal = phase === 'complete' || phase === 'blocked';
       const humanStop = phase === 'human-decision' || phase === 'human-nomination';
-      byId('mock-advance-button').disabled = !isMockMode || phase !== 'ai-sale';
+      advanceButton.disabled = !isMockMode || phase !== 'ai-sale';
+      if (mockDraft && mockDraft.auction && mockDraft.auction.resolution) {
+        const auction = mockDraft.auction;
+        advanceButton.textContent = 'Sell to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price);
+      } else {
+        advanceButton.textContent = 'Advance AI Sale';
+      }
       nominateButton.disabled = !isMockMode || phase !== 'human-nomination' || !target;
       nominateButton.textContent = target ? 'Nominate ' + shortPlayerName(target.name) : 'Nominate';
       camBidButton.disabled = !isMockMode || phase !== 'human-decision' || !mockDraft.camDecision;
@@ -3965,6 +4069,16 @@ export const liveDraftHtml = `<!doctype html>
       }
       if (action === 'cam-nominate') {
         pendingCamNominationName = selectedTargetName;
+      }
+      if (action === 'cam-bid') {
+        byId('mock-cam-win-button').disabled = true;
+        byId('mock-pass-button').disabled = true;
+        await animateMockCamBid();
+      }
+      if (['advance', 'pass'].includes(action) && currentMockDraft && currentMockDraft.auction) {
+        byId('mock-advance-button').disabled = true;
+        byId('mock-pass-button').disabled = true;
+        await animateMockAuctionResolution();
       }
       const data = await postJson('/api/mock/advance', {
         strategyKey: currentStrategyKey,

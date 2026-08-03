@@ -822,7 +822,8 @@ const camDecisionFor = ({
   );
   if (!target) return undefined;
 
-  const maxBid = Math.min(target.recommendedMaxBid, watchOwnerState.maxBid);
+  const mockDecisionMaxBid = Math.max(target.recommendedMaxBid, target.personalValue);
+  const maxBid = Math.min(mockDecisionMaxBid, watchOwnerState.maxBid);
   if (maxBid <= aiSalePrice) return undefined;
   const nextLiveBid = aiSalePrice + minimumBid;
 
@@ -889,7 +890,7 @@ const auctionStateFor = ({
       openingBid,
       currentBid,
       currentBidOwner,
-      feed: [...feed, ...countdownAndSoldEventsFor(aiSale.winner, aiSale.price)],
+      feed,
       resolution,
     };
   }
