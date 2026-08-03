@@ -1019,6 +1019,34 @@ export const liveDraftHtml = `<!doctype html>
       align-items: stretch;
     }
 
+    .results-intelligence {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .insight-card {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(8, 24, 38, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .insight-card strong {
+      color: #f4f8fc;
+      line-height: 1.15;
+    }
+
+    .insight-card span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
     .mock-results-card {
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
@@ -1043,6 +1071,12 @@ export const liveDraftHtml = `<!doctype html>
       color: #f4f8fc;
       font-size: 15px;
       line-height: 1.1;
+    }
+
+    .mock-results-reason {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.28;
     }
 
     .mock-results-scoreline {
@@ -1123,6 +1157,17 @@ export const liveDraftHtml = `<!doctype html>
 
     .rankings-card .mock-results-player {
       grid-template-columns: 28px minmax(0, 1fr) 48px 54px;
+      align-items: start;
+    }
+
+    .mock-results-name small {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 1.2;
+      white-space: normal;
     }
 
     .delta-up {
@@ -1396,6 +1441,7 @@ export const liveDraftHtml = `<!doctype html>
         </div>
         <div class="subtle" id="mock-results-status"></div>
       </div>
+      <div class="results-intelligence" id="mock-results-intelligence"></div>
       <div class="results-grid" id="mock-results-grid"></div>
     </main>
   </div>
@@ -1702,6 +1748,46 @@ export const liveDraftHtml = `<!doctype html>
       root.replaceChildren(...items);
     };
 
+    const insightCard = (label, headline, details) => {
+      const card = document.createElement('div');
+      card.className = 'insight-card';
+      card.replaceChildren(
+        textElement('strong', label),
+        textElement('span', headline || '-'),
+        textElement('span', details || '-')
+      );
+      return card;
+    };
+
+    const mockResultsIntelligencePanel = run => {
+      const root = byId('mock-results-intelligence');
+      if (!run) {
+        root.replaceChildren();
+        return;
+      }
+
+      const cam = run.camOutcome;
+      const best = run.bestBuild;
+      const worst = run.worstBuild;
+      root.replaceChildren(
+        insightCard(
+          'Cam outcome',
+          cam ? cam.headline : 'Cam outcome unavailable',
+          cam ? [...(cam.strengths || []).slice(0, 2), ...(cam.risks || []).slice(0, 1)].join(' / ') : '-'
+        ),
+        insightCard(
+          'Best build',
+          best ? best.headline : 'Best build unavailable',
+          best ? 'Core: ' + best.corePlayers.join(' / ') : '-'
+        ),
+        insightCard(
+          'Worst build',
+          worst ? worst.headline : 'Worst build unavailable',
+          worst ? 'Core: ' + worst.corePlayers.join(' / ') : '-'
+        )
+      );
+    };
+
     const mockResultsPlayerRow = player => {
       const row = document.createElement('div');
       row.className = 'mock-results-player' + (player.starter ? '' : ' bench');
@@ -1731,7 +1817,11 @@ export const liveDraftHtml = `<!doctype html>
         metric.replaceChildren(document.createTextNode(label), textElement('b', value));
         scoreline.appendChild(metric);
       }
-      header.replaceChildren(textElement('strong', team.owner), scoreline);
+      header.replaceChildren(
+        textElement('strong', team.owner + (team.projectedFinishLabel ? ' - ' + team.projectedFinishLabel : '')),
+        textElement('div', team.rankExplanation || '-', 'mock-results-reason'),
+        scoreline
+      );
 
       const players = document.createElement('div');
       players.className = 'mock-results-player-list';
@@ -1759,9 +1849,15 @@ export const liveDraftHtml = `<!doctype html>
       list.replaceChildren(...rankings.map(ranking => {
         const row = document.createElement('div');
         row.className = 'mock-results-player';
+        const owner = document.createElement('span');
+        owner.className = 'mock-results-name';
+        owner.replaceChildren(
+          textElement('span', ranking.owner),
+          textElement('small', ranking.explanation)
+        );
         row.replaceChildren(
           textElement('span', '#' + ranking.rank, 'mock-results-slot'),
-          textElement('span', ranking.owner, 'mock-results-name'),
+          owner,
           textElement('span', scoreText(ranking.week1Score), 'mock-results-score'),
           textElement('span', scoreText(ranking.projectedFinishScore), 'mock-results-score')
         );
@@ -1775,10 +1871,12 @@ export const liveDraftHtml = `<!doctype html>
     const renderMockResultsGrid = run => {
       const root = byId('mock-results-grid');
       if (!run) {
+        mockResultsIntelligencePanel(null);
         root.replaceChildren(mockDraftItem('No run selected', 'Run mocks from the draft room first.'));
         return;
       }
 
+      mockResultsIntelligencePanel(run);
       root.replaceChildren(
         ...run.teams.map(mockResultsTeamCard),
         renderMockResultsRankingsCard(run.rankings)
@@ -1816,6 +1914,7 @@ export const liveDraftHtml = `<!doctype html>
         byId('mock-results-status').textContent = 'Start a batch from the draft room.';
         byId('mock-results-run-button').textContent = 'Run results';
         byId('mock-results-run-list').replaceChildren();
+        byId('mock-results-intelligence').replaceChildren();
         byId('mock-results-grid').replaceChildren(mockDraftItem('No results yet', 'Run mocks, wait for the progress bar, then come back here.'));
         return;
       }
@@ -1839,6 +1938,7 @@ export const liveDraftHtml = `<!doctype html>
       byId('mock-results-status').textContent = String(job.percent || 0) + '% complete';
       byId('mock-results-run-button').textContent = 'Waiting for results';
       byId('mock-results-run-list').replaceChildren();
+      byId('mock-results-intelligence').replaceChildren();
       byId('mock-results-grid').replaceChildren(mockDraftItem('Running mocks', String(job.percent || 0) + '% complete'));
     };
 
@@ -1849,6 +1949,7 @@ export const liveDraftHtml = `<!doctype html>
       byId('mock-results-status').textContent = message;
       byId('mock-results-run-button').textContent = 'Run results';
       byId('mock-results-run-list').replaceChildren();
+      byId('mock-results-intelligence').replaceChildren();
       byId('mock-results-grid').replaceChildren(mockDraftItem('Could not load results', message));
     };
 

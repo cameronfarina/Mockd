@@ -72,6 +72,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderMockResultsRoute = report =>");
     expect(liveDraftHtml).toContain("const renderMockResultsGrid = run =>");
     expect(liveDraftHtml).toContain("const renderMockResultsRankingsCard = rankings =>");
+    expect(liveDraftHtml).toContain("const mockResultsIntelligencePanel = run =>");
+    expect(liveDraftHtml).toContain("run.camOutcome");
+    expect(liveDraftHtml).toContain("team.rankExplanation");
+    expect(liveDraftHtml).toContain("ranking.explanation");
+    expect(liveDraftHtml).toContain("run.bestBuild");
+    expect(liveDraftHtml).toContain("run.worstBuild");
     expect(liveDraftHtml).toContain("window.location.assign('/mock-results')");
     expect(liveDraftHtml).toContain("const syncMockNominationSelection = mockDraft =>");
     expect(liveDraftHtml).toContain("const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.personalValue");

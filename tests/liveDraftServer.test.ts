@@ -366,9 +366,19 @@ describe("live draft server", () => {
       expect(completed.result.runs[0].label).toBe("Run 1: 3rb");
       expect(completed.result.runs[0].teams).toHaveLength(ownerOrder.length);
       expect(completed.result.runs[0].rankings).toHaveLength(ownerOrder.length);
+      expect(completed.result.runs[0].bestBuild.owner).toBe("Mello");
+      expect(completed.result.runs[0].worstBuild.owner).toBe("Beaton");
+      expect(completed.result.runs[0].bestBuild.corePlayers).toHaveLength(3);
+      expect(completed.result.runs[0].camOutcome.owner).toBe("Cam");
+      expect(completed.result.runs[0].camOutcome.rank).toBeGreaterThan(1);
+      expect(completed.result.runs[0].camOutcome.headline).toContain("projected");
+      expect(completed.result.runs[0].rankings[0].explanation).toContain("Projected 1st");
 
       const cam = completed.result.runs[0].teams.find((team: { owner: string }) => team.owner === "Cam");
       expect(cam.players).toHaveLength(16);
+      expect(cam.projectedRank).toBe(completed.result.runs[0].camOutcome.rank);
+      expect(cam.rankExplanation).toContain("Projected");
+      expect(cam.topStarter.name).toBe("Cam RB starter high");
       expect(cam.starters.map((player: { slot: string }) => player.slot)).toEqual([
         "QB",
         "RB1",
