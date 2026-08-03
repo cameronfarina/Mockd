@@ -58,7 +58,7 @@ export type InteractiveMockDraftPhase =
   | "complete"
   | "blocked";
 
-export type InteractiveMockDraftAction = "advance" | "pass" | "cam-bid" | "cam-win";
+export type InteractiveMockDraftAction = "advance" | "pass" | "cam-bid" | "cam-win" | "cam-nominate";
 
 export interface InteractiveMockDraftNomination {
   player: string;
@@ -121,6 +121,7 @@ export interface BuildInteractiveMockDraftStateOptions {
   commands?: readonly string[];
   pricingConfig?: PricingConfig;
   seed?: string;
+  nominatedPlayer?: string;
   diagnosticsMode?: AuctionDiagnosticsMode;
 }
 
@@ -549,6 +550,32 @@ const nominationFor = (
   })),
 });
 
+const nominationForPlayer = (
+  player: Player,
+  liveState: LiveDraftState,
+): InteractiveMockDraftNomination => ({
+  player: player.name,
+  position: player.position,
+  marketPrice: player.price,
+  projectedWeeks1To4: roundToTwo(player.weeks1To4),
+  topCandidates: topTargetsFor(liveState).slice(0, 8).map((target, index) => ({
+    rank: index + 1,
+    player: target.name,
+    position: target.position,
+    marketPrice: target.liveExpectedPrice,
+    score: roundToTwo(target.valueScore),
+  })),
+});
+
+const manualNominationPlayerFor = (
+  nominatedPlayer: string,
+  auctionPlayers: readonly Player[],
+): Player | undefined => {
+  const normalized = normalizePlayerName(nominatedPlayer);
+  return auctionPlayers.find(player => normalizePlayerName(player.name) === normalized) ??
+    auctionPlayers.find(player => normalizePlayerName(player.name).includes(normalized));
+};
+
 const totalCounts = (roster: readonly Player[]): PositionAmounts => {
   const counts = emptyPositionAmounts();
   for (const player of roster) counts[player.position] += 1;
@@ -634,6 +661,83 @@ const camDecisionFor = ({
   };
 };
 
+const stateForResolvedNomination = ({
+  prepared,
+  watchOwner,
+  seed,
+  pickIndex,
+  nominationCursor,
+  nominator,
+  nomination,
+  player,
+  remainingPlayers,
+  diagnosticsMode,
+}: {
+  prepared: PreparedInteractiveMockDraft;
+  watchOwner: Owner;
+  seed: string;
+  pickIndex: number;
+  nominationCursor: number;
+  nominator: Owner;
+  nomination: InteractiveMockDraftNomination;
+  player: Player;
+  remainingPlayers: readonly Player[];
+  diagnosticsMode: AuctionDiagnosticsMode;
+}): InteractiveMockDraftState => {
+  const aiOwnerStates = prepared.ownerStates.filter(state => state.owner !== watchOwner);
+  const aiSale = resolveAuctionSale(player, aiOwnerStates, remainingPlayers, prepared.config, {
+    nominator,
+    diagnosticsMode,
+  });
+  if (!aiSale) {
+    return {
+      ...baseStateFor({
+        phase: "blocked",
+        prepared,
+        watchOwner,
+        seed,
+        pickNumber: pickIndex + 1,
+        nominationCursor,
+        message: "The AI room could not produce a legal bid for this nomination.",
+      }),
+      nominator,
+      nomination,
+    };
+  }
+
+  const topAiBidder = aiSale.bids[0];
+  const topAiBid = topAiBidder?.amount ?? aiSale.price;
+  const topAiBidOwner = topAiBidder?.owner ?? aiSale.winner;
+  const watchOwnerState = prepared.ownerStates.find(state => state.owner === watchOwner);
+  if (!watchOwnerState) throw new Error(`Unknown watch owner "${watchOwner}".`);
+
+  const camDecision = camDecisionFor({
+    liveState: prepared.liveState,
+    watchOwnerState,
+    player,
+    topAiBid,
+    topAiBidOwner,
+    aiSalePrice: aiSale.price,
+  });
+  const phase: InteractiveMockDraftPhase = camDecision ? "human-decision" : "ai-sale";
+
+  return {
+    ...baseStateFor({
+      phase,
+      prepared,
+      watchOwner,
+      seed,
+      pickNumber: pickIndex + 1,
+      nominationCursor,
+    }),
+    nominator,
+    nomination,
+    aiBids: aiSale.bids.slice(0, topBidLimit).map(bid => mockBidFor(bid, player)),
+    aiSaleCommand: aiSaleCommandFor(aiSale.winner, player.name, aiSale.price),
+    ...(camDecision === undefined ? {} : { camDecision }),
+  };
+};
+
 export const buildInteractiveMockDraftState = ({
   projections,
   historicalRecords,
@@ -644,6 +748,7 @@ export const buildInteractiveMockDraftState = ({
   commands = [],
   pricingConfig = defaultPricingConfig,
   seed = defaultSeed,
+  nominatedPlayer,
   diagnosticsMode = "full",
 }: BuildInteractiveMockDraftStateOptions): InteractiveMockDraftState => {
   const prepared = prepareInteractiveMockDraft({
@@ -683,6 +788,38 @@ export const buildInteractiveMockDraftState = ({
     });
   }
   if (nominationTurn.owner === watchOwner) {
+    if (nominatedPlayer) {
+      const manualPlayer = manualNominationPlayerFor(nominatedPlayer, prepared.auctionPlayers);
+      if (!manualPlayer) {
+        return baseStateFor({
+          phase: "blocked",
+          prepared,
+          watchOwner,
+          seed,
+          pickNumber: pickIndex + 1,
+          nominationCursor: nominationTurn.cursor,
+          message: `Could not nominate "${nominatedPlayer}". Select an available player from the mock board.`,
+        });
+      }
+
+      const nominatedName = normalizePlayerName(manualPlayer.name);
+      const remainingPlayers = prepared.auctionPlayers.filter(player =>
+        normalizePlayerName(player.name) !== nominatedName
+      );
+      return stateForResolvedNomination({
+        prepared,
+        watchOwner,
+        seed,
+        pickIndex,
+        nominationCursor: nominationTurn.cursor,
+        nominator: nominationTurn.owner,
+        nomination: nominationForPlayer(manualPlayer, prepared.liveState),
+        player: manualPlayer,
+        remainingPlayers,
+        diagnosticsMode,
+      });
+    }
+
     return {
       ...baseStateFor({
         phase: "human-nomination",
@@ -718,58 +855,18 @@ export const buildInteractiveMockDraftState = ({
   }
 
   const remainingPlayers = prepared.auctionPlayers.filter((_, index) => index !== nomination.index);
-  const aiOwnerStates = prepared.ownerStates.filter(state => state.owner !== watchOwner);
-  const aiSale = resolveAuctionSale(nomination.player, aiOwnerStates, remainingPlayers, prepared.config, {
-    nominator: nominationTurn.owner,
-    diagnosticsMode,
-  });
-  if (!aiSale) {
-    return {
-      ...baseStateFor({
-        phase: "blocked",
-        prepared,
-        watchOwner,
-        seed,
-        pickNumber: pickIndex + 1,
-        nominationCursor: nominationTurn.cursor,
-        message: "The AI room could not produce a legal bid for this nomination.",
-      }),
-      nominator: nominationTurn.owner,
-      nomination: nominationFor(nomination),
-    };
-  }
-
-  const topAiBidder = aiSale.bids[0];
-  const topAiBid = topAiBidder?.amount ?? aiSale.price;
-  const topAiBidOwner = topAiBidder?.owner ?? aiSale.winner;
-  const watchOwnerState = prepared.ownerStates.find(state => state.owner === watchOwner);
-  if (!watchOwnerState) throw new Error(`Unknown watch owner "${watchOwner}".`);
-
-  const camDecision = camDecisionFor({
-    liveState: prepared.liveState,
-    watchOwnerState,
-    player: nomination.player,
-    topAiBid,
-    topAiBidOwner,
-    aiSalePrice: aiSale.price,
-  });
-  const phase: InteractiveMockDraftPhase = camDecision ? "human-decision" : "ai-sale";
-
-  return {
-    ...baseStateFor({
-      phase,
-      prepared,
-      watchOwner,
-      seed,
-      pickNumber: pickIndex + 1,
-      nominationCursor: nominationTurn.cursor,
-    }),
+  return stateForResolvedNomination({
+    prepared,
+    watchOwner,
+    seed,
+    pickIndex,
+    nominationCursor: nominationTurn.cursor,
     nominator: nominationTurn.owner,
     nomination: nominationFor(nomination),
-    aiBids: aiSale.bids.slice(0, topBidLimit).map(bid => mockBidFor(bid, nomination.player)),
-    aiSaleCommand: aiSaleCommandFor(aiSale.winner, nomination.player.name, aiSale.price),
-    ...(camDecision === undefined ? {} : { camDecision }),
-  };
+    player: nomination.player,
+    remainingPlayers,
+    diagnosticsMode,
+  });
 };
 
 export const resolveInteractiveMockDraftAction = (

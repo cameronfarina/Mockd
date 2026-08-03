@@ -1435,6 +1435,7 @@ export const liveDraftHtml = `<!doctype html>
             </div>
             <div class="mock-actions">
               <button type="button" id="mock-advance-button" disabled>Advance AI Sale</button>
+              <button type="button" id="mock-nominate-button" disabled>Nominate</button>
               <button type="button" id="mock-cam-win-button" disabled>Bid</button>
               <button type="button" id="mock-pass-button" disabled>Pass</button>
             </div>
@@ -1512,6 +1513,7 @@ export const liveDraftHtml = `<!doctype html>
     let currentStrategyKey = 'three-rb';
     let currentDraftMode = 'real';
     let currentDraftSession = 'live';
+    let pendingCamNominationName = null;
     let latestMockBatchReport = null;
     let latestMockBatchJob = null;
     let selectedMockResultsRunIndex = 0;
@@ -1563,7 +1565,9 @@ export const liveDraftHtml = `<!doctype html>
     const gapClassFor = gap => gap > 0 ? 'gap-positive' : gap < 0 ? 'gap-negative' : '';
     const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession);
     const stateUrl = () => '/api/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery();
-    const mockDraftUrl = () => '/api/mock/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery() + '&seed=live-ui';
+    const mockDraftUrl = () =>
+      '/api/mock/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery() + '&seed=live-ui' +
+      (pendingCamNominationName ? '&nominatedPlayer=' + encodeURIComponent(pendingCamNominationName) : '');
     const draftNightLockFor = state => {
       if (state && state.activeDraftSession && state.activeDraftSession.key !== currentDraftSession) return currentDraftSession === 'live';
       if (state && state.draftNightLock) return Boolean(state.draftNightLock.locked);
@@ -2365,7 +2369,11 @@ export const liveDraftHtml = `<!doctype html>
       const isMockMode = currentDraftMode === 'interactive-mock';
       const phase = mockDraft ? mockDraft.phase : '';
       const camBidButton = byId('mock-cam-win-button');
+      const nominateButton = byId('mock-nominate-button');
+      const target = selectedTarget();
       byId('mock-advance-button').disabled = !isMockMode || phase !== 'ai-sale';
+      nominateButton.disabled = !isMockMode || phase !== 'human-nomination' || !target;
+      nominateButton.textContent = target ? 'Nominate ' + shortPlayerName(target.name) : 'Nominate';
       camBidButton.disabled = !isMockMode || phase !== 'human-decision' || !mockDraft.camDecision;
       camBidButton.textContent = mockDraft && mockDraft.camDecision ? 'Bid ' + money(mockDraft.camDecision.recommendedBid) : 'Bid';
       byId('mock-pass-button').disabled = !isMockMode || phase !== 'human-decision';
@@ -2377,6 +2385,15 @@ export const liveDraftHtml = `<!doctype html>
 
       if (!mockDraft) {
         details.replaceChildren(mockDraftItem('Mock draft', 'Loading interactive state.'));
+        return;
+      }
+
+      if (phase === 'human-nomination') {
+        const ideas = (mockDraft.topTargets || []).slice(0, 5);
+        details.replaceChildren(
+          mockDraftItem('Cam nomination', target ? 'Nominate ' + target.name + ' from the board.' : 'Select a player from the board.'),
+          mockDraftItem('Nomination ideas', ideas.length ? ideas.map(candidate => candidate.name + ' ' + money(candidate.liveExpectedPrice)).join(' / ') : '-')
+        );
         return;
       }
 
@@ -2643,6 +2660,7 @@ export const liveDraftHtml = `<!doctype html>
         const message = error instanceof Error ? error.message : 'Could not load mock draft.';
         byId('mock-draft-details').replaceChildren(mockDraftItem('Mock draft unavailable', message));
         byId('mock-advance-button').disabled = true;
+        byId('mock-nominate-button').disabled = true;
         byId('mock-cam-win-button').disabled = true;
         byId('mock-pass-button').disabled = true;
         return null;
@@ -2672,6 +2690,7 @@ export const liveDraftHtml = `<!doctype html>
       }
       currentDraftMode = draftModes.includes(mode) ? mode : 'real';
       selectedTargetName = null;
+      pendingCamNominationName = null;
       await refreshDraftRoom();
       focusCommandInput();
     };
@@ -2679,6 +2698,7 @@ export const liveDraftHtml = `<!doctype html>
     const setDraftSession = async draftSession => {
       currentDraftSession = draftSession || 'live';
       selectedTargetName = null;
+      pendingCamNominationName = null;
       await refreshDraftRoom();
       focusCommandInput();
     };
@@ -2846,6 +2866,7 @@ export const liveDraftHtml = `<!doctype html>
       const data = await postJson('/api/events', { command });
       alertCommandErrors(data);
       if (!data.errors.length) {
+        pendingCamNominationName = null;
         selectedTargetName = data.availableTargets[0] ? data.availableTargets[0].name : null;
         render(data);
       }
@@ -2865,13 +2886,18 @@ export const liveDraftHtml = `<!doctype html>
       if (currentDraftMode !== 'interactive-mock') {
         await setDraftMode('interactive-mock');
       }
+      if (action === 'cam-nominate') {
+        pendingCamNominationName = selectedTargetName;
+      }
       const data = await postJson('/api/mock/advance', {
         strategyKey: currentStrategyKey,
         mode: 'interactive-mock',
         draftSession: currentDraftSession,
         seed: 'live-ui',
-        action
+        action,
+        nominatedPlayer: pendingCamNominationName
       });
+      if (action !== 'cam-nominate' && !data.errors.length) pendingCamNominationName = null;
       if (!data.mockDraft) await refreshMockDraft();
       focusCommandInput();
       return data;
@@ -2969,6 +2995,7 @@ export const liveDraftHtml = `<!doctype html>
 
     byId('strategy-select').addEventListener('change', async event => {
       currentStrategyKey = strategyKeys.includes(event.target.value) ? event.target.value : 'three-rb';
+      pendingCamNominationName = null;
       await refreshDraftRoom();
       focusCommandInput();
     });
@@ -3044,6 +3071,7 @@ export const liveDraftHtml = `<!doctype html>
     byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
     byId('reset-button').addEventListener('click', () => postJsonAndRefresh('/api/reset'));
     byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
+    byId('mock-nominate-button').addEventListener('click', () => advanceMockDraft('cam-nominate', selectedTargetName));
     byId('mock-cam-win-button').addEventListener('click', () => advanceMockDraft('cam-bid'));
     byId('mock-pass-button').addEventListener('click', () => advanceMockDraft('pass'));
     byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign('/'));

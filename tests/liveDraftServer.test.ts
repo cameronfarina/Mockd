@@ -21,10 +21,15 @@ const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiv
   buildInteractiveMockDraftState: options => ({
     aiSaleCommand: mockSaleCommand,
     commandCount: options.commands.length,
+    nominatedPlayer: options.nominatedPlayer,
     seed: options.seed,
     strategyKey: options.strategyKey,
   }),
-  resolveInteractiveMockDraftAction: (_mockDraft, action) => {
+  resolveInteractiveMockDraftAction: (mockDraft, action) => {
+    if (action === "cam-bid") {
+      const nominatedPlayer = (mockDraft as { nominatedPlayer?: string }).nominatedPlayer ?? "Breece Hall";
+      return { command: `Cam drafted ${nominatedPlayer} for 42` };
+    }
     if (action !== "advance") throw new Error(`Unexpected test action: ${action}`);
 
     return { command: mockSaleCommand };
@@ -531,6 +536,45 @@ describe("live draft server", () => {
           input: "nobody drafted Jahmyr Gibbs for 1",
           matchOptions: [],
         }),
+      ]);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("previews Cam-selected mock nominations before appending the sale command", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const nominationPreview = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "practice-3rb",
+        strategyKey: "three-rb",
+        seed: "server-cam-nomination",
+        action: "cam-nominate",
+        nominatedPlayer: "Breece Hall",
+      });
+      expect(nominationPreview.status).toBe(200);
+      expect(nominationPreview.data.session.commandCount).toBe(0);
+      expect(nominationPreview.data.mockDraft.nominatedPlayer).toBe("Breece Hall");
+
+      const camBid = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "practice-3rb",
+        strategyKey: "three-rb",
+        seed: "server-cam-nomination",
+        action: "cam-bid",
+        nominatedPlayer: "Breece Hall",
+      });
+      expect(camBid.status).toBe(200);
+      expect(camBid.data.session.commandCount).toBe(1);
+      expect(camBid.data.events.map((event: { input: string }) => event.input)).toEqual([
+        "Cam drafted Breece Hall for 42",
       ]);
     } finally {
       await rm(directory, { force: true, recursive: true });

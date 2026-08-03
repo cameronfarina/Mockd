@@ -52,6 +52,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"position-context\"");
     expect(liveDraftHtml).toContain("id=\"mock-draft-panel\"");
     expect(liveDraftHtml).toContain("id=\"mock-advance-button\"");
+    expect(liveDraftHtml).toContain("id=\"mock-nominate-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-cam-win-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-pass-button\"");
     expect(liveDraftHtml).toContain("class=\"sidebar\"");
@@ -101,7 +102,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.recommendedMaxBid");
     expect(liveDraftHtml).toContain("byId('add-price').value = String(nominationPrice)");
     expect(liveDraftHtml).toContain("const advanceMockDraft = async action =>");
+    expect(liveDraftHtml).toContain("let pendingCamNominationName = null");
+    expect(liveDraftHtml).toContain("action === 'cam-nominate'");
+    expect(liveDraftHtml).toContain("nominatedPlayer: pendingCamNominationName");
+    expect(liveDraftHtml).toContain("'Nominate ' + shortPlayerName(target.name)");
     expect(liveDraftHtml).toContain("advanceMockDraft('cam-bid')");
+    expect(liveDraftHtml).toContain("advanceMockDraft('cam-nominate', selectedTargetName)");
     expect(liveDraftHtml).toContain("'Bid ' + money(mockDraft.camDecision.recommendedBid)");
     expect(liveDraftHtml).toContain("mockDraftItem('Current nomination'");
     expect(liveDraftHtml).toContain("mockDraftItem('Top AI bids'");

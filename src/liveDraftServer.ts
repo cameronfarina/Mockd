@@ -278,6 +278,7 @@ interface InteractiveMockDraftModule {
     watchOwner: "Cam";
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
+    nominatedPlayer?: string;
   }): unknown;
   resolveInteractiveMockDraftAction(mockDraft: unknown, action: string): unknown;
 }
@@ -449,6 +450,13 @@ const seedFromValue = (value: unknown): string | undefined => {
   return seed ? seed : undefined;
 };
 
+const nominatedPlayerFromValue = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+
+  const nominatedPlayer = value.trim();
+  return nominatedPlayer ? nominatedPlayer : undefined;
+};
+
 const commandFromInteractiveMockAction = (result: unknown): string => {
   if (!result || typeof result !== "object") {
     throw new Error("Interactive mock action did not return a sale command.");
@@ -496,8 +504,12 @@ const importConflictReviewFor = (
 const mockDraftRequestFor = (
   strategyKey: LiveDraftStrategyKey,
   seed: string | undefined,
-): { strategyKey: LiveDraftStrategyKey; seed?: string } =>
-  seed === undefined ? { strategyKey } : { strategyKey, seed };
+  nominatedPlayer?: string,
+): { strategyKey: LiveDraftStrategyKey; seed?: string; nominatedPlayer?: string } => ({
+  strategyKey,
+  ...(seed === undefined ? {} : { seed }),
+  ...(nominatedPlayer === undefined ? {} : { nominatedPlayer }),
+});
 
 const mockBatchStrategySequence = (
   preferredStrategyKey: LiveDraftStrategyKey,
@@ -589,11 +601,13 @@ export const createLiveDraftServer = async (
     commands,
     strategyKey,
     seed,
+    nominatedPlayer,
   }: {
     draftSessionKey?: string;
     commands?: readonly string[];
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
+    nominatedPlayer?: string;
   }): Promise<unknown> => {
     const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
     const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
@@ -605,22 +619,29 @@ export const createLiveDraftServer = async (
       watchOwner: "Cam",
       strategyKey,
       ...(seed === undefined ? {} : { seed }),
+      ...(nominatedPlayer === undefined ? {} : { nominatedPlayer }),
     });
   };
   const stateWithMockDraft = async ({
     draftSessionKey = defaultLiveDraftSessionKey,
     strategyKey,
     seed,
+    nominatedPlayer,
   }: {
     draftSessionKey?: string;
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
+    nominatedPlayer?: string;
   }): Promise<LiveDraftStateResponse & { mockDraft: unknown }> => {
     const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
     const commands = interactiveMockStore.currentCommands();
     return {
       ...await stateFor({ draftSessionKey, mode: "interactive-mock", commands, strategyKey }),
-      mockDraft: await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, commands }),
+      mockDraft: await mockDraftFor({
+        ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer),
+        draftSessionKey,
+        commands,
+      }),
     };
   };
   const exportBundleFor = async ({
@@ -791,8 +812,9 @@ export const createLiveDraftServer = async (
       if (request.method === "GET" && url.pathname === "/api/mock/state") {
         const strategyKey = strategyKeyFromQuery(url);
         const seed = seedFromValue(url.searchParams.get("seed"));
+        const nominatedPlayer = nominatedPlayerFromValue(url.searchParams.get("nominatedPlayer"));
         sendJson(response, 200, await stateWithMockDraft({
-          ...mockDraftRequestFor(strategyKey, seed),
+          ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer),
           draftSessionKey: draftSessionKeyFromQuery(url),
         }));
         return;
@@ -852,6 +874,7 @@ export const createLiveDraftServer = async (
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const seed = seedFromValue(body.seed);
+        const nominatedPlayer = nominatedPlayerFromValue(body.nominatedPlayer);
         const action = typeof body.action === "string" ? body.action.trim() : "";
         const lock = draftNightLockFor(draftSessionKey);
         if (lock.locked) {
@@ -864,15 +887,31 @@ export const createLiveDraftServer = async (
 
         if (!action) {
           sendJson(response, 422, {
-            ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+            ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer), draftSessionKey }),
             errors: [{ input: "", message: "Mock draft action is required." }],
           });
           return;
         }
 
+        if (action === "cam-nominate") {
+          if (!nominatedPlayer) {
+            sendJson(response, 422, {
+              ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+              errors: [{ input: "", message: "Select a player for Cam to nominate." }],
+            });
+            return;
+          }
+
+          sendJson(response, 200, await stateWithMockDraft({
+            ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer),
+            draftSessionKey,
+          }));
+          return;
+        }
+
         const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
         const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
-        const mockDraft = await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey });
+        const mockDraft = await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer), draftSessionKey });
         const command = commandFromInteractiveMockAction(
           interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, action),
         );
@@ -886,7 +925,7 @@ export const createLiveDraftServer = async (
         const commandError = trialState.errors.find(error => error.input === command);
         if (commandError) {
           sendJson(response, 422, {
-            ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+            ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer), draftSessionKey }),
             errors: [commandError],
           });
           return;

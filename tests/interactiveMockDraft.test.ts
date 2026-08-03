@@ -93,4 +93,45 @@ describe("interactive mock draft", () => {
     expect(camBid.command).toBe(`Cam drafted ${state.nomination?.player} for ${state.camDecision?.recommendedBid}`);
     expect(pass.command).toBe(state.aiSaleCommand);
   });
+
+  it("lets Cam explicitly nominate a selected player on his snake turn", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const commandsBeforeCamNomination = commandsBeforeAffordableRb3Decision.slice(0, 10);
+    const nominationTurn = buildInteractiveMockDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      commands: commandsBeforeCamNomination,
+      watchOwner: "Cam",
+      strategyKey: "three-rb",
+      seed: "cam-nomination-test",
+    });
+    const nominated = buildInteractiveMockDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      commands: commandsBeforeCamNomination,
+      watchOwner: "Cam",
+      strategyKey: "three-rb",
+      seed: "cam-nomination-test",
+      nominatedPlayer: "Breece Hall",
+    });
+
+    expect(nominationTurn).toMatchObject({
+      phase: "human-nomination",
+      nominator: "Cam",
+    });
+    expect(nominated.nominator).toBe("Cam");
+    expect(nominated.nomination?.player).toBe("Breece Hall");
+    expect(nominated.aiBids.length).toBeGreaterThan(0);
+    expect(nominated.aiSaleCommand).toContain("Breece Hall");
+    expect(["human-decision", "ai-sale"]).toContain(nominated.phase);
+
+    const resolved = resolveInteractiveMockDraftAction(
+      nominated,
+      nominated.phase === "human-decision" ? "pass" : "advance",
+    );
+    expect(resolved.command).toBe(nominated.aiSaleCommand);
+  });
 });
