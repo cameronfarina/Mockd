@@ -17,6 +17,35 @@ export interface DraftPlanStrategyDefinition {
   };
 }
 
+export interface DraftPlanPriceBand {
+  slot: string;
+  position: Position;
+  minimumPrice: number;
+  maximumPrice: number;
+  note: string;
+}
+
+export interface DraftPlanTargetCluster {
+  label: string;
+  position: Position;
+  targetNames: string[];
+  priceBand: string;
+  note: string;
+}
+
+export interface DraftPlanPivotRule {
+  label: string;
+  trigger: string;
+  action: string;
+}
+
+export interface DraftPlanRecommendations {
+  maxPriceBands: DraftPlanPriceBand[];
+  targetClusters: DraftPlanTargetCluster[];
+  pivotRules: DraftPlanPivotRule[];
+  deadZoneWarnings: string[];
+}
+
 export interface DraftPlanPlayerMarket {
   averageMarketPrice: number;
   averageSalePrice: number;
@@ -69,6 +98,7 @@ export interface DraftPlanReport {
   runCount: number;
   matchedRunCount: number;
   candidateLimit: number;
+  recommendations: DraftPlanRecommendations;
   candidates: DraftPlanCandidate[];
 }
 
@@ -76,15 +106,94 @@ type CsvValue = string | number | undefined;
 
 const defaultCandidateLimit = 5;
 
+export const threeRbPathRules = {
+  rbCoreTargets: [60, 50, 40],
+  rbCoreMaxBids: [62, 54, 44],
+  priceBands: [
+    {
+      slot: "RB1",
+      position: "RB",
+      minimumPrice: 55,
+      maximumPrice: 62,
+      note: "Anchor RB lane.",
+    },
+    {
+      slot: "RB2",
+      position: "RB",
+      minimumPrice: 45,
+      maximumPrice: 54,
+      note: "Second premium RB lane.",
+    },
+    {
+      slot: "RB3",
+      position: "RB",
+      minimumPrice: 35,
+      maximumPrice: 44,
+      note: "Third premium RB lane.",
+    },
+    {
+      slot: "WR1",
+      position: "WR",
+      minimumPrice: 14,
+      maximumPrice: 24,
+      note: "Paid WR value starter.",
+    },
+    {
+      slot: "WR2",
+      position: "WR",
+      minimumPrice: 10,
+      maximumPrice: 18,
+      note: "Second WR value starter.",
+    },
+    {
+      slot: "TE",
+      position: "TE",
+      minimumPrice: 1,
+      maximumPrice: 3,
+      note: "Cheap TE lane.",
+    },
+  ],
+  slotMaxBids: {
+    RB: [62, 54, 44, 8, 4],
+    WR: [24, 18, 14, 8, 5, 3, 1],
+    TE: [3, 1],
+    K: [2],
+    DST: [2],
+  },
+  pivotRules: [
+    {
+      label: "RB2 over band",
+      trigger: "Second RB costs more than $54.",
+      action: "Treat the room as overheated and pivot toward Hero RB plus paid WR value.",
+    },
+    {
+      label: "RB3 over band",
+      trigger: "Third RB costs more than $44.",
+      action: "Stop chasing the third premium RB unless WR values have already been secured.",
+    },
+    {
+      label: "WR pocket closes",
+      trigger: "WR starters are clearing above $24.",
+      action: "Preserve the RB core and force TE/K/DST into the $1-$3 lane.",
+    },
+  ],
+} as const satisfies {
+  rbCoreTargets: readonly number[];
+  rbCoreMaxBids: readonly number[];
+  priceBands: readonly DraftPlanPriceBand[];
+  slotMaxBids: Partial<Record<Position, readonly number[]>>;
+  pivotRules: readonly DraftPlanPivotRule[];
+};
+
 export const draftPlanStrategies = {
   "three-rb": {
     key: "three-rb",
     label: "True 3RB",
     thresholds: {
-      rb1Minimum: 55,
-      rb2Minimum: 45,
-      rb3Minimum: 35,
-      rbCoreSpendMinimum: 145,
+      rb1Minimum: threeRbPathRules.priceBands[0].minimumPrice,
+      rb2Minimum: threeRbPathRules.priceBands[1].minimumPrice,
+      rb3Minimum: threeRbPathRules.priceBands[2].minimumPrice,
+      rbCoreSpendMinimum: threeRbPathRules.rbCoreTargets.reduce((total, value) => total + value, 0) - 5,
     },
   },
 } as const satisfies Record<DraftPlanStrategyKey, DraftPlanStrategyDefinition>;
@@ -135,21 +244,21 @@ export const draftPlanAuctionOverridesFor = ({
     },
     ownerPositionCoreTargets: {
       [owner]: {
-        RB: [60, 50, 40],
+        RB: [...threeRbPathRules.rbCoreTargets],
       },
     },
     ownerPositionCoreMaxBids: {
       [owner]: {
-        RB: [62, 54, 44],
+        RB: [...threeRbPathRules.rbCoreMaxBids],
       },
     },
     ownerPositionSlotMaxBids: {
       [owner]: {
-        RB: [62, 54, 44, 8, 4],
-        WR: [24, 18, 14, 8, 5, 3, 1],
-        TE: [3, 1],
-        K: [2],
-        DST: [2],
+        RB: [...(threeRbPathRules.slotMaxBids.RB ?? [])],
+        WR: [...(threeRbPathRules.slotMaxBids.WR ?? [])],
+        TE: [...(threeRbPathRules.slotMaxBids.TE ?? [])],
+        K: [...(threeRbPathRules.slotMaxBids.K ?? [])],
+        DST: [...(threeRbPathRules.slotMaxBids.DST ?? [])],
       },
     },
   };
@@ -205,6 +314,9 @@ const playerSummary = (player: DraftPlanPlayer): string =>
 
 const joinedPlayerSummaries = (players: readonly DraftPlanPlayer[]): string =>
   players.map(playerSummary).join("; ");
+
+const priceBandText = (band: Pick<DraftPlanPriceBand, "minimumPrice" | "maximumPrice">): string =>
+  `$${band.minimumPrice}-$${band.maximumPrice}`;
 
 const playerAtPosition = (
   candidate: DraftPlanCandidate,
@@ -349,6 +461,59 @@ const buildCandidate = (
   };
 };
 
+const buildRecommendations = (candidates: readonly DraftPlanCandidate[]): DraftPlanRecommendations => {
+  const topCandidate = candidates[0];
+  const rbBands = threeRbPathRules.priceBands.filter(band => band.position === "RB");
+  const wrBands = threeRbPathRules.priceBands.filter(band => band.position === "WR");
+  const teBand = threeRbPathRules.priceBands.find(band => band.position === "TE");
+  const targetClusters: DraftPlanTargetCluster[] = [];
+
+  if (topCandidate) {
+    targetClusters.push({
+      label: "RB core",
+      position: "RB",
+      targetNames: topCandidate.rbCore.map(player => player.name),
+      priceBand: rbBands.map(priceBandText).join(" / "),
+      note: "The true 3RB build works when all three premium RB slots stay inside their planned lanes.",
+    });
+
+    const wrTargets = topCandidate.players
+      .filter(player => player.position === "WR")
+      .slice(0, 3)
+      .map(player => player.name);
+    if (wrTargets.length) {
+      targetClusters.push({
+        label: "WR values",
+        position: "WR",
+        targetNames: wrTargets,
+        priceBand: wrBands.map(priceBandText).join(" / "),
+        note: "Fill WR starters from the value pocket after the RB core is protected.",
+      });
+    }
+
+    const teTargets = topCandidate.players
+      .filter(player => player.position === "TE")
+      .slice(0, 2)
+      .map(player => player.name);
+    if (teTargets.length && teBand) {
+      targetClusters.push({
+        label: "Cheap TE",
+        position: "TE",
+        targetNames: teTargets,
+        priceBand: priceBandText(teBand),
+        note: "Avoid paying up at TE unless the RB core came in under plan.",
+      });
+    }
+  }
+
+  return {
+    maxPriceBands: threeRbPathRules.priceBands.map(band => ({ ...band })),
+    targetClusters,
+    pivotRules: threeRbPathRules.pivotRules.map(rule => ({ ...rule })),
+    deadZoneWarnings: topCandidate ? [] : ["No sampled roster matched the true 3RB path."],
+  };
+};
+
 export const buildDraftPlanReport = ({
   batch,
   owner,
@@ -388,6 +553,7 @@ export const buildDraftPlanReport = ({
     runCount: batch.runs.length,
     matchedRunCount: candidates.length,
     candidateLimit: limit,
+    recommendations: buildRecommendations(candidates),
     candidates: candidates.slice(0, limit),
   };
 };

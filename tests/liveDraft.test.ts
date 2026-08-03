@@ -145,6 +145,43 @@ describe("live draft room", () => {
     expect(gibbs?.personalValue).toBeGreaterThanOrEqual(gibbs?.liveExpectedPrice ?? 0);
     expect(gibbs?.personalValue).toBeLessThanOrEqual(80);
     expect(gibbs?.recommendedMaxBid).toBeLessThanOrEqual(state.watchOwner.maxBid);
+    expect(gibbs?.recommendedMaxBid).toBe(62);
+    expect(gibbs?.tags).toContain("path max $62");
+    expect(state.draftPath).toMatchObject({
+      strategyKey: "three-rb",
+      label: "True 3RB",
+      summary: expect.stringContaining("3 premium RB"),
+      maxPriceBands: expect.arrayContaining([
+        expect.objectContaining({
+          slot: "RB1",
+          position: "RB",
+          minimumPrice: 55,
+          maximumPrice: 62,
+          status: "next",
+        }),
+        expect.objectContaining({
+          slot: "RB2",
+          position: "RB",
+          minimumPrice: 45,
+          maximumPrice: 54,
+          status: "open",
+        }),
+      ]),
+      targetClusters: expect.arrayContaining([
+        expect.objectContaining({
+          label: "Target",
+          position: "RB",
+          priceBand: "$55-$62",
+        }),
+      ]),
+      pivotRules: expect.arrayContaining([
+        expect.objectContaining({
+          label: "Pivot",
+          action: expect.stringContaining("Hero RB"),
+        }),
+      ]),
+      deadZoneWarnings: [],
+    });
     expect(state.shortlist[0]).toMatchObject({
       name: "Jahmyr Gibbs",
       position: "RB",
@@ -159,7 +196,39 @@ describe("live draft room", () => {
       expect.arrayContaining([
         expect.objectContaining({ key: "engine-state", status: "pass" }),
         expect.objectContaining({ key: "target-board", status: "pass" }),
+        expect.objectContaining({ key: "draft-path", status: "pass" }),
       ]),
     );
+  });
+
+  it("advances the live 3RB path bands after Cam buys a core running back", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+      strategyKey: "three-rb",
+      commands: ["cam drafted jahmyr gibbs for 62"],
+    });
+
+    const nextRb = state.availableTargets.find(target => target.position === "RB");
+
+    expect(state.draftPath.maxPriceBands).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        slot: "RB1",
+        status: "filled",
+        filledBy: "Jahmyr Gibbs",
+      }),
+      expect.objectContaining({
+        slot: "RB2",
+        status: "next",
+        maximumPrice: 54,
+      }),
+    ]));
+    expect(nextRb?.recommendedMaxBid).toBeLessThanOrEqual(54);
+    expect(nextRb?.tags).toContain("path max $54");
   });
 });

@@ -35,6 +35,16 @@ describe("CLI draft plan report", () => {
       runCount: number;
       matchedRunCount: number;
       candidateLimit: number;
+      recommendations: {
+        maxPriceBands: {
+          slot: string;
+          maximumPrice: number;
+        }[];
+        pivotRules: {
+          label: string;
+          action: string;
+        }[];
+      };
       candidates: {
         owner: string;
         rbCore: {
@@ -57,6 +67,15 @@ describe("CLI draft plan report", () => {
     expect(report.runCount).toBe(8);
     expect(report.matchedRunCount).toBeGreaterThan(0);
     expect(report.candidateLimit).toBe(3);
+    expect(report.recommendations.maxPriceBands).toEqual(expect.arrayContaining([
+      expect.objectContaining({ slot: "RB1", maximumPrice: 62 }),
+      expect.objectContaining({ slot: "RB2", maximumPrice: 54 }),
+      expect.objectContaining({ slot: "RB3", maximumPrice: 44 }),
+    ]));
+    expect(report.recommendations.pivotRules[0]).toEqual(expect.objectContaining({
+      label: "RB2 over band",
+      action: expect.stringContaining("Hero RB"),
+    }));
     expect(report.candidates.length).toBeGreaterThan(0);
     for (const candidate of report.candidates) {
       expect(candidate.owner).toBe("Cam");
@@ -113,5 +132,35 @@ describe("CLI draft plan report", () => {
     expect(Number(firstRow[14])).toBeGreaterThanOrEqual(45);
     expect(Number(firstRow[16])).toBeGreaterThanOrEqual(35);
     expect(firstRow[27]).toContain("RB1:");
+  }, 30000);
+
+  it("prints markdown draft path recommendations for fast prep reading", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "teams",
+        "--",
+        "--owner=Cam",
+        "--strategy=three-rb",
+        "--scenario=expected",
+        "--runs=4",
+        "--limit=1",
+        "--strategy-mode=force",
+        "--format=markdown",
+        "--seed-prefix=cli-draft-plan-markdown-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 10 * 1024 * 1024,
+      },
+    );
+
+    expect(stdout).toContain("## Path Recommendations");
+    expect(stdout).toContain("Max bands: RB1 $55-$62");
+    expect(stdout).toContain("Targets: RB core");
+    expect(stdout).toContain("Pivots: RB2 over band");
+    expect(stdout).toContain("Dead zones: none");
   }, 30000);
 });

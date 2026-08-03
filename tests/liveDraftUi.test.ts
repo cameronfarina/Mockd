@@ -39,6 +39,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"owner-needs\"");
     expect(liveDraftHtml).toContain("id=\"position-market\"");
     expect(liveDraftHtml).toContain("id=\"readiness-checks\"");
+    expect(liveDraftHtml).toContain("id=\"draft-path\"");
     expect(liveDraftHtml).toContain("id=\"shortlist\"");
     expect(liveDraftHtml).toContain("id=\"position-context\"");
     expect(liveDraftHtml).toContain("id=\"mock-draft-panel\"");
@@ -84,7 +85,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("run.worstBuild");
     expect(liveDraftHtml).toContain("window.location.assign('/mock-results')");
     expect(liveDraftHtml).toContain("const syncMockNominationSelection = mockDraft =>");
-    expect(liveDraftHtml).toContain("const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.personalValue");
+    expect(liveDraftHtml).toContain("const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.recommendedMaxBid");
     expect(liveDraftHtml).toContain("byId('add-price').value = String(nominationPrice)");
     expect(liveDraftHtml).toContain("const advanceMockDraft = async action =>");
     expect(liveDraftHtml).toContain("advanceMockDraft('cam-bid')");
@@ -108,6 +109,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderShortlist = state =>");
     expect(liveDraftHtml).toContain("const renderPositionContext = state =>");
     expect(liveDraftHtml).toContain("const renderReadiness = state =>");
+    expect(liveDraftHtml).toContain("const renderDraftPath = state =>");
+    expect(liveDraftHtml).toContain("state.draftPath");
+    expect(liveDraftHtml).toContain("Path");
+    expect(liveDraftHtml).toContain("Target");
+    expect(liveDraftHtml).toContain("Pivot");
+    expect(liveDraftHtml).toContain("Dead zone");
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\"");
   });
 

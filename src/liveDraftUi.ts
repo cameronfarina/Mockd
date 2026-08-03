@@ -1394,6 +1394,8 @@ export const liveDraftHtml = `<!doctype html>
           </div>
           <div class="section-label">Readiness</div>
           <div class="summary-list" id="readiness-checks"></div>
+          <div class="section-label">Draft Path</div>
+          <div class="summary-list" id="draft-path"></div>
           <div class="section-label">Cam Shortlist</div>
           <div class="summary-list" id="shortlist"></div>
           <div class="section-label">Roster</div>
@@ -1558,7 +1560,7 @@ export const liveDraftHtml = `<!doctype html>
       button.title = 'Add ' + target.name;
       button.addEventListener('click', () => {
         selectedTargetName = target.name;
-        byId('add-price').value = String(target.personalValue);
+        byId('add-price').value = String(target.recommendedMaxBid);
         renderSelected(currentState);
       });
       return button;
@@ -2101,6 +2103,44 @@ export const liveDraftHtml = `<!doctype html>
       }));
     };
 
+    const renderDraftPath = state => {
+      const path = state.draftPath;
+      if (!path) {
+        byId('draft-path').replaceChildren(mockDraftItem('Path', 'No draft path loaded.'));
+        return;
+      }
+
+      const nextBand = (path.maxPriceBands || []).find(band => band.status === 'next');
+      const target = (path.targetClusters || [])[0];
+      const pivot = (path.pivotRules || [])[0];
+      const deadZone = (path.deadZoneWarnings || [])[0];
+      const rows = [
+        mockDraftItem('Path', path.summary),
+        mockDraftItem(
+          'Max',
+          nextBand
+            ? nextBand.slot + ' ' + money(nextBand.minimumPrice) + '-' + money(nextBand.maximumPrice)
+            : 'Follow live max bid discipline.'
+        ),
+        mockDraftItem(
+          'Target',
+          target
+            ? target.position + ' ' + target.priceBand + ' - ' + (target.targetNames || []).slice(0, 4).join(' / ')
+            : 'No target cluster available.'
+        ),
+        mockDraftItem(
+          'Pivot',
+          pivot ? pivot.trigger + ' ' + pivot.action : 'No pivot needed yet.'
+        ),
+        mockDraftItem(
+          'Dead zone',
+          deadZone || 'None'
+        )
+      ];
+
+      byId('draft-path').replaceChildren(...rows);
+    };
+
     const renderShortlist = state => {
       const rows = (state.shortlist || []).slice(0, 8).map(target => {
         const item = document.createElement('div');
@@ -2116,7 +2156,7 @@ export const liveDraftHtml = `<!doctype html>
         );
         item.addEventListener('click', () => {
           selectedTargetName = target.name;
-          byId('add-price').value = String(target.personalValue);
+          byId('add-price').value = String(target.recommendedMaxBid);
           renderSelected(currentState);
         });
         return item;
@@ -2173,7 +2213,7 @@ export const liveDraftHtml = `<!doctype html>
       if (!target || selectedTargetName === target.name) return;
 
       selectedTargetName = target.name;
-      const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.personalValue;
+      const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.recommendedMaxBid;
       byId('add-price').value = String(nominationPrice);
       renderSelected(currentState);
       renderBoard(currentState);
@@ -2305,7 +2345,7 @@ export const liveDraftHtml = `<!doctype html>
       const warnings = saleWarningsFor(target, owner, price);
       const submit = byId('add-submit');
       submit.disabled = warnings.length > 0;
-      submit.textContent = target ? 'Add ' + shortPlayerName(target.name) + ' to ' + owner.owner + ' for ' + money(price || target.personalValue) : 'Add';
+      submit.textContent = target ? 'Add ' + shortPlayerName(target.name) + ' to ' + owner.owner + ' for ' + money(price || target.recommendedMaxBid) : 'Add';
       byId('sale-warning').textContent = warnings.join(' ');
     };
 
@@ -2315,7 +2355,7 @@ export const liveDraftHtml = `<!doctype html>
       if (!target) {
         const first = state.availableTargets[0];
         selectedTargetName = first ? first.name : null;
-        if (first) byId('add-price').value = String(first.personalValue);
+        if (first) byId('add-price').value = String(first.recommendedMaxBid);
         if (first) renderSelected(state);
         return;
       }
@@ -2432,6 +2472,7 @@ export const liveDraftHtml = `<!doctype html>
       renderBoard(state);
       renderSelected(state);
       renderReadiness(state);
+      renderDraftPath(state);
       renderShortlist(state);
       renderRoster(state);
       renderOwners(state);

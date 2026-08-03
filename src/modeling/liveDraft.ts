@@ -28,6 +28,7 @@ import {
   type LiveDraftStrategyDefinition,
   type LiveDraftStrategyKey,
 } from "./liveDraftStrategies.js";
+import { threeRbPathRules } from "./draftPlan.js";
 
 export type LiveDraftPlayerSource = "pricedPool" | "projectionFallback";
 
@@ -128,6 +129,42 @@ export interface LiveDraftTarget {
   tags: string[];
 }
 
+export type LiveDraftPathBandStatus = "filled" | "next" | "open";
+
+export interface LiveDraftPathPriceBand {
+  slot: string;
+  position: Position;
+  minimumPrice: number;
+  maximumPrice: number;
+  status: LiveDraftPathBandStatus;
+  note: string;
+  filledBy?: string;
+}
+
+export interface LiveDraftPathTargetCluster {
+  label: string;
+  position: Position;
+  targetNames: string[];
+  priceBand: string;
+  note: string;
+}
+
+export interface LiveDraftPathPivotRule {
+  label: string;
+  trigger: string;
+  action: string;
+}
+
+export interface LiveDraftPathRecommendation {
+  strategyKey: LiveDraftStrategyKey;
+  label: string;
+  summary: string;
+  maxPriceBands: LiveDraftPathPriceBand[];
+  targetClusters: LiveDraftPathTargetCluster[];
+  pivotRules: LiveDraftPathPivotRule[];
+  deadZoneWarnings: string[];
+}
+
 export interface LiveDraftShortlistTarget {
   name: string;
   position: Position;
@@ -171,6 +208,7 @@ export interface LiveDraftState {
   events: LiveDraftEvent[];
   errors: LiveDraftCommandError[];
   availableTargets: LiveDraftTarget[];
+  draftPath: LiveDraftPathRecommendation;
   shortlist: LiveDraftShortlistTarget[];
   positionContexts: LiveDraftPositionContext[];
   readiness: LiveDraftReadiness;
@@ -711,6 +749,33 @@ const personalPremiumFor = (
   return premium;
 };
 
+const priceBandText = ({
+  minimumPrice,
+  maximumPrice,
+}: Pick<LiveDraftPathPriceBand, "minimumPrice" | "maximumPrice">): string =>
+  `$${minimumPrice}-$${maximumPrice}`;
+
+const slotMaxBidsFor = (
+  strategy: LiveDraftStrategyDefinition,
+  position: Position,
+): readonly number[] | undefined => {
+  if (strategy.key === "three-rb") {
+    const slotMaxBids: Partial<Record<Position, readonly number[]>> = threeRbPathRules.slotMaxBids;
+    return slotMaxBids[position];
+  }
+  return undefined;
+};
+
+const strategyPathMaxBidFor = (
+  player: LiveDraftPlayerRecord,
+  watchOwner: LiveDraftOwnerState,
+  strategy: LiveDraftStrategyDefinition,
+): number | undefined => {
+  const slotMaxBids = slotMaxBidsFor(strategy, player.position);
+  if (!slotMaxBids) return undefined;
+  return slotMaxBids[watchOwner.positionCounts[player.position]];
+};
+
 const canWatchOwnerRosterPlayer = (
   player: LiveDraftPlayerRecord,
   watchOwner: LiveDraftOwnerState,
@@ -741,14 +806,19 @@ const buildTargets = ({
       const needMultiplier = positionNeedMultiplierFor(player, watchOwner, strategy);
       const positionCeiling = defaultPricingConfig.hardPriceCeilings[player.position];
       const uncappedPersonalValue = roundPrice(liveExpectedPrice + personalPremiumFor(player, watchOwner, strategy));
+      const strategyPathMaxBid = strategyPathMaxBidFor(player, watchOwner, strategy);
       const personalValue = Math.min(
         watchOwner.maxBid,
         positionCeiling,
         player.expectedPrice + 12,
         Math.max(1, uncappedPersonalValue),
       );
-      const recommendedMaxBid = personalValue;
+      const recommendedMaxBid = Math.min(personalValue, strategyPathMaxBid ?? personalValue);
       const valueScore = roundToTwo((player.weeks1To4 * needMultiplier) - recommendedMaxBid * 0.35);
+      const tags = targetTagsFor(player, watchOwner, strategy);
+      if (strategyPathMaxBid !== undefined && strategyPathMaxBid < personalValue) {
+        tags.push(`path max $${strategyPathMaxBid}`);
+      }
 
       return {
         name: player.name,
@@ -764,7 +834,7 @@ const buildTargets = ({
         ...(player.projectionRank === undefined ? {} : { projectionRank: player.projectionRank }),
         ...(player.espnRank === undefined ? {} : { espnRank: player.espnRank }),
         source: player.source,
-        tags: targetTagsFor(player, watchOwner, strategy),
+        tags,
       };
     })
     .sort(
@@ -848,6 +918,165 @@ const buildPositionContexts = (
     };
   });
 
+const filledPlayersFor = (
+  owner: LiveDraftOwnerState,
+  position: Position,
+): LiveDraftRosterPlayer[] =>
+  owner.roster
+    .filter(player => player.position === position)
+    .sort(
+      (left, right) =>
+        right.price - left.price ||
+        right.expectedPrice - left.expectedPrice ||
+        left.name.localeCompare(right.name),
+    );
+
+const pathBandStatusFor = (
+  filledPlayer: LiveDraftRosterPlayer | undefined,
+  index: number,
+  watchOwner: LiveDraftOwnerState,
+  position: Position,
+): LiveDraftPathBandStatus => {
+  if (filledPlayer) return "filled";
+  if (index === watchOwner.positionCounts[position]) return "next";
+  return "open";
+};
+
+const maxPriceBandsForThreeRb = (watchOwner: LiveDraftOwnerState): LiveDraftPathPriceBand[] => {
+  const seenByPosition = new Map<Position, number>();
+  const filledByPosition = new Map<Position, LiveDraftRosterPlayer[]>(
+    (["QB", "RB", "WR", "TE", "K", "DST"] as const).map(position => [
+      position,
+      filledPlayersFor(watchOwner, position),
+    ]),
+  );
+
+  return threeRbPathRules.priceBands.map(band => {
+    const index = seenByPosition.get(band.position) ?? 0;
+    seenByPosition.set(band.position, index + 1);
+    const filledPlayer = filledByPosition.get(band.position)?.[index];
+    const status = pathBandStatusFor(filledPlayer, index, watchOwner, band.position);
+
+    return {
+      slot: band.slot,
+      position: band.position,
+      minimumPrice: band.minimumPrice,
+      maximumPrice: band.maximumPrice,
+      status,
+      note: band.note,
+      ...(filledPlayer ? { filledBy: filledPlayer.name } : {}),
+    };
+  });
+};
+
+const targetNamesFor = (
+  targets: readonly LiveDraftTarget[],
+  position: Position,
+  limit: number,
+): string[] =>
+  targets
+    .filter(target => target.position === position)
+    .slice(0, limit)
+    .map(target => target.name);
+
+const buildThreeRbDraftPath = (
+  strategy: LiveDraftStrategyDefinition,
+  watchOwner: LiveDraftOwnerState,
+  availableTargets: readonly LiveDraftTarget[],
+): LiveDraftPathRecommendation => {
+  const maxPriceBands = maxPriceBandsForThreeRb(watchOwner);
+  const rbBands = maxPriceBands.filter(band => band.position === "RB");
+  const nextRbBand = rbBands.find(band => band.status === "next");
+  const openRbCoreCount = Math.max(0, 3 - watchOwner.positionCounts.RB);
+  const targetClusters: LiveDraftPathTargetCluster[] = [];
+
+  if (nextRbBand) {
+    targetClusters.push({
+      label: "Target",
+      position: "RB",
+      targetNames: targetNamesFor(availableTargets, "RB", 5),
+      priceBand: priceBandText(nextRbBand),
+      note: `${nextRbBand.slot} is the next premium RB lane.`,
+    });
+  }
+
+  const wrBands = maxPriceBands.filter(band => band.position === "WR");
+  targetClusters.push({
+    label: "Target",
+    position: "WR",
+    targetNames: targetNamesFor(availableTargets, "WR", 5),
+    priceBand: wrBands.map(priceBandText).join(" / "),
+    note: "WR values should fill starters after the RB core is protected.",
+  });
+
+  const teBand = maxPriceBands.find(band => band.position === "TE");
+  if (teBand) {
+    targetClusters.push({
+      label: "Target",
+      position: "TE",
+      targetNames: targetNamesFor(availableTargets, "TE", 3),
+      priceBand: priceBandText(teBand),
+      note: "Cheap TE keeps the path from taxing RB and WR slots.",
+    });
+  }
+
+  const deadZoneWarnings: string[] = [];
+  if (openRbCoreCount > 0 && !targetNamesFor(availableTargets, "RB", 1).length) {
+    deadZoneWarnings.push("Dead zone: no RB targets remain for the 3RB path.");
+  }
+  if (nextRbBand && watchOwner.maxBid < nextRbBand.minimumPrice) {
+    deadZoneWarnings.push(`Dead zone: Cam max bid is below the ${nextRbBand.slot} ${priceBandText(nextRbBand)} lane.`);
+  }
+
+  return {
+    strategyKey: strategy.key,
+    label: strategy.label,
+    summary: nextRbBand
+      ? `3 premium RB path: ${3 - openRbCoreCount}/3 core RBs filled. Next ${nextRbBand.slot} lane is ${priceBandText(nextRbBand)}.`
+      : "3 premium RB path: RB core filled. Shift attention to WR value and cheap TE.",
+    maxPriceBands,
+    targetClusters,
+    pivotRules: threeRbPathRules.pivotRules.map(rule => ({
+      label: "Pivot",
+      trigger: rule.trigger,
+      action: rule.action,
+    })),
+    deadZoneWarnings,
+  };
+};
+
+const buildDraftPath = (
+  strategy: LiveDraftStrategyDefinition,
+  watchOwner: LiveDraftOwnerState,
+  availableTargets: readonly LiveDraftTarget[],
+): LiveDraftPathRecommendation => {
+  if (strategy.key === "three-rb") {
+    return buildThreeRbDraftPath(strategy, watchOwner, availableTargets);
+  }
+
+  const focusPositions = (Object.keys(strategy.tags) as Position[])
+    .filter(position => Boolean(strategy.tags[position]));
+  return {
+    strategyKey: strategy.key,
+    label: strategy.label,
+    summary: `${strategy.label} path: follow the live board tags and keep max bids under Cam's current room cap.`,
+    maxPriceBands: [],
+    targetClusters: focusPositions.map(position => ({
+      label: "Target",
+      position,
+      targetNames: targetNamesFor(availableTargets, position, 5),
+      priceBand: "Live value",
+      note: `Current ${strategy.label} targets at ${position}.`,
+    })),
+    pivotRules: [{
+      label: "Pivot",
+      trigger: "Core strategy targets clear above Cam's max bid.",
+      action: "Move to best value-score targets that still fill starter or flex needs.",
+    }],
+    deadZoneWarnings: [],
+  };
+};
+
 const readinessStatusFor = (checks: readonly LiveDraftReadinessCheck[]): LiveDraftReadinessStatus => {
   if (checks.some(check => check.status === "fail")) return "fail";
   if (checks.some(check => check.status === "warn")) return "warn";
@@ -858,10 +1087,12 @@ const buildReadiness = ({
   errors,
   availableTargets,
   owners,
+  draftPath,
 }: {
   errors: readonly LiveDraftCommandError[];
   availableTargets: readonly LiveDraftTarget[];
   owners: readonly LiveDraftOwnerState[];
+  draftPath: LiveDraftPathRecommendation;
 }): LiveDraftReadiness => {
   const checks: LiveDraftReadinessCheck[] = [
     {
@@ -881,6 +1112,12 @@ const buildReadiness = ({
       label: "Owner rosters",
       status: owners.every(owner => owner.rosterSlotsRemaining >= 0 && owner.budgetRemaining >= 0) ? "pass" : "fail",
       detail: "Owner budgets, roster slots, and max bids are rebuilt from commands.",
+    },
+    {
+      key: "draft-path",
+      label: "Draft path",
+      status: draftPath.deadZoneWarnings.length ? "warn" : "pass",
+      detail: draftPath.deadZoneWarnings[0] ?? draftPath.summary,
     },
   ];
 
@@ -978,6 +1215,7 @@ export const buildLiveDraftState = ({
     targetLimit,
     strategy,
   });
+  const draftPath = buildDraftPath(strategy, currentWatchOwner, availableTargets);
 
   return {
     strategy,
@@ -988,8 +1226,9 @@ export const buildLiveDraftState = ({
     events,
     errors,
     availableTargets,
+    draftPath,
     shortlist: buildShortlist(availableTargets),
     positionContexts: buildPositionContexts(owners, currentWatchOwner),
-    readiness: buildReadiness({ errors, availableTargets, owners }),
+    readiness: buildReadiness({ errors, availableTargets, owners, draftPath }),
   };
 };

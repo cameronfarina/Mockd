@@ -212,6 +212,11 @@ const marketBandFor = (player: DraftPlanPlayer): string => {
 const draftPlanPlayerMarkdown = (player: DraftPlanPlayer): string =>
   `${player.position} ${player.name} $${player.price}${marketBandFor(player)}`;
 
+const draftPlanPriceBandMarkdown = (
+  band: DraftPlanReport["recommendations"]["maxPriceBands"][number],
+): string =>
+  `${band.slot} $${band.minimumPrice}-$${band.maximumPrice}`;
+
 const draftPlanReportMarkdown = (report: DraftPlanReport): string => {
   const lines = [
     `# ${report.owner} ${report.strategy.label} Draft Plans`,
@@ -220,6 +225,12 @@ const draftPlanReportMarkdown = (report: DraftPlanReport): string => {
     `Runs: ${report.runCount}`,
     `Matches: ${report.matchedRunCount}`,
     `Thresholds: RB1 $${report.strategy.thresholds.rb1Minimum}+, RB2 $${report.strategy.thresholds.rb2Minimum}+, RB3 $${report.strategy.thresholds.rb3Minimum}+, core $${report.strategy.thresholds.rbCoreSpendMinimum}+`,
+    "",
+    "## Path Recommendations",
+    `Max bands: ${report.recommendations.maxPriceBands.map(draftPlanPriceBandMarkdown).join(" | ")}`,
+    `Targets: ${report.recommendations.targetClusters.map(cluster => `${cluster.label} ${cluster.priceBand}`).join(" | ") || "none"}`,
+    `Pivots: ${report.recommendations.pivotRules.map(rule => `${rule.label} - ${rule.action}`).join(" | ") || "none"}`,
+    `Dead zones: ${report.recommendations.deadZoneWarnings.join(" | ") || "none"}`,
   ];
 
   for (const [index, candidate] of report.candidates.entries()) {

@@ -187,6 +187,55 @@ describe("draft plan generation", () => {
 
     expect(report.runCount).toBe(2);
     expect(report.matchedRunCount).toBe(1);
+    expect(report.recommendations.maxPriceBands).toEqual([
+      expect.objectContaining({
+        slot: "RB1",
+        position: "RB",
+        minimumPrice: 55,
+        maximumPrice: 62,
+      }),
+      expect.objectContaining({
+        slot: "RB2",
+        position: "RB",
+        minimumPrice: 45,
+        maximumPrice: 54,
+      }),
+      expect.objectContaining({
+        slot: "RB3",
+        position: "RB",
+        minimumPrice: 35,
+        maximumPrice: 44,
+      }),
+      expect.objectContaining({
+        slot: "WR1",
+        position: "WR",
+        minimumPrice: 14,
+        maximumPrice: 24,
+      }),
+      expect.objectContaining({
+        slot: "WR2",
+        position: "WR",
+        minimumPrice: 10,
+        maximumPrice: 18,
+      }),
+      expect.objectContaining({
+        slot: "TE",
+        position: "TE",
+        minimumPrice: 1,
+        maximumPrice: 3,
+      }),
+    ]);
+    expect(report.recommendations.targetClusters[0]).toEqual(expect.objectContaining({
+      label: "RB core",
+      position: "RB",
+      targetNames: ["Elite RB", "Strong RB", "Flex RB"],
+      priceBand: "$55-$62 / $45-$54 / $35-$44",
+    }));
+    expect(report.recommendations.pivotRules[0]).toEqual(expect.objectContaining({
+      label: "RB2 over band",
+      trigger: "Second RB costs more than $54.",
+    }));
+    expect(report.recommendations.deadZoneWarnings).toEqual([]);
     expect(report.candidates).toHaveLength(1);
     expect(report.candidates[0]).toMatchObject({
       seed: "draft-plan-test:expected:1",
