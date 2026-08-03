@@ -137,4 +137,98 @@ describe("CLI strategy lab", () => {
       },
     });
   }, 30000);
+
+  it("accepts repeated force flags for multi-player Cam strategy paths", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "strategy:lab",
+        "--",
+        "--runs=1",
+        "--label=Puka plus Walker",
+        "--strategy=three-rb",
+        "--force=Puka Nacua:75",
+        "--force=Kenneth Walker III:36",
+        "--seed-prefix=cli-strategy-lab-repeated-force-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 30 * 1024 * 1024,
+      },
+    );
+    const report = JSON.parse(stdout) as {
+      scenarios: {
+        forcedSales: {
+          owner: string;
+          player: string;
+          price: number;
+        }[];
+        camForcedStart: {
+          budgetRemaining: number;
+          maxBid: number;
+        };
+      }[];
+    };
+
+    expect(report.scenarios[0]?.forcedSales).toEqual([
+      { owner: "Cam", player: "Puka Nacua", price: 75 },
+      { owner: "Cam", player: "Kenneth Walker III", price: 36 },
+    ]);
+    expect(report.scenarios[0]?.camForcedStart).toMatchObject({
+      budgetRemaining: 39,
+      maxBid: 27,
+    });
+  }, 30000);
+
+  it("can run a custom capped-target Cam path without forcing the target", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "strategy:lab",
+        "--",
+        "--runs=1",
+        "--label=Puka cap",
+        "--strategy=balanced",
+        "--target=Puka Nacua:1",
+        "--seed-prefix=cli-strategy-lab-target-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 30 * 1024 * 1024,
+      },
+    );
+    const report = JSON.parse(stdout) as {
+      scenarios: {
+        forcedSales: unknown[];
+        targetMaxBids: {
+          owner: string;
+          player: string;
+          maxBid: number;
+        }[];
+        targetOutcomes: {
+          player: string;
+          maxBid: number;
+          draftedByCamCount: number;
+          draftedByCamRate: number;
+        }[];
+      }[];
+    };
+
+    expect(report.scenarios[0]?.forcedSales).toEqual([]);
+    expect(report.scenarios[0]?.targetMaxBids).toEqual([
+      { owner: "Cam", player: "Puka Nacua", maxBid: 1 },
+    ]);
+    expect(report.scenarios[0]?.targetOutcomes).toEqual([
+      expect.objectContaining({
+        player: "Puka Nacua",
+        maxBid: 1,
+        draftedByCamCount: 0,
+        draftedByCamRate: 0,
+      }),
+    ]);
+  }, 30000);
 });

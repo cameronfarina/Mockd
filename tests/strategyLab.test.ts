@@ -46,12 +46,14 @@ describe("strategy lab", () => {
         build.camPlayers.some(player => player.name === "Puka Nacua" && player.price === 75),
       ),
     ).toBe(true);
-    expect(valueWrCook?.camForcedStart.players.map(player => player.player)).toEqual([
-      "De'Von Achane",
+    expect(valueWrCook?.forcedSales).toEqual([]);
+    expect(valueWrCook?.camForcedStart.players.map(player => player.player)).toEqual(["De'Von Achane"]);
+    expect(valueWrCook?.targetMaxBids.map(target => target.player)).toEqual([
       "DeVonta Smith",
       "Ladd McConkey",
       "James Cook III",
     ]);
+    expect(valueWrCook?.targetOutcomes).toHaveLength(3);
   }, 20000);
 
   it("renders a markdown leaderboard for fast draft-prep review", async () => {
@@ -70,5 +72,45 @@ describe("strategy lab", () => {
     expect(markdown).toContain("Puka $75");
     expect(markdown).toContain("Budget after forced start");
     expect(markdown).toContain("Best sample");
+  }, 20000);
+
+  it("measures capped target outcomes without forcing targets onto Cam's roster", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const report = await runStrategyLab({
+      projections,
+      historicalRecords,
+      keepers,
+      runsPerScenario: 2,
+      seedPrefix: "strategy-lab-target-cap",
+      scenarios: [{
+        key: "puka-cap-1",
+        label: "Puka cap $1",
+        question: "If Cam only wants Puka at a fake-low cap, he should lose him and pivot.",
+        strategyKey: "balanced",
+        forcedSales: [],
+        targetMaxBids: [{ owner: "Cam", player: "Puka Nacua", maxBid: 1 }],
+      }],
+    });
+    const scenario = report.scenarios[0];
+
+    expect(scenario?.camForcedStart.players).toEqual([
+      { player: "De'Von Achane", position: "RB", price: 50, source: "keeper" },
+    ]);
+    expect(scenario?.targetOutcomes).toEqual([
+      expect.objectContaining({
+        player: "Puka Nacua",
+        maxBid: 1,
+        draftedByCamCount: 0,
+        draftedByCamRate: 0,
+        draftedByOtherCount: 2,
+      }),
+    ]);
+    expect(scenario?.targetOutcomes[0]?.averageSalePrice).toBeGreaterThan(1);
+    expect(
+      scenario?.sampleBuilds.every(build =>
+        !build.camPlayers.some(player => player.name === "Puka Nacua"),
+      ),
+    ).toBe(true);
   }, 20000);
 });

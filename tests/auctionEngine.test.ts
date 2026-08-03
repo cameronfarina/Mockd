@@ -1490,6 +1490,97 @@ describe("auction engine economics", () => {
     expect(beatonBid?.amount).toBe(8);
   });
 
+  it("targets named players up to a max bid without forcing the purchase", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 200,
+      rosterSize: 16,
+      rosterMaximums: positionAmounts(16),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1,
+          scarcityChase: 1,
+          replacementPatience: 1,
+          anchorAggression: 1,
+          depthAggression: 1,
+        },
+        Hoody: {
+          priceAggression: 1.2,
+          scarcityChase: 1,
+          replacementPatience: 1,
+          anchorAggression: 1.2,
+          depthAggression: 1,
+        },
+      },
+      ownerPlayerTargetMaxBids: {
+        Beaton: {
+          "Breece Hall": 35,
+        },
+      },
+      seed: "named-player-target-cap",
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+    const sale = resolveAuctionSale(player("Breece Hall", "RB", 38), ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    expect(beatonBid).toBeDefined();
+    expect(beatonBid?.playerTargetMaxBid).toBe(35);
+    expect(beatonBid?.maxBid).toBe(35);
+    expect(beatonBid?.amount).toBe(35);
+    expect(sale.winner).toBe("Hoody");
+  });
+
+  it("lets explicit player targets override general strategy budget rails", () => {
+    const owners: Owner[] = ["Beaton"];
+    const config = buildAuctionConfig({
+      owners,
+      auctionBudget: 200,
+      rosterSize: 16,
+      rosterMaximums: positionAmounts(16),
+      starterMinimums: positionAmounts(0),
+      flexMinimum: 0,
+      ownerBehaviors: {
+        Beaton: {
+          priceAggression: 1,
+          scarcityChase: 1,
+          replacementPatience: 1,
+          anchorAggression: 1,
+          depthAggression: 1,
+        },
+      },
+      ownerPositionSlotMaxBids: {
+        Beaton: {
+          RB: [8],
+        },
+      },
+      ownerPlayerTargetMaxBids: {
+        Beaton: {
+          "Breece Hall": 35,
+        },
+      },
+      seed: "player-target-overrides-strategy-rails",
+    });
+    const ownerStates = createAuctionOwnerStates({ config });
+    const sale = resolveAuctionSale(player("Breece Hall", "RB", 38), ownerStates, [], config);
+
+    expect(sale).toBeDefined();
+    if (!sale) throw new Error("Expected sale to resolve.");
+
+    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    expect(beatonBid).toBeDefined();
+    expect(beatonBid?.strategyBudgetMaxBid).toBe(8);
+    expect(beatonBid?.playerTargetMaxBid).toBe(35);
+    expect(beatonBid?.maxBid).toBe(35);
+    expect(beatonBid?.amount).toBe(35);
+    expect(sale.winner).toBe("Beaton");
+  });
+
   it("discounts backup tight end bids after an owner has a starter", () => {
     const owners: Owner[] = ["Beaton", "Hoody"];
     const config = buildAuctionConfig({

@@ -1,5 +1,5 @@
 import type { KeeperDeclaration } from "../../config/keepers.js";
-import { leagueConfig, type Position } from "../../config/league.js";
+import { leagueConfig, type Owner, type Position } from "../../config/league.js";
 import { normalizePlayerName } from "../data/normalizePlayerName.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
 import type { ProjectionRecord } from "../projections.js";
@@ -18,6 +18,7 @@ import {
   type ForcedAuctionSale,
 } from "./mockBatch.js";
 import { strategyAuctionOverridesFor } from "./interactiveMockDraft.js";
+import type { AuctionEngineConfigOverrides, OwnerPlayerTargetMaxBids } from "./auctionEngine.js";
 import type { PricingConfig } from "./basePricing.js";
 import type { LiveDraftStrategyKey } from "./liveDraftStrategies.js";
 
@@ -29,7 +30,14 @@ export interface StrategyLabScenario {
   question: string;
   strategyKey: LiveDraftStrategyKey;
   forcedSales: readonly ForcedAuctionSale[];
+  targetMaxBids?: readonly StrategyLabTargetMaxBid[];
   notes?: string;
+}
+
+export interface StrategyLabTargetMaxBid {
+  owner: Owner;
+  player: string;
+  maxBid: number;
 }
 
 export interface StrategyLabForcedStartPlayer {
@@ -69,6 +77,8 @@ export interface StrategyLabScenarioResult {
   question: string;
   strategyKey: LiveDraftStrategyKey;
   forcedSales: ForcedAuctionSale[];
+  targetMaxBids: StrategyLabTargetMaxBid[];
+  targetOutcomes: StrategyLabTargetOutcome[];
   notes?: string;
   camForcedStart: StrategyLabForcedStart;
   runCount: number;
@@ -84,6 +94,20 @@ export interface StrategyLabScenarioResult {
   averageCamDollarPlayers: number;
   averageThinnessScore: number;
   sampleBuilds: StrategyLabSampleBuild[];
+}
+
+export interface StrategyLabTargetOutcome {
+  owner: Owner;
+  player: string;
+  maxBid: number;
+  runCount: number;
+  draftedByCamCount: number;
+  draftedByCamRate: number;
+  draftedByOtherCount: number;
+  missedCount: number;
+  averageSalePrice: number;
+  minimumSalePrice: number;
+  maximumSalePrice: number;
 }
 
 export interface StrategyLabLeaderboardEntry {
@@ -149,44 +173,63 @@ export const defaultStrategyLabScenarios: readonly StrategyLabScenario[] = [
   },
   {
     key: "puka-75-walker",
-    label: "Puka $75 + Walker $36",
-    question: "If Cam pairs Puka with Achane and Kenneth Walker, can the value WR room hold up?",
+    label: "Puka $75 + Walker cap $42",
+    question: "If Cam pairs Puka with Achane and only wins Kenneth Walker when the room stays reasonable, can the value WR room hold up?",
     strategyKey: "three-rb",
     forcedSales: [
       { owner: "Cam", player: "Puka Nacua", price: 75 },
-      { owner: "Cam", player: "Kenneth Walker III", price: 36 },
+    ],
+    targetMaxBids: [{ owner: "Cam", player: "Kenneth Walker III", maxBid: 42 }],
+  },
+  {
+    key: "elite-rb-rb2-caps",
+    label: "Elite RB + RB2 caps",
+    question: "If Cam keeps Achane, bids up to elite prices for one more RB, and only takes Breece or Walker under a cap, how often does that structure land?",
+    strategyKey: "three-rb",
+    forcedSales: [],
+    targetMaxBids: [
+      { owner: "Cam", player: "Jahmyr Gibbs", maxBid: 80 },
+      { owner: "Cam", player: "Bijan Robinson", maxBid: 80 },
+      { owner: "Cam", player: "Christian McCaffrey", maxBid: 80 },
+      { owner: "Cam", player: "Jonathan Taylor", maxBid: 72 },
+      { owner: "Cam", player: "Breece Hall", maxBid: 42 },
+      { owner: "Cam", player: "Kenneth Walker III", maxBid: 42 },
     ],
   },
   {
     key: "value-wr-cook",
-    label: "DeVonta + Ladd + Cook",
-    question: "If Cam skips the elite WR spend and builds around value WRs plus James Cook, what is the upside?",
+    label: "DeVonta + Ladd + Cook caps",
+    question: "If Cam skips the elite WR spend and targets value WRs plus James Cook only under caps, what is the upside?",
     strategyKey: "hero-rb",
-    forcedSales: [
-      { owner: "Cam", player: "DeVonta Smith", price: 32 },
-      { owner: "Cam", player: "Ladd McConkey", price: 22 },
-      { owner: "Cam", player: "James Cook III", price: 50 },
+    forcedSales: [],
+    targetMaxBids: [
+      { owner: "Cam", player: "DeVonta Smith", maxBid: 32 },
+      { owner: "Cam", player: "Ladd McConkey", maxBid: 24 },
+      { owner: "Cam", player: "James Cook III", maxBid: 52 },
     ],
   },
   {
     key: "value-wr-walker",
-    label: "DeVonta + Ladd + Walker",
-    question: "If Cam keeps spend lighter at RB2 with Kenneth Walker, does the room create better balance?",
+    label: "DeVonta + Ladd + Walker cap",
+    question: "If Cam keeps spend lighter at RB2 with Kenneth Walker only under a cap, does the room create better balance?",
     strategyKey: "hero-rb",
-    forcedSales: [
-      { owner: "Cam", player: "DeVonta Smith", price: 32 },
-      { owner: "Cam", player: "Ladd McConkey", price: 22 },
-      { owner: "Cam", player: "Kenneth Walker III", price: 36 },
+    forcedSales: [],
+    targetMaxBids: [
+      { owner: "Cam", player: "DeVonta Smith", maxBid: 32 },
+      { owner: "Cam", player: "Ladd McConkey", maxBid: 24 },
+      { owner: "Cam", player: "Kenneth Walker III", maxBid: 42 },
     ],
   },
   {
     key: "rb-stack-cook-walker",
-    label: "Cook + Walker",
-    question: "If Cam starts Achane plus Cook and Walker, how hard does the WR room have to hit?",
+    label: "Cook + RB2 caps",
+    question: "If Cam targets Cook, Breece, and Walker without forcing any of them, how hard does the WR room have to hit?",
     strategyKey: "three-rb",
-    forcedSales: [
-      { owner: "Cam", player: "James Cook III", price: 50 },
-      { owner: "Cam", player: "Kenneth Walker III", price: 35 },
+    forcedSales: [],
+    targetMaxBids: [
+      { owner: "Cam", player: "James Cook III", maxBid: 52 },
+      { owner: "Cam", player: "Breece Hall", maxBid: 42 },
+      { owner: "Cam", player: "Kenneth Walker III", maxBid: 42 },
     ],
   },
 ];
@@ -265,6 +308,21 @@ const forcedStartFor = ({
   };
 };
 
+const targetMaxBidOverridesFor = (
+  targetMaxBids: readonly StrategyLabTargetMaxBid[],
+): AuctionEngineConfigOverrides => {
+  const ownerPlayerTargetMaxBids: OwnerPlayerTargetMaxBids = {};
+
+  for (const target of targetMaxBids) {
+    ownerPlayerTargetMaxBids[target.owner] = {
+      ...(ownerPlayerTargetMaxBids[target.owner] ?? {}),
+      [normalizePlayerName(target.player)]: target.maxBid,
+    };
+  }
+
+  return { ownerPlayerTargetMaxBids };
+};
+
 const benchWeek1ScoreFor = (run: MockResultsRun): number => {
   const cam = run.teams.find(team => team.owner === "Cam");
   if (!cam) throw new Error(`Missing Cam team for ${run.label}.`);
@@ -328,6 +386,46 @@ const sampleBuildFor = (run: MockResultsRun): StrategyLabSampleBuild => {
   };
 };
 
+const rosteredTargetFor = (
+  run: MockResultsRun,
+  playerName: string,
+): { owner: Owner; price: number } | undefined => {
+  const normalizedName = normalizePlayerName(playerName);
+
+  for (const team of run.teams) {
+    const player = team.players.find(candidate => normalizePlayerName(candidate.name) === normalizedName);
+    if (player) return { owner: team.owner, price: player.price };
+  }
+
+  return undefined;
+};
+
+const targetOutcomesFor = (
+  targetMaxBids: readonly StrategyLabTargetMaxBid[],
+  mockRuns: readonly MockResultsRun[],
+): StrategyLabTargetOutcome[] =>
+  targetMaxBids.map(target => {
+    const rosteredTargets = mockRuns
+      .map(run => rosteredTargetFor(run, target.player))
+      .filter((result): result is { owner: Owner; price: number } => result !== undefined);
+    const salePrices = rosteredTargets.map(result => result.price);
+    const draftedByCamCount = rosteredTargets.filter(result => result.owner === target.owner).length;
+
+    return {
+      owner: target.owner,
+      player: target.player,
+      maxBid: target.maxBid,
+      runCount: mockRuns.length,
+      draftedByCamCount,
+      draftedByCamRate: roundToTwo(draftedByCamCount / Math.max(1, mockRuns.length)),
+      draftedByOtherCount: rosteredTargets.filter(result => result.owner !== target.owner).length,
+      missedCount: mockRuns.length - draftedByCamCount,
+      averageSalePrice: roundToTwo(average(salePrices)),
+      minimumSalePrice: salePrices.length === 0 ? 0 : Math.min(...salePrices),
+      maximumSalePrice: salePrices.length === 0 ? 0 : Math.max(...salePrices),
+    };
+  });
+
 const scenarioResultFor = (
   scenario: StrategyLabScenario,
   mockRuns: readonly MockResultsRun[],
@@ -350,6 +448,8 @@ const scenarioResultFor = (
     question: scenario.question,
     strategyKey: scenario.strategyKey,
     forcedSales: [...scenario.forcedSales],
+    targetMaxBids: [...(scenario.targetMaxBids ?? [])],
+    targetOutcomes: targetOutcomesFor(scenario.targetMaxBids ?? [], mockRuns),
     ...(scenario.notes === undefined ? {} : { notes: scenario.notes }),
     camForcedStart,
     runCount: mockRuns.length,
@@ -413,8 +513,10 @@ export const runStrategyLab = async ({
       ...(pricingConfig === undefined ? {} : { pricingConfig }),
       diagnosticsMode: "summary",
       forcedSales: strategyScenario.forcedSales,
-      auctionConfigOverridesForRun: context =>
-        strategyAuctionOverridesFor("Cam", strategyScenario.strategyKey, { variantSeed: context.seed }),
+      auctionConfigOverridesForRun: context => ({
+        ...strategyAuctionOverridesFor("Cam", strategyScenario.strategyKey, { variantSeed: context.seed }),
+        ...targetMaxBidOverridesFor(strategyScenario.targetMaxBids ?? []),
+      }),
     });
     const mockResults = buildMockResultsReport(
       batch,
@@ -446,6 +548,18 @@ export const runStrategyLab = async ({
 const forcedStartMarkdown = (forcedStart: StrategyLabForcedStart): string =>
   forcedStart.players
     .map(player => `${player.player} ${moneyText(player.price)} (${player.source})`)
+    .join(" | ");
+
+const targetMaxBidsMarkdown = (targetMaxBids: readonly StrategyLabTargetMaxBid[]): string =>
+  targetMaxBids
+    .map(target => `${target.player} up to ${moneyText(target.maxBid)}`)
+    .join(" | ");
+
+const targetOutcomesMarkdown = (targetOutcomes: readonly StrategyLabTargetOutcome[]): string =>
+  targetOutcomes
+    .map(outcome =>
+      `${outcome.player}: Cam won ${outcome.draftedByCamCount}/${outcome.runCount} (${Math.round(outcome.draftedByCamRate * 100)}%), avg sale ${moneyText(outcome.averageSalePrice)}, range ${moneyText(outcome.minimumSalePrice)}-${moneyText(outcome.maximumSalePrice)}`,
+    )
     .join(" | ");
 
 const sampleMarkdown = (sample: StrategyLabSampleBuild): string =>
@@ -496,6 +610,8 @@ export const strategyLabReportMarkdown = (report: StrategyLabReport): string => 
       scenario.question,
       `Strategy lens: ${scenario.strategyKey}`,
       `Forced start: ${forcedStartMarkdown(scenario.camForcedStart)}`,
+      ...(scenario.targetMaxBids.length === 0 ? [] : [`Target caps: ${targetMaxBidsMarkdown(scenario.targetMaxBids)}`]),
+      ...(scenario.targetOutcomes.length === 0 ? [] : [`Target outcomes: ${targetOutcomesMarkdown(scenario.targetOutcomes)}`]),
       `Budget after forced start: ${moneyText(scenario.camForcedStart.budgetRemaining)}, max bid ${moneyText(scenario.camForcedStart.maxBid)}, slots left ${scenario.camForcedStart.slotsRemaining}`,
       `Average: rank ${scenario.averageCamRank.toFixed(2)}, Week 1 ${scenario.averageCamWeek1Score.toFixed(1)}, season strength ${scenario.averageCamSeasonStrengthScore.toFixed(1)}, bench W1 ${scenario.averageCamBenchWeek1Score.toFixed(1)}, dollar players ${scenario.averageCamDollarPlayers.toFixed(1)}`,
       bestSample ? sampleMarkdown(bestSample) : "Best sample unavailable.",
