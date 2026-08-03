@@ -1,4 +1,8 @@
-import { keepers as defaultKeepers, type KeeperDeclaration } from "../../config/keepers.js";
+import {
+  keepers as defaultKeepers,
+  type KeeperDeclaration,
+  type KeeperStatus,
+} from "../../config/keepers.js";
 import { leagueConfig, ownerOrder, type Owner, type Position } from "../../config/league.js";
 import { nflTeamByEspnProTeamId } from "../../config/nflTeams.js";
 import { cleanPlayerName, normalizePlayerName } from "../data/normalizePlayerName.js";
@@ -12,6 +16,7 @@ import {
 import {
   buildBasePrices,
   defaultPricingConfig,
+  type BasePrice,
   type PricingConfig,
 } from "./basePricing.js";
 import {
@@ -159,6 +164,28 @@ export interface LiveDraftTarget {
   tags: string[];
 }
 
+export interface LiveDraftKeeperTarget {
+  name: string;
+  position: Position;
+  teamAbbreviation?: string;
+  byeWeek?: number;
+  keeperOwner: Owner;
+  keeperCost: number;
+  keeperStatus: KeeperStatus;
+  draftable: false;
+  expectedPrice: number;
+  liveExpectedPrice: number;
+  personalValue: number;
+  recommendedMaxBid: number;
+  valueScore: number;
+  week1Projection: number;
+  weeks1To4: number;
+  seasonProjection: number;
+  projectionRank?: number;
+  espnRank?: number;
+  tags: string[];
+}
+
 export type LiveDraftPathBandStatus = "filled" | "next" | "open";
 
 export interface LiveDraftPathPriceBand {
@@ -246,6 +273,7 @@ export interface LiveDraftState {
   errors: LiveDraftCommandError[];
   postDraftAudit: LiveDraftSaleAudit[];
   availableTargets: LiveDraftTarget[];
+  keeperTargets: LiveDraftKeeperTarget[];
   draftPath: LiveDraftPathRecommendation;
   shortlist: LiveDraftShortlistTarget[];
   positionContexts: LiveDraftPositionContext[];
@@ -417,6 +445,87 @@ const liveRecordFromProjection = (
   projectionRank: projection.projectionRank,
   ...(projection.espnRank === undefined ? {} : { espnRank: projection.espnRank }),
 });
+
+const keeperProjectionFor = ({
+  keeper,
+  prices,
+  projections,
+}: {
+  keeper: KeeperDeclaration;
+  prices: readonly BasePrice[];
+  projections: ReadonlyMap<string, ProjectionRanking>;
+}): BasePrice | ProjectionRanking | undefined => {
+  const normalizedName = normalizePlayerName(keeper.player);
+  return prices.find(price => price.normalizedName === normalizedName) ?? projections.get(normalizedName);
+};
+
+const keeperTargetFromDeclaration = ({
+  keeper,
+  projection,
+  scenario,
+}: {
+  keeper: KeeperDeclaration;
+  projection: BasePrice | ProjectionRanking | undefined;
+  scenario: KeeperScenario;
+}): LiveDraftKeeperTarget => {
+  const expectedPrice = projection
+    ? "price" in projection
+      ? roundPrice(projection.price * scenario.positionFactors[keeper.position])
+      : projectionPriceFor(projection, scenario)
+    : keeper.newCost;
+  const week1 = projection?.weeks[1] ?? 0;
+  const weeks1To4 = projection?.weeks1To4 ?? 0;
+  const seasonProjection = projection?.seasonProjection ?? weeks1To4;
+  const metadata = teamMetadataFor(projection?.proTeamId);
+
+  return {
+    name: projection?.name ?? keeper.player,
+    position: keeper.position,
+    ...metadata,
+    keeperOwner: keeper.owner,
+    keeperCost: keeper.newCost,
+    keeperStatus: keeper.status,
+    draftable: false,
+    expectedPrice,
+    liveExpectedPrice: expectedPrice,
+    personalValue: keeper.newCost,
+    recommendedMaxBid: 0,
+    valueScore: 0,
+    week1Projection: roundToTwo(week1),
+    weeks1To4: roundToTwo(weeks1To4),
+    seasonProjection: roundToTwo(seasonProjection),
+    ...(projection?.projectionRank === undefined ? {} : { projectionRank: projection.projectionRank }),
+    ...(projection?.espnRank === undefined ? {} : { espnRank: projection.espnRank }),
+    tags: [`keeper - ${keeper.owner}`, `${keeper.status} keeper`],
+  };
+};
+
+const buildKeeperTargets = ({
+  keepers,
+  prices,
+  projections,
+  scenario,
+}: {
+  keepers: readonly KeeperDeclaration[];
+  prices: readonly BasePrice[];
+  projections: readonly ProjectionRecord[];
+  scenario: KeeperScenario;
+}): LiveDraftKeeperTarget[] => {
+  const rankingsByName = new Map(
+    buildProjectionRankings(projections).map(projection => [projection.normalizedName, projection]),
+  );
+
+  return keepers
+    .map(keeper => keeperTargetFromDeclaration({
+      keeper,
+      projection: keeperProjectionFor({ keeper, prices, projections: rankingsByName }),
+      scenario,
+    }))
+    .sort((left, right) =>
+      ownerOrder.indexOf(left.keeperOwner) - ownerOrder.indexOf(right.keeperOwner) ||
+      left.name.localeCompare(right.name),
+    );
+};
 
 const buildLivePlayerUniverse = ({
   projections,
@@ -1378,6 +1487,12 @@ export const buildLiveDraftState = ({
   const strategy = liveDraftStrategyFor(strategyKey);
 
   const appliedScenario = applyKeeperScenarioToPrices(prices, scenario, keepers);
+  const keeperTargets = buildKeeperTargets({
+    keepers: appliedScenario.unavailableKeepers,
+    prices,
+    projections,
+    scenario,
+  });
   const unavailableKeeperNames = new Set(
     appliedScenario.unavailableKeepers.map(keeper => normalizePlayerName(keeper.player)),
   );
@@ -1485,6 +1600,7 @@ export const buildLiveDraftState = ({
     errors,
     postDraftAudit,
     availableTargets,
+    keeperTargets,
     draftPath,
     shortlist: buildShortlist(availableTargets),
     positionContexts: buildPositionContexts(owners, currentWatchOwner),

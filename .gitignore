@@ -3,5 +3,6 @@ dist/
 .env
 .DS_Store
 coverage/
+.playwright-mcp/
 data/live-draft/
 output/*.tmp.xlsx

@@ -85,6 +85,25 @@ export const liveDraftHtml = `<!doctype html>
       line-height: 1;
     }
 
+    button.star-button {
+      display: inline-grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border-color: rgba(99, 168, 255, 0.34);
+      background: rgba(99, 168, 255, 0.08);
+      color: #8fbdf1;
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    button.star-button[aria-pressed="true"] {
+      border-color: rgba(242, 169, 59, 0.72);
+      background: rgba(242, 169, 59, 0.14);
+      color: var(--amber);
+    }
+
     input, select {
       height: 34px;
       min-width: 0;
@@ -653,6 +672,19 @@ export const liveDraftHtml = `<!doctype html>
       background: rgba(99, 168, 255, 0.055);
     }
 
+    tbody tr.is-selected {
+      background: rgba(99, 168, 255, 0.1);
+    }
+
+    tbody tr.keeper-row {
+      opacity: 0.56;
+      background: rgba(127, 154, 181, 0.045);
+    }
+
+    tbody tr.keeper-row:hover {
+      background: rgba(127, 154, 181, 0.07);
+    }
+
     .sort-heading {
       width: 100%;
       height: auto;
@@ -682,6 +714,20 @@ export const liveDraftHtml = `<!doctype html>
       font-weight: 700;
       line-height: 1.18;
       overflow-wrap: normal;
+    }
+
+    .player-title {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .player-title .player-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .subtle {
@@ -746,8 +792,55 @@ export const liveDraftHtml = `<!doctype html>
 
     .side {
       display: grid;
-      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-rows: auto auto auto minmax(0, 1fr);
       min-height: 0;
+    }
+
+    .team-heading {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .team-heading select {
+      width: 100%;
+      height: 32px;
+      font-weight: 750;
+    }
+
+    .side-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 19, 31, 0.82);
+    }
+
+    .side-tabs button {
+      height: 30px;
+      padding: 0 9px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .side-tabs button[aria-pressed="true"] {
+      border-color: rgba(99, 168, 255, 0.72);
+      background: rgba(99, 168, 255, 0.18);
+      color: #e7f2ff;
+    }
+
+    .side-panel-view {
+      display: grid;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .side-panel-view[hidden] {
+      display: none;
     }
 
     .add-form {
@@ -1495,79 +1588,95 @@ export const liveDraftHtml = `<!doctype html>
       </section>
       <aside class="side decision-panel">
         <div class="panel-header">
-          <h2>Team</h2>
+          <div class="team-heading">
+            <h2>Team</h2>
+            <select id="roster-owner" aria-label="Roster owner"></select>
+          </div>
           <span class="subtle" id="sale-count"></span>
+        </div>
+        <div class="side-tabs" id="side-panel-tabs" aria-label="Team panel view">
+          <button type="button" data-side-panel="lineup" aria-pressed="true">Lineup</button>
+          <button type="button" data-side-panel="shortlist" aria-pressed="false">My shortlist</button>
+          <button type="button" data-side-panel="draft-path" aria-pressed="false">Draft path</button>
         </div>
         <div id="errors" role="alert"></div>
         <div class="summary-list import-conflict-review" id="import-conflict-review"></div>
-        <form class="add-form" id="add-form">
-          <div class="selected-player" id="selected-player"></div>
-          <select id="add-owner"></select>
-          <input id="add-price" inputmode="numeric" pattern="[0-9]*">
-          <div class="sale-warning" id="sale-warning" role="alert"></div>
-          <button class="primary" id="add-submit" type="submit">Add</button>
-          <select id="roster-owner"></select>
-        </form>
-        <div class="roster-toolbar">
-          <div class="roster-summary" id="roster-summary"></div>
-          <div class="owner-needs" id="owner-needs"></div>
-        </div>
         <div class="side-scroll">
-          <div class="section-label">Mock Draft</div>
-          <div class="mock-draft-panel" id="mock-draft-panel">
-            <div class="mock-draft-details" id="mock-draft-details">
-              <div class="summary-item">
-                <strong>Loading</strong>
-                <span class="subtle">Preparing the interactive mock.</span>
+          <div class="side-panel-view" id="lineup-panel" data-side-panel-view="lineup">
+            <form class="add-form" id="add-form">
+              <div class="selected-player" id="selected-player"></div>
+              <select id="add-owner" aria-label="Sale owner"></select>
+              <input id="add-price" inputmode="numeric" pattern="[0-9]*" aria-label="Sale price">
+              <div class="sale-warning" id="sale-warning" role="alert"></div>
+              <button class="primary" id="add-submit" type="submit">Add</button>
+            </form>
+            <div class="roster-toolbar">
+              <div class="roster-summary" id="roster-summary"></div>
+              <div class="owner-needs" id="owner-needs"></div>
+            </div>
+            <div class="section-label">Roster</div>
+            <table>
+              <tbody id="roster-slots"></tbody>
+            </table>
+            <div class="section-label">Budgets</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Owner</th>
+                  <th class="money">Left</th>
+                  <th class="money">Max</th>
+                  <th class="money">Slots</th>
+                </tr>
+              </thead>
+              <tbody id="owners"></tbody>
+            </table>
+            <div class="section-label">Sales</div>
+            <table>
+              <tbody id="events"></tbody>
+            </table>
+          </div>
+          <div class="side-panel-view" id="shortlist-panel" data-side-panel-view="shortlist" hidden>
+            <div class="section-label">My Shortlist</div>
+            <div class="summary-list" id="manual-shortlist"></div>
+            <div class="section-label">Model Shortlist</div>
+            <div class="summary-list" id="model-shortlist"></div>
+            <div id="shortlist" hidden></div>
+          </div>
+          <div class="side-panel-view" id="draft-path-panel" data-side-panel-view="draft-path" hidden>
+            <div class="section-label">Draft Path</div>
+            <div class="summary-list" id="draft-path"></div>
+            <div class="section-label">Needs / Blockers</div>
+            <div class="summary-list" id="position-context"></div>
+            <div class="section-label">Mock Draft</div>
+            <div class="mock-draft-panel" id="mock-draft-panel">
+              <div class="mock-draft-details" id="mock-draft-details">
+                <div class="summary-item">
+                  <strong>Loading</strong>
+                  <span class="subtle">Preparing the interactive mock.</span>
+                </div>
+              </div>
+              <div class="mock-actions">
+                <button type="button" id="mock-advance-button" disabled>Advance AI Sale</button>
+                <button type="button" id="mock-nominate-button" disabled>Nominate</button>
+                <button type="button" id="mock-cam-win-button" disabled>Bid</button>
+                <button type="button" id="mock-pass-button" disabled>Pass</button>
+                <button type="button" id="mock-next-decision-button" disabled>Next Cam</button>
+                <button type="button" id="mock-next-round-button" disabled>Next Round</button>
+                <button type="button" id="mock-complete-button" disabled>Complete</button>
               </div>
             </div>
-            <div class="mock-actions">
-              <button type="button" id="mock-advance-button" disabled>Advance AI Sale</button>
-              <button type="button" id="mock-nominate-button" disabled>Nominate</button>
-              <button type="button" id="mock-cam-win-button" disabled>Bid</button>
-              <button type="button" id="mock-pass-button" disabled>Pass</button>
-              <button type="button" id="mock-next-decision-button" disabled>Next Cam</button>
-              <button type="button" id="mock-next-round-button" disabled>Next Round</button>
-              <button type="button" id="mock-complete-button" disabled>Complete</button>
+            <div class="section-label">Mock Results</div>
+            <div class="summary-list" id="mock-batch-results">
+              <div class="summary-item">
+                <strong>No batch run yet</strong>
+                <span class="subtle">Run mocks to compare AI-only team outcomes for the selected strategy.</span>
+              </div>
             </div>
+            <div class="section-label">Post Draft Audit</div>
+            <div class="summary-list" id="post-draft-audit"></div>
+            <div class="section-label">Readiness</div>
+            <div class="summary-list" id="readiness-checks"></div>
           </div>
-          <div class="section-label">Mock Results</div>
-          <div class="summary-list" id="mock-batch-results">
-            <div class="summary-item">
-              <strong>No batch run yet</strong>
-              <span class="subtle">Run mocks to compare AI-only team outcomes for the selected strategy.</span>
-            </div>
-          </div>
-          <div class="section-label">Post Draft Audit</div>
-          <div class="summary-list" id="post-draft-audit"></div>
-          <div class="section-label">Readiness</div>
-          <div class="summary-list" id="readiness-checks"></div>
-          <div class="section-label">Draft Path</div>
-          <div class="summary-list" id="draft-path"></div>
-          <div class="section-label">Cam Shortlist</div>
-          <div class="summary-list" id="shortlist"></div>
-          <div class="section-label">Roster</div>
-          <table>
-            <tbody id="roster-slots"></tbody>
-          </table>
-          <div class="section-label">Budgets</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Owner</th>
-                <th class="money">Left</th>
-                <th class="money">Max</th>
-                <th class="money">Slots</th>
-              </tr>
-            </thead>
-            <tbody id="owners"></tbody>
-          </table>
-          <div class="section-label">Needs / Blockers</div>
-          <div class="summary-list" id="position-context"></div>
-          <div class="section-label">Sales</div>
-          <table>
-            <tbody id="events"></tbody>
-          </table>
         </div>
       </aside>
       </main>
@@ -1607,10 +1716,12 @@ export const liveDraftHtml = `<!doctype html>
     let currentStrategyKey = 'three-rb';
     let currentDraftMode = 'real';
     let currentDraftSession = 'live';
+    let activeSidePanel = 'lineup';
     let pendingCamNominationName = null;
     let latestMockBatchReport = null;
     let latestMockBatchJob = null;
     let selectedMockResultsRunIndex = 0;
+    let manualShortlistNames = [];
 
     const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST'];
     const strategyKeys = ['balanced', 'three-rb', 'hero-rb', 'wr-heavy'];
@@ -1679,6 +1790,29 @@ export const liveDraftHtml = `<!doctype html>
       state && state.draftNightLock && state.draftNightLock.reason
         ? state.draftNightLock.reason
         : 'Live session locked. Switch to a practice session to run mocks.';
+    const realDraftHasStarted = state => currentDraftMode === 'real' && state.events.length > 0;
+    const visibleBoardTargets = state => [
+      ...(!realDraftHasStarted(state) ? (state.keeperTargets || []) : []),
+      ...(state.availableTargets || [])
+    ];
+    const shortlistStorageKey = () => 'mockd-shortlist:' + currentDraftSession;
+    const loadManualShortlist = () => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(shortlistStorageKey()) : null;
+        const parsed = stored ? JSON.parse(stored) : [];
+        manualShortlistNames = Array.isArray(parsed) ? parsed.filter(name => typeof name === 'string') : [];
+      } catch {
+        manualShortlistNames = [];
+      }
+    };
+    const saveManualShortlist = () => {
+      try {
+        if (window.localStorage) window.localStorage.setItem(shortlistStorageKey(), JSON.stringify(manualShortlistNames));
+      } catch {
+        // Draft-room shortcuts should keep working even when storage is unavailable.
+      }
+    };
+    const isShortlisted = target => manualShortlistNames.includes(target.name);
 
     const textElement = (tagName, text, className) => {
       const element = document.createElement(tagName);
@@ -1691,6 +1825,10 @@ export const liveDraftHtml = `<!doctype html>
       requestAnimationFrame(() => {
         if (!byId('draft-room-view').hidden) byId('quick-sale-command').focus();
       });
+    };
+
+    const focusPriceInput = () => {
+      requestAnimationFrame(() => byId('add-price').focus());
     };
 
     const postJson = async (url, body) => {
@@ -1731,16 +1869,69 @@ export const liveDraftHtml = `<!doctype html>
       return parts[parts.length - 1] || cleanText(name);
     };
 
+    const renderSidePanel = state => {
+      for (const button of document.querySelectorAll('[data-side-panel]')) {
+        button.setAttribute('aria-pressed', String(button.dataset.sidePanel === activeSidePanel));
+      }
+      for (const panel of document.querySelectorAll('[data-side-panel-view]')) {
+        panel.hidden = panel.dataset.sidePanelView !== activeSidePanel;
+      }
+      if (state && activeSidePanel === 'shortlist') renderShortlist(state);
+    };
+
+    const setSidePanel = panel => {
+      activeSidePanel = ['lineup', 'shortlist', 'draft-path'].includes(panel) ? panel : 'lineup';
+      if (currentState) renderSidePanel(currentState);
+    };
+
+    const selectTargetForSale = target => {
+      if (!target || target.draftable === false) return;
+      selectedTargetName = target.name;
+      byId('add-price').value = String(target.recommendedMaxBid);
+      setSidePanel('lineup');
+      renderSelected(currentState);
+      renderBoard(currentState);
+      focusPriceInput();
+    };
+
+    const toggleShortlist = target => {
+      if (!target || target.draftable === false) return;
+      manualShortlistNames = isShortlisted(target)
+        ? manualShortlistNames.filter(name => name !== target.name)
+        : [...manualShortlistNames, target.name];
+      saveManualShortlist();
+      setSidePanel('shortlist');
+      if (currentState) {
+        renderShortlist(currentState);
+        renderBoard(currentState);
+      }
+    };
+
+    const starTargetButton = target => {
+      const button = document.createElement('button');
+      button.className = 'star-button';
+      button.type = 'button';
+      button.textContent = isShortlisted(target) ? '★' : '☆';
+      button.title = isShortlisted(target) ? 'Remove from shortlist' : 'Add to shortlist';
+      button.setAttribute('aria-label', button.title);
+      button.setAttribute('aria-pressed', String(isShortlisted(target)));
+      button.disabled = target.draftable === false;
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        toggleShortlist(target);
+      });
+      return button;
+    };
+
     const addTargetButton = (target, className) => {
       const button = document.createElement('button');
       button.className = className;
       button.type = 'button';
       button.textContent = '+';
       button.title = 'Add ' + target.name;
+      if (target.draftable === false) button.disabled = true;
       button.addEventListener('click', () => {
-        selectedTargetName = target.name;
-        byId('add-price').value = String(target.recommendedMaxBid);
-        renderSelected(currentState);
+        selectTargetForSale(target);
       });
       return button;
     };
@@ -1795,6 +1986,9 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const targetTagData = (target, tierDrop) => {
+      if (target.draftable === false) {
+        return target.tags.map(label => ({ label, className: 'tag warning' }));
+      }
       const tags = target.tags.map(label => ({ label, className: label === 'not affordable' ? 'tag warning' : 'tag' }));
       const gap = valueGapFor(target);
       if (gap >= 6) tags.unshift({ label: 'value ' + deltaMoney(gap), className: 'tag value' });
@@ -1864,8 +2058,9 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const syncBoardFilterOptions = state => {
-      const teams = [...new Set(state.availableTargets.map(target => target.teamAbbreviation).filter(Boolean))].sort();
-      const byes = [...new Set(state.availableTargets.map(target => target.byeWeek).filter(Boolean))]
+      const targets = visibleBoardTargets(state);
+      const teams = [...new Set(targets.map(target => target.teamAbbreviation).filter(Boolean))].sort();
+      const byes = [...new Set(targets.map(target => target.byeWeek).filter(Boolean))]
         .sort((left, right) => left - right)
         .map(String);
       syncSelectOptions(byId('team-filter'), teams, 'All teams');
@@ -2307,6 +2502,7 @@ export const liveDraftHtml = `<!doctype html>
       if (!targetMatchesPosition(target)) return false;
       if (byId('team-filter').value && target.teamAbbreviation !== byId('team-filter').value) return false;
       if (byId('bye-filter').value && String(target.byeWeek || '') !== byId('bye-filter').value) return false;
+      if (target.draftable === false && byId('my-needs-filter').checked) return false;
       if (byId('my-needs-filter').checked && !targetFitsOwnerNeed(target, owner)) return false;
       return true;
     };
@@ -2324,6 +2520,9 @@ export const liveDraftHtml = `<!doctype html>
       const leftValue = sortValueFor(left, tierDrops);
       const rightValue = sortValueFor(right, tierDrops);
       const direction = boardSortDirection === 'asc' ? 1 : -1;
+      if ((left.draftable === false) !== (right.draftable === false)) {
+        return left.draftable === false ? 1 : -1;
+      }
       if (typeof leftValue === 'string' || typeof rightValue === 'string') {
         return direction * cleanText(leftValue).localeCompare(cleanText(rightValue)) || right.valueScore - left.valueScore;
       }
@@ -2487,7 +2686,25 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const renderShortlist = state => {
-      const rows = (state.shortlist || []).slice(0, 8).map(target => {
+      const targetByName = new Map((state.availableTargets || []).map(target => [target.name, target]));
+      const manualRows = manualShortlistNames
+        .map(name => targetByName.get(name))
+        .filter(Boolean)
+        .map(target => {
+          const item = document.createElement('div');
+          item.className = 'summary-item';
+          item.replaceChildren(
+            textElement('strong', target.name + ' - ' + target.position + ' ' + money(target.recommendedMaxBid)),
+            textElement(
+              'span',
+              (target.teamAbbreviation || '-') + ' bye ' + (target.byeWeek || '-') + ' - live ' + money(target.liveExpectedPrice) + ' - gap ' + deltaMoney(valueGapFor(target)),
+              'subtle'
+            )
+          );
+          item.addEventListener('click', () => selectTargetForSale(target));
+          return item;
+        });
+      const modelRows = (state.shortlist || []).slice(0, 8).map(target => {
         const item = document.createElement('div');
         item.className = 'summary-item';
         item.replaceChildren(
@@ -2500,14 +2717,17 @@ export const liveDraftHtml = `<!doctype html>
           textElement('span', target.reasons.join(' - '), 'subtle')
         );
         item.addEventListener('click', () => {
-          selectedTargetName = target.name;
-          byId('add-price').value = String(target.recommendedMaxBid);
-          renderSelected(currentState);
+          const fullTarget = targetByName.get(target.name);
+          if (fullTarget) selectTargetForSale(fullTarget);
         });
         return item;
       });
 
-      byId('shortlist').replaceChildren(...rows);
+      byId('manual-shortlist').replaceChildren(
+        ...(manualRows.length ? manualRows : [mockDraftItem('No starred players yet', 'Use the star next to a player name to keep them here.')])
+      );
+      byId('model-shortlist').replaceChildren(...modelRows);
+      byId('shortlist').replaceChildren(...modelRows.map(row => row.cloneNode(true)));
     };
 
     const renderPositionContext = state => {
@@ -2638,18 +2858,28 @@ export const liveDraftHtml = `<!doctype html>
       const owner = currentOwner();
       const query = byId('board-search').value.trim().toLowerCase();
       const tierDrops = tierDropsFor(state.availableTargets);
-      const filtered = state.availableTargets.filter(target => targetMatchesFilters(target, query, owner));
+      const allTargets = visibleBoardTargets(state);
+      const filtered = allTargets.filter(target => targetMatchesFilters(target, query, owner));
       const matches = sortedTargets(filtered, tierDrops).slice(0, 120);
-      byId('board-count').textContent = String(matches.length) + ' shown / ' + String(filtered.length) + ' matched / ' + String(state.availableTargets.length) + ' available';
+      const keeperCount = allTargets.length - state.availableTargets.length;
+      byId('board-count').textContent = String(matches.length) + ' shown / ' + String(filtered.length) + ' matched / ' + String(state.availableTargets.length) + ' available' + (keeperCount ? ' / ' + keeperCount + ' kept' : '');
 
       const rows = matches.map(target => {
         const tierDrop = tierDrops.get(target.name) || 0;
         const row = document.createElement('tr');
+        if (target.name === selectedTargetName) row.classList.add('is-selected');
+        if (target.draftable === false) row.classList.add('keeper-row');
         const addCell = tableCell(row, '', 'center');
         addCell.appendChild(addTargetButton(target, 'icon'));
 
         const playerCell = tableCell(row, '', '');
-        playerCell.appendChild(textElement('div', target.name, 'player-name'));
+        const title = document.createElement('div');
+        title.className = 'player-title';
+        title.append(starTargetButton(target), textElement('div', target.name, 'player-name'));
+        playerCell.appendChild(title);
+        if (target.draftable === false) {
+          playerCell.appendChild(textElement('div', target.keeperOwner + ' keeper' + ' at ' + money(target.keeperCost), 'subtle'));
+        }
         const strategyValues = renderStrategyValues(target);
         if (strategyValues) playerCell.appendChild(strategyValues);
         const tags = targetTags(target, tierDrop);
@@ -2680,8 +2910,11 @@ export const liveDraftHtml = `<!doctype html>
         body.className = 'target-card-body';
         const top = document.createElement('div');
         top.className = 'target-card-top';
+        const title = document.createElement('div');
+        title.className = 'player-title';
+        title.append(starTargetButton(target), textElement('div', target.name, 'player-name'));
         top.append(
-          textElement('div', target.name, 'player-name'),
+          title,
           textElement('div', target.position + ' ' + (target.teamAbbreviation || '-') + ' - bye ' + (target.byeWeek || '-'), 'target-card-meta')
         );
 
@@ -2703,6 +2936,9 @@ export const liveDraftHtml = `<!doctype html>
 
         const tags = targetTags(target, tierDrop);
         body.append(top);
+        if (target.draftable === false) {
+          body.appendChild(textElement('div', target.keeperOwner + ' keeper' + ' at ' + money(target.keeperCost), 'subtle'));
+        }
         const strategyValues = renderStrategyValues(target);
         if (strategyValues) body.appendChild(strategyValues);
         if (tags) body.appendChild(tags);
@@ -2840,6 +3076,7 @@ export const liveDraftHtml = `<!doctype html>
       currentState = state;
       syncStrategy(state);
       syncDraftSession(state);
+      loadManualShortlist();
       renderDraftMode(state);
       if (!state.owners.some(owner => owner.owner === selectedRosterOwner)) selectedRosterOwner = 'Cam';
       syncOwnerSelects(state);
@@ -2858,6 +3095,7 @@ export const liveDraftHtml = `<!doctype html>
       renderEvents(state);
       renderErrors(state);
       renderImportConflictReview(state);
+      renderSidePanel(state);
       if (state.mockDraft) renderMockDraft(state.mockDraft);
       else renderMockDraft(null);
       renderMockBatchResults(latestMockBatchReport);
@@ -3207,6 +3445,10 @@ export const liveDraftHtml = `<!doctype html>
       input.addEventListener('input', () => {
         if (currentState) renderBoard(currentState);
       });
+    }
+
+    for (const button of document.querySelectorAll('[data-side-panel]')) {
+      button.addEventListener('click', event => setSidePanel(event.currentTarget.dataset.sidePanel));
     }
 
     byId('sort-select').addEventListener('change', event => {

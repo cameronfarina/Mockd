@@ -244,6 +244,31 @@ describe("live draft room", () => {
     );
   });
 
+  it("keeps declared keepers visible as disabled board metadata outside the auction pool", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+    });
+
+    expect(state.availableTargets.some(target => target.name === "De'Von Achane")).toBe(false);
+    expect(state.keeperTargets).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: "De'Von Achane",
+        position: "RB",
+        keeperOwner: "Cam",
+        keeperCost: 50,
+        keeperStatus: "confirmed",
+        draftable: false,
+        tags: expect.arrayContaining(["keeper - Cam", "confirmed keeper"]),
+      }),
+    ]));
+  });
+
   it("advances the live 3RB path bands after Cam pairs Achane with a core running back", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
