@@ -46,6 +46,11 @@ export const liveDraftHtml = `<!doctype html>
       cursor: pointer;
     }
 
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+    }
+
     button.primary {
       border-color: var(--accent);
       background: var(--accent);
@@ -82,7 +87,7 @@ export const liveDraftHtml = `<!doctype html>
 
     header {
       display: grid;
-      grid-template-columns: minmax(160px, 220px) minmax(340px, 1fr) auto;
+      grid-template-columns: minmax(160px, 220px) minmax(320px, 1fr) minmax(280px, 420px) auto;
       gap: 12px;
       align-items: center;
       padding: 12px 16px;
@@ -100,6 +105,22 @@ export const liveDraftHtml = `<!doctype html>
     .search {
       width: 100%;
       height: 38px;
+    }
+
+    .quick-sale {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) auto;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .quick-sale input {
+      height: 34px;
+    }
+
+    .quick-sale button {
+      height: 34px;
+      padding: 0 12px;
     }
 
     .top-actions {
@@ -187,6 +208,91 @@ export const liveDraftHtml = `<!doctype html>
       white-space: nowrap;
     }
 
+    .board-toolbar {
+      display: grid;
+      grid-template-columns: minmax(360px, 1fr) auto auto minmax(130px, 160px) minmax(112px, 130px) minmax(160px, 190px);
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .segmented {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .filter-chip {
+      height: 28px;
+      padding: 0 9px;
+      border-color: var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .filter-chip[aria-pressed="true"] {
+      border-color: var(--accent);
+      background: #e7f0ec;
+      color: var(--accent-strong);
+    }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .toggle input {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      accent-color: var(--accent);
+    }
+
+    .board-toolbar select {
+      width: 100%;
+      height: 30px;
+      font-size: 12px;
+    }
+
+    .market-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfa;
+    }
+
+    .market-pill {
+      display: inline-flex;
+      gap: 5px;
+      align-items: baseline;
+      padding: 3px 7px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .market-pill strong {
+      color: var(--text);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
     .scroll {
       overflow: auto;
       max-height: calc(100vh - 178px);
@@ -229,7 +335,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .target-card-values {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px;
       margin-top: 8px;
     }
@@ -282,6 +388,20 @@ export const liveDraftHtml = `<!doctype html>
       white-space: nowrap;
     }
 
+    .sort-heading {
+      width: 100%;
+      height: auto;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-weight: inherit;
+      text-align: inherit;
+      cursor: pointer;
+    }
+
     td.money, th.money, td.center, th.center {
       text-align: right;
       font-variant-numeric: tabular-nums;
@@ -314,6 +434,26 @@ export const liveDraftHtml = `<!doctype html>
       line-height: 1.2;
     }
 
+    .tag.value {
+      background: #edf7ed;
+      color: #146c2e;
+    }
+
+    .tag.warning {
+      background: #fff5d8;
+      color: var(--amber);
+    }
+
+    .gap-positive {
+      color: #146c2e;
+      font-weight: 750;
+    }
+
+    .gap-negative {
+      color: var(--danger);
+      font-weight: 750;
+    }
+
     .side {
       display: grid;
       grid-template-rows: auto auto minmax(0, 1fr);
@@ -322,7 +462,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .add-form {
       display: grid;
-      grid-template-columns: 1fr 90px;
+      grid-template-columns: minmax(0, 1fr) 90px;
       gap: 8px;
       padding: 10px;
       border-bottom: 1px solid var(--line);
@@ -343,9 +483,50 @@ export const liveDraftHtml = `<!doctype html>
       line-height: 1.2;
     }
 
+    .selected-values {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 7px;
+    }
+
+    .selected-value {
+      min-width: 0;
+      padding: 5px 6px;
+      border: 1px solid var(--line-soft);
+      border-radius: 5px;
+      background: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .selected-value span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.1;
+    }
+
+    .selected-value strong {
+      margin-top: 1px;
+      font-size: 13px;
+    }
+
+    .sale-warning {
+      grid-column: 1 / -1;
+      min-height: 0;
+      color: var(--danger);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
     .add-form button {
+      grid-column: 1 / 2;
       height: 34px;
       padding: 0 10px;
+    }
+
+    .add-form select:last-child {
+      grid-column: 2 / 3;
     }
 
     .roster-toolbar {
@@ -383,6 +564,26 @@ export const liveDraftHtml = `<!doctype html>
       margin-top: 2px;
       font-size: 14px;
       font-variant-numeric: tabular-nums;
+    }
+
+    .owner-needs {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      min-height: 24px;
+    }
+
+    .need-chip {
+      padding: 3px 6px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+      line-height: 1.1;
+      white-space: nowrap;
     }
 
     .side-scroll {
@@ -432,6 +633,14 @@ export const liveDraftHtml = `<!doctype html>
         grid-template-columns: 1fr;
       }
 
+      .board-toolbar {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .segmented {
+        grid-column: 1 / -1;
+      }
+
       .top-actions {
         justify-content: flex-start;
       }
@@ -454,6 +663,10 @@ export const liveDraftHtml = `<!doctype html>
         padding: 10px;
       }
 
+      .board-toolbar {
+        grid-template-columns: 1fr;
+      }
+
       .scroll {
         display: none;
       }
@@ -469,6 +682,10 @@ export const liveDraftHtml = `<!doctype html>
     <header>
       <h1>Mockd Draft Room</h1>
       <input class="search" id="board-search" autocomplete="off" placeholder="Search player, position, or team">
+      <form class="quick-sale" id="quick-sale-form">
+        <input id="quick-sale-command" autocomplete="off" placeholder="Quick sale: jakub kittle 28">
+        <button class="primary" type="submit">Log</button>
+      </form>
       <div class="top-actions">
         <button type="button" id="undo-button">Undo</button>
         <button type="button" id="reset-button">Reset</button>
@@ -481,20 +698,50 @@ export const liveDraftHtml = `<!doctype html>
           <h2>Board</h2>
           <div class="board-count" id="board-count"></div>
         </div>
+        <div class="board-toolbar">
+          <div class="segmented" id="position-filters" aria-label="Position filter">
+            <button class="filter-chip" type="button" data-position-filter="ALL" aria-pressed="true">All</button>
+            <button class="filter-chip" type="button" data-position-filter="RB" aria-pressed="false">RB</button>
+            <button class="filter-chip" type="button" data-position-filter="WR" aria-pressed="false">WR</button>
+            <button class="filter-chip" type="button" data-position-filter="TE" aria-pressed="false">TE</button>
+            <button class="filter-chip" type="button" data-position-filter="QB" aria-pressed="false">QB</button>
+            <button class="filter-chip" type="button" data-position-filter="FLEX" aria-pressed="false">FLEX</button>
+            <button class="filter-chip" type="button" data-position-filter="K" aria-pressed="false">K</button>
+            <button class="filter-chip" type="button" data-position-filter="DST" aria-pressed="false">DST</button>
+          </div>
+          <label class="toggle"><input type="checkbox" id="my-needs-filter"> My needs</label>
+          <label class="toggle"><input type="checkbox" id="hide-deep-filter"> Hide $1/fallback</label>
+          <select id="team-filter" aria-label="NFL team filter"></select>
+          <select id="bye-filter" aria-label="Bye week filter"></select>
+          <select id="sort-select" aria-label="Board sort">
+            <option value="valueScore:desc">Best score</option>
+            <option value="valueGap:desc">Best value gap</option>
+            <option value="tierDrop:desc">Biggest tier drop</option>
+            <option value="personalValue:desc">Our value</option>
+            <option value="recommendedMaxBid:desc">Max bid</option>
+            <option value="liveExpectedPrice:desc">Live price</option>
+            <option value="expectedPrice:desc">Expected price</option>
+            <option value="byeWeek:asc">Bye week</option>
+            <option value="position:asc">Position</option>
+            <option value="teamAbbreviation:asc">NFL team</option>
+          </select>
+        </div>
+        <div class="market-strip" id="position-market"></div>
         <div class="scroll">
           <table class="board-table">
             <thead>
               <tr>
                 <th class="center" style="width:42px">Add</th>
                 <th>Player</th>
-                <th style="width:52px">Pos</th>
-                <th style="width:62px">Team</th>
-                <th class="center" style="width:54px">Bye</th>
-                <th class="money" style="width:66px">Exp</th>
-                <th class="money" style="width:66px">Live</th>
-                <th class="money" style="width:66px">Our</th>
-                <th class="money" style="width:66px">Max</th>
-                <th class="money" style="width:70px">Score</th>
+                <th style="width:52px"><button class="sort-heading" type="button" data-sort-key="position">Pos</button></th>
+                <th style="width:62px"><button class="sort-heading" type="button" data-sort-key="teamAbbreviation">Team</button></th>
+                <th class="center" style="width:54px"><button class="sort-heading" type="button" data-sort-key="byeWeek">Bye</button></th>
+                <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="expectedPrice">Exp</button></th>
+                <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="liveExpectedPrice">Live</button></th>
+                <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="personalValue">Our</button></th>
+                <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="valueGap">Gap</button></th>
+                <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="recommendedMaxBid">Max</button></th>
+                <th class="money" style="width:70px"><button class="sort-heading" type="button" data-sort-key="valueScore">Score</button></th>
               </tr>
             </thead>
             <tbody id="board"></tbody>
@@ -512,11 +759,13 @@ export const liveDraftHtml = `<!doctype html>
           <div class="selected-player" id="selected-player"></div>
           <select id="add-owner"></select>
           <input id="add-price" inputmode="numeric" pattern="[0-9]*">
-          <button class="primary" type="submit">Add</button>
+          <div class="sale-warning" id="sale-warning"></div>
+          <button class="primary" id="add-submit" type="submit">Add</button>
           <select id="roster-owner"></select>
         </form>
         <div class="roster-toolbar">
           <div class="roster-summary" id="roster-summary"></div>
+          <div class="owner-needs" id="owner-needs"></div>
         </div>
         <div class="side-scroll">
           <div class="section-label">Roster</div>
@@ -547,6 +796,25 @@ export const liveDraftHtml = `<!doctype html>
     let currentState = null;
     let selectedTargetName = null;
     let selectedRosterOwner = 'Cam';
+    let boardPositionFilter = 'ALL';
+    let boardSortKey = 'valueScore';
+    let boardSortDirection = 'desc';
+
+    const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST'];
+    const flexPositions = ['RB', 'WR', 'TE'];
+    const rosterMaximums = { QB: 2, RB: 6, WR: 6, TE: 2, K: 1, DST: 1 };
+    const positionOrder = { RB: 1, WR: 2, TE: 3, QB: 4, K: 5, DST: 6 };
+    const sortLabels = {
+      position: 'Pos',
+      teamAbbreviation: 'Team',
+      byeWeek: 'Bye',
+      expectedPrice: 'Exp',
+      liveExpectedPrice: 'Live',
+      personalValue: 'Our',
+      valueGap: 'Gap',
+      recommendedMaxBid: 'Max',
+      valueScore: 'Score'
+    };
 
     const byId = id => document.getElementById(id);
     const money = value => '$' + Math.round(Number(value || 0));
@@ -556,6 +824,20 @@ export const liveDraftHtml = `<!doctype html>
       return (rounded > 0 ? '+' : '-') + '$' + Math.abs(rounded);
     };
     const cleanText = value => String(value == null ? '' : value);
+    const valueGapFor = target => target.personalValue - target.liveExpectedPrice;
+    const isFlexPosition = position => flexPositions.includes(position);
+    const selectedTarget = () => currentState && currentState.availableTargets.find(target => target.name === selectedTargetName);
+    const ownerByName = name => currentState.owners.find(owner => owner.owner === name) || currentState.watchOwner;
+    const currentOwner = () => ownerByName(selectedRosterOwner);
+    const priceInputValue = () => Number(byId('add-price').value);
+    const gapClassFor = gap => gap > 0 ? 'gap-positive' : gap < 0 ? 'gap-negative' : '';
+
+    const textElement = (tagName, text, className) => {
+      const element = document.createElement(tagName);
+      element.textContent = cleanText(text);
+      if (className) element.className = className;
+      return element;
+    };
 
     const postJson = async (url, body) => {
       const response = await fetch(url, {
@@ -576,6 +858,18 @@ export const liveDraftHtml = `<!doctype html>
       return element;
     };
 
+    const metricTile = (label, value, className) => {
+      const element = document.createElement('div');
+      element.className = className;
+      element.append(textElement('span', label), textElement('strong', value));
+      return element;
+    };
+
+    const shortPlayerName = name => {
+      const parts = cleanText(name).split(' ').filter(Boolean);
+      return parts[parts.length - 1] || cleanText(name);
+    };
+
     const addTargetButton = (target, className) => {
       const button = document.createElement('button');
       button.className = className;
@@ -590,38 +884,77 @@ export const liveDraftHtml = `<!doctype html>
       return button;
     };
 
-    const targetTags = target => {
-      if (!target.tags.length) return null;
+    const ownerNeedsFor = owner => {
+      const starterNeeds = owner.slots
+        .filter(slot => !slot.player && !slot.slot.startsWith('BENCH'))
+        .map(slot => slot.slot);
+      if (starterNeeds.length) return starterNeeds;
+      return owner.rosterSlotsRemaining > 0 ? ['BENCH x' + owner.rosterSlotsRemaining] : ['Roster full'];
+    };
+
+    const targetFitsOwnerNeed = (target, owner) => {
+      if (owner.rosterSlotsRemaining <= 0) return false;
+      if (owner.positionCounts[target.position] >= rosterMaximums[target.position]) return false;
+      const openSlots = owner.slots.filter(slot => !slot.player).map(slot => slot.slot);
+      if (openSlots.includes(target.position)) return true;
+      if (target.position === 'RB' && (openSlots.includes('RB1') || openSlots.includes('RB2') || owner.positionCounts.RB < 3)) return true;
+      if (target.position === 'WR' && (openSlots.includes('WR1') || openSlots.includes('WR2') || owner.positionCounts.WR < 3)) return true;
+      if (target.position === 'TE' && openSlots.includes('TE')) return true;
+      return openSlots.includes('FLEX') && isFlexPosition(target.position);
+    };
+
+    const saleWarningsFor = (target, owner, price) => {
+      if (!target) return [];
+      const warnings = [];
+      if (!Number.isInteger(price) || price <= 0) warnings.push('Enter a positive whole-dollar price.');
+      if (owner.rosterSlotsRemaining <= 0) warnings.push(owner.owner + ' has no open roster slots.');
+      if (price > owner.maxBid) warnings.push(owner.owner + ' can only bid up to ' + money(owner.maxBid) + '.');
+      if (owner.positionCounts[target.position] >= rosterMaximums[target.position]) {
+        warnings.push(owner.owner + ' already has the maximum ' + target.position + ' roster count.');
+      }
+      return warnings;
+    };
+
+    const tierDropsFor = targets => {
+      const drops = new Map();
+      for (const position of ['QB', 'RB', 'WR', 'TE', 'K', 'DST']) {
+        const samePosition = targets
+          .filter(target => target.position === position)
+          .sort((left, right) =>
+            right.liveExpectedPrice - left.liveExpectedPrice ||
+            right.valueScore - left.valueScore ||
+            left.name.localeCompare(right.name)
+          );
+        samePosition.forEach((target, index) => {
+          const next = samePosition[index + 1];
+          drops.set(target.name, next ? Math.max(0, target.liveExpectedPrice - next.liveExpectedPrice) : 0);
+        });
+      }
+      return drops;
+    };
+
+    const targetTagData = (target, tierDrop) => {
+      const tags = target.tags.map(label => ({ label, className: label === 'not affordable' ? 'tag warning' : 'tag' }));
+      const gap = valueGapFor(target);
+      if (gap >= 6) tags.unshift({ label: 'value ' + deltaMoney(gap), className: 'tag value' });
+      if (gap <= -6) tags.unshift({ label: 'tax ' + deltaMoney(gap), className: 'tag warning' });
+      if (tierDrop >= 6) tags.push({ label: 'tier drop ' + money(tierDrop), className: 'tag warning' });
+      if (target.recommendedMaxBid >= currentOwner().maxBid) tags.push({ label: 'max bid cap', className: 'tag warning' });
+      return tags.slice(0, 5);
+    };
+
+    const targetTags = (target, tierDrop) => {
+      const tagData = targetTagData(target, tierDrop);
+      if (!tagData.length) return null;
       const tags = document.createElement('div');
       tags.className = 'subtle';
-      tags.replaceChildren(...target.tags.slice(0, 3).map(tag => {
+      tags.replaceChildren(...tagData.map(tag => {
         const element = document.createElement('span');
-        element.className = 'tag';
-        element.textContent = tag;
+        element.className = tag.className;
+        element.textContent = tag.label;
         return element;
       }));
       return tags;
-    };
-
-    const ownerByName = name => currentState.owners.find(owner => owner.owner === name) || currentState.watchOwner;
-    const selectedTarget = () => currentState && currentState.availableTargets.find(target => target.name === selectedTargetName);
-
-    const renderMetrics = state => {
-      const metrics = [
-        ['Inflation', state.room.liveInflationFactor.toFixed(2) + 'x'],
-        ['Room Left', money(state.room.remainingBudget)],
-        ['Open Slots', String(state.room.remainingRosterSlots)],
-        ['Paid vs Exp', deltaMoney(state.room.saleVsExpected)],
-        ['Cam Left', money(state.watchOwner.budgetRemaining)],
-        ['Cam Max', money(state.watchOwner.maxBid)]
-      ];
-
-      byId('metrics').replaceChildren(...metrics.map(([label, value]) => {
-        const element = document.createElement('div');
-        element.className = 'metric';
-        element.innerHTML = '<span>' + label + '</span><strong>' + value + '</strong>';
-        return element;
-      }));
     };
 
     const optionList = state => state.owners.map(owner => {
@@ -642,6 +975,41 @@ export const liveDraftHtml = `<!doctype html>
       rosterOwner.value = selectedRosterOwner;
     };
 
+    const syncSelectOptions = (select, values, allLabel) => {
+      const previous = select.value;
+      const options = [textElement('option', allLabel)];
+      options[0].value = '';
+      for (const value of values) {
+        const option = textElement('option', value);
+        option.value = value;
+        options.push(option);
+      }
+      select.replaceChildren(...options);
+      select.value = values.includes(previous) ? previous : '';
+    };
+
+    const syncBoardFilterOptions = state => {
+      const teams = [...new Set(state.availableTargets.map(target => target.teamAbbreviation).filter(Boolean))].sort();
+      const byes = [...new Set(state.availableTargets.map(target => target.byeWeek).filter(Boolean))]
+        .sort((left, right) => left - right)
+        .map(String);
+      syncSelectOptions(byId('team-filter'), teams, 'All teams');
+      syncSelectOptions(byId('bye-filter'), byes, 'All byes');
+    };
+
+    const syncBoardControls = () => {
+      for (const button of document.querySelectorAll('[data-position-filter]')) {
+        button.setAttribute('aria-pressed', String(button.dataset.positionFilter === boardPositionFilter));
+      }
+
+      byId('sort-select').value = boardSortKey + ':' + boardSortDirection;
+      for (const button of document.querySelectorAll('[data-sort-key]')) {
+        const key = button.dataset.sortKey;
+        const marker = key === boardSortKey ? (boardSortDirection === 'asc' ? ' ^' : ' v') : '';
+        button.textContent = sortLabels[key] + marker;
+      }
+    };
+
     const targetMatchesQuery = (target, query) => {
       if (!query) return true;
       const haystack = [
@@ -653,22 +1021,96 @@ export const liveDraftHtml = `<!doctype html>
       return haystack.includes(query);
     };
 
+    const targetMatchesPosition = target => {
+      if (boardPositionFilter === 'ALL') return true;
+      if (boardPositionFilter === 'FLEX') return isFlexPosition(target.position);
+      return target.position === boardPositionFilter;
+    };
+
+    const targetMatchesFilters = (target, query, owner) => {
+      if (!targetMatchesQuery(target, query)) return false;
+      if (!targetMatchesPosition(target)) return false;
+      if (byId('team-filter').value && target.teamAbbreviation !== byId('team-filter').value) return false;
+      if (byId('bye-filter').value && String(target.byeWeek || '') !== byId('bye-filter').value) return false;
+      if (byId('my-needs-filter').checked && !targetFitsOwnerNeed(target, owner)) return false;
+      if (byId('hide-deep-filter').checked && (target.source === 'projectionFallback' || target.expectedPrice <= 1)) return false;
+      return true;
+    };
+
+    const sortValueFor = (target, tierDrops) => {
+      if (boardSortKey === 'valueGap') return valueGapFor(target);
+      if (boardSortKey === 'tierDrop') return tierDrops.get(target.name) || 0;
+      if (boardSortKey === 'position') return positionOrder[target.position] || 99;
+      if (boardSortKey === 'teamAbbreviation') return target.teamAbbreviation || 'ZZZ';
+      if (boardSortKey === 'byeWeek') return target.byeWeek || 99;
+      return target[boardSortKey] == null ? 0 : target[boardSortKey];
+    };
+
+    const sortedTargets = (targets, tierDrops) => [...targets].sort((left, right) => {
+      const leftValue = sortValueFor(left, tierDrops);
+      const rightValue = sortValueFor(right, tierDrops);
+      const direction = boardSortDirection === 'asc' ? 1 : -1;
+      if (typeof leftValue === 'string' || typeof rightValue === 'string') {
+        return direction * cleanText(leftValue).localeCompare(cleanText(rightValue)) || right.valueScore - left.valueScore;
+      }
+      return direction * (leftValue - rightValue) || right.valueScore - left.valueScore || left.name.localeCompare(right.name);
+    });
+
+    const renderMetrics = state => {
+      const metrics = [
+        ['Inflation', state.room.liveInflationFactor.toFixed(2) + 'x'],
+        ['Room Left', money(state.room.remainingBudget)],
+        ['Open Slots', String(state.room.remainingRosterSlots)],
+        ['Paid vs Exp', deltaMoney(state.room.saleVsExpected)],
+        ['Cam Left', money(state.watchOwner.budgetRemaining)],
+        ['Cam Max', money(state.watchOwner.maxBid)]
+      ];
+
+      byId('metrics').replaceChildren(...metrics.map(([label, value]) => metricTile(label, value, 'metric')));
+    };
+
+    const renderPositionMarket = state => {
+      const saleDeltaByPosition = new Map();
+      for (const event of state.events) {
+        saleDeltaByPosition.set(event.position, (saleDeltaByPosition.get(event.position) || 0) + event.saleVsExpected);
+      }
+
+      const pills = ['RB', 'WR', 'TE', 'QB', 'K', 'DST'].map(position => {
+        const targets = state.availableTargets.filter(target => target.position === position);
+        const expected = targets.reduce((total, target) => total + target.expectedPrice, 0);
+        const live = targets.reduce((total, target) => total + target.liveExpectedPrice, 0);
+        const factor = expected > 0 ? (live / expected).toFixed(2) + 'x' : '-';
+        const delta = saleDeltaByPosition.get(position) || 0;
+        const pill = document.createElement('div');
+        pill.className = 'market-pill';
+        pill.append(
+          textElement('strong', position),
+          document.createTextNode(factor + ' - ' + targets.length + ' left' + (delta ? ' - ' + deltaMoney(delta) : ''))
+        );
+        return pill;
+      });
+
+      byId('position-market').replaceChildren(...pills);
+    };
+
     const renderBoard = state => {
+      syncBoardControls();
+      const owner = currentOwner();
       const query = byId('board-search').value.trim().toLowerCase();
-      const matches = state.availableTargets.filter(target => targetMatchesQuery(target, query)).slice(0, 120);
-      byId('board-count').textContent = String(matches.length) + ' shown / ' + String(state.availableTargets.length) + ' available';
+      const tierDrops = tierDropsFor(state.availableTargets);
+      const filtered = state.availableTargets.filter(target => targetMatchesFilters(target, query, owner));
+      const matches = sortedTargets(filtered, tierDrops).slice(0, 120);
+      byId('board-count').textContent = String(matches.length) + ' shown / ' + String(filtered.length) + ' matched / ' + String(state.availableTargets.length) + ' available';
 
       const rows = matches.map(target => {
+        const tierDrop = tierDrops.get(target.name) || 0;
         const row = document.createElement('tr');
         const addCell = tableCell(row, '', 'center');
         addCell.appendChild(addTargetButton(target, 'icon'));
 
         const playerCell = tableCell(row, '', '');
-        const name = document.createElement('div');
-        name.className = 'player-name';
-        name.textContent = target.name;
-        playerCell.appendChild(name);
-        const tags = targetTags(target);
+        playerCell.appendChild(textElement('div', target.name, 'player-name'));
+        const tags = targetTags(target, tierDrop);
         if (tags) playerCell.appendChild(tags);
 
         tableCell(row, target.position);
@@ -677,6 +1119,7 @@ export const liveDraftHtml = `<!doctype html>
         tableCell(row, money(target.expectedPrice), 'money');
         tableCell(row, money(target.liveExpectedPrice), 'money');
         tableCell(row, money(target.personalValue), 'money');
+        tableCell(row, deltaMoney(valueGapFor(target)), 'money ' + gapClassFor(valueGapFor(target)));
         tableCell(row, money(target.recommendedMaxBid), 'money');
         tableCell(row, target.valueScore.toFixed(1), 'money');
         return row;
@@ -684,6 +1127,7 @@ export const liveDraftHtml = `<!doctype html>
 
       byId('board').replaceChildren(...rows);
       byId('board-cards').replaceChildren(...matches.map(target => {
+        const tierDrop = tierDrops.get(target.name) || 0;
         const card = document.createElement('div');
         card.className = 'target-card';
         const add = document.createElement('div');
@@ -692,30 +1136,43 @@ export const liveDraftHtml = `<!doctype html>
         body.className = 'target-card-body';
         const top = document.createElement('div');
         top.className = 'target-card-top';
-        const name = document.createElement('div');
-        name.className = 'player-name';
-        name.textContent = target.name;
-        const meta = document.createElement('div');
-        meta.className = 'target-card-meta';
-        meta.textContent = target.position + ' ' + (target.teamAbbreviation || '-') + ' - bye ' + (target.byeWeek || '-');
-        top.append(name, meta);
+        top.append(
+          textElement('div', target.name, 'player-name'),
+          textElement('div', target.position + ' ' + (target.teamAbbreviation || '-') + ' - bye ' + (target.byeWeek || '-'), 'target-card-meta')
+        );
 
         const values = document.createElement('div');
         values.className = 'target-card-values';
-        for (const [label, value] of [['Exp', target.expectedPrice], ['Live', target.liveExpectedPrice], ['Our', target.personalValue]]) {
+        for (const [label, value, className] of [
+          ['Exp', money(target.expectedPrice), ''],
+          ['Live', money(target.liveExpectedPrice), ''],
+          ['Our', money(target.personalValue), ''],
+          ['Gap', deltaMoney(valueGapFor(target)), gapClassFor(valueGapFor(target))]
+        ]) {
           const cell = document.createElement('div');
-          cell.className = 'target-card-value';
-          cell.innerHTML = '<span>' + label + '</span><strong>' + money(value) + '</strong>';
+          cell.className = 'target-card-value ' + className;
+          cell.append(textElement('span', label), textElement('strong', value));
           values.appendChild(cell);
         }
 
-        const tags = targetTags(target);
+        const tags = targetTags(target, tierDrop);
         body.append(top);
         if (tags) body.appendChild(tags);
         body.appendChild(values);
         card.append(add, body);
         return card;
       }));
+    };
+
+    const renderSaleControls = state => {
+      const target = selectedTarget();
+      const owner = ownerByName(byId('add-owner').value || selectedRosterOwner);
+      const price = priceInputValue();
+      const warnings = saleWarningsFor(target, owner, price);
+      const submit = byId('add-submit');
+      submit.disabled = warnings.length > 0;
+      submit.textContent = target ? 'Add ' + shortPlayerName(target.name) + ' to ' + owner.owner + ' for ' + money(price || target.personalValue) : 'Add';
+      byId('sale-warning').textContent = warnings.join(' ');
     };
 
     const renderSelected = state => {
@@ -725,36 +1182,57 @@ export const liveDraftHtml = `<!doctype html>
         const first = state.availableTargets[0];
         selectedTargetName = first ? first.name : null;
         if (first) byId('add-price').value = String(first.personalValue);
-        renderSelected(state);
+        if (first) renderSelected(state);
         return;
       }
 
-      root.innerHTML = '<strong>' + target.name + '</strong><span class="subtle">' +
-        target.position + ' ' + (target.teamAbbreviation || '-') + ' - bye ' + (target.byeWeek || '-') +
-        ' - exp ' + money(target.expectedPrice) + ' - our ' + money(target.personalValue) + '</span>';
+      const meta = textElement(
+        'span',
+        target.position + ' ' + (target.teamAbbreviation || '-') + ' - bye ' + (target.byeWeek || '-'),
+        'subtle'
+      );
+      const values = document.createElement('div');
+      values.className = 'selected-values';
+      for (const [label, value, className] of [
+        ['Exp', money(target.expectedPrice), ''],
+        ['Live', money(target.liveExpectedPrice), ''],
+        ['Our', money(target.personalValue), ''],
+        ['Gap', deltaMoney(valueGapFor(target)), gapClassFor(valueGapFor(target))]
+      ]) {
+        const cell = document.createElement('div');
+        cell.className = 'selected-value ' + className;
+        cell.append(textElement('span', label), textElement('strong', value));
+        values.appendChild(cell);
+      }
+
+      root.replaceChildren(textElement('strong', target.name), meta, values);
+      renderSaleControls(state);
+    };
+
+    const renderOwnerNeeds = state => {
+      const owner = currentOwner();
+      byId('owner-needs').replaceChildren(...ownerNeedsFor(owner).map(need => textElement('span', need, 'need-chip')));
     };
 
     const renderRoster = state => {
-      const owner = ownerByName(selectedRosterOwner);
+      const owner = currentOwner();
       const summary = [
         ['Left', money(owner.budgetRemaining)],
         ['Max', money(owner.maxBid)],
         ['Slots', String(owner.rosterSlotsRemaining)]
       ];
-      byId('roster-summary').replaceChildren(...summary.map(([label, value]) => {
-        const element = document.createElement('div');
-        element.className = 'mini-metric';
-        element.innerHTML = '<span>' + label + '</span><strong>' + value + '</strong>';
-        return element;
-      }));
+      byId('roster-summary').replaceChildren(...summary.map(([label, value]) => metricTile(label, value, 'mini-metric')));
+      renderOwnerNeeds(state);
 
       const rows = owner.slots.map(slot => {
         const row = document.createElement('tr');
         tableCell(row, slot.slot, 'slot');
         const playerCell = tableCell(row, '', slot.player ? '' : 'empty');
         if (slot.player) {
-          playerCell.innerHTML = '<div class="player-name">' + slot.player.name + '</div><div class="subtle">' +
-            slot.player.position + ' ' + (slot.player.teamAbbreviation || '-') + ' - bye ' + (slot.player.byeWeek || '-') + '</div>';
+          playerCell.replaceChildren(
+            textElement('div', slot.player.name, 'player-name'),
+            textElement('div', slot.player.position + ' ' + (slot.player.teamAbbreviation || '-') + ' - bye ' + (slot.player.byeWeek || '-'), 'subtle')
+          );
           tableCell(row, money(slot.player.price), 'money');
         } else {
           playerCell.textContent = '-';
@@ -782,8 +1260,10 @@ export const liveDraftHtml = `<!doctype html>
       const rows = state.events.slice().reverse().slice(0, 18).map(event => {
         const row = document.createElement('tr');
         const sale = tableCell(row, '', '');
-        sale.innerHTML = '<div class="player-name">' + event.owner + ' - ' + event.player + '</div><div class="subtle">' +
-          event.position + ' - exp ' + money(event.expectedPrice) + ' - ' + event.playerSource + '</div>';
+        sale.replaceChildren(
+          textElement('div', event.owner + ' - ' + event.player, 'player-name'),
+          textElement('div', event.position + ' - exp ' + money(event.expectedPrice) + ' - ' + event.playerSource, 'subtle')
+        );
         tableCell(row, money(event.price), 'money');
         const delta = tableCell(row, deltaMoney(event.saleVsExpected), 'money');
         delta.classList.add(event.saleVsExpected >= 0 ? 'delta-up' : 'delta-down');
@@ -806,7 +1286,9 @@ export const liveDraftHtml = `<!doctype html>
       currentState = state;
       if (!state.owners.some(owner => owner.owner === selectedRosterOwner)) selectedRosterOwner = 'Cam';
       syncOwnerSelects(state);
+      syncBoardFilterOptions(state);
       renderMetrics(state);
+      renderPositionMarket(state);
       renderBoard(state);
       renderSelected(state);
       renderRoster(state);
@@ -815,20 +1297,84 @@ export const liveDraftHtml = `<!doctype html>
       renderErrors(state);
     };
 
+    const submitCommand = async command => {
+      const data = await postJson('/api/events', { command });
+      if (!data.errors.length) {
+        selectedTargetName = data.availableTargets[0] ? data.availableTargets[0].name : null;
+        render(data);
+      }
+      return data;
+    };
+
     byId('board-search').addEventListener('input', () => {
       if (currentState) renderBoard(currentState);
+    });
+
+    byId('quick-sale-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const input = byId('quick-sale-command');
+      const command = input.value.trim();
+      if (!command) return;
+      const data = await submitCommand(command);
+      if (!data.errors.length) input.value = '';
+    });
+
+    for (const button of document.querySelectorAll('[data-position-filter]')) {
+      button.addEventListener('click', event => {
+        const nextPosition = event.currentTarget.dataset.positionFilter;
+        boardPositionFilter = boardPositions.includes(nextPosition) ? nextPosition : 'ALL';
+        if (currentState) renderBoard(currentState);
+      });
+    }
+
+    for (const input of [byId('my-needs-filter'), byId('hide-deep-filter'), byId('team-filter'), byId('bye-filter')]) {
+      input.addEventListener('input', () => {
+        if (currentState) renderBoard(currentState);
+      });
+    }
+
+    byId('sort-select').addEventListener('change', event => {
+      const [key, direction] = event.target.value.split(':');
+      boardSortKey = key;
+      boardSortDirection = direction;
+      if (currentState) renderBoard(currentState);
+    });
+
+    for (const button of document.querySelectorAll('[data-sort-key]')) {
+      button.addEventListener('click', event => {
+        const key = event.currentTarget.dataset.sortKey;
+        if (boardSortKey === key) {
+          boardSortDirection = boardSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+          boardSortKey = key;
+          boardSortDirection = key === 'byeWeek' || key === 'position' || key === 'teamAbbreviation' ? 'asc' : 'desc';
+        }
+        if (currentState) renderBoard(currentState);
+      });
+    }
+
+    byId('add-price').addEventListener('input', () => {
+      if (currentState) renderSaleControls(currentState);
     });
 
     byId('add-owner').addEventListener('change', event => {
       selectedRosterOwner = event.target.value;
       byId('roster-owner').value = selectedRosterOwner;
-      if (currentState) renderRoster(currentState);
+      if (currentState) {
+        renderSelected(currentState);
+        renderRoster(currentState);
+        renderBoard(currentState);
+      }
     });
 
     byId('roster-owner').addEventListener('change', event => {
       selectedRosterOwner = event.target.value;
       byId('add-owner').value = selectedRosterOwner;
-      if (currentState) renderRoster(currentState);
+      if (currentState) {
+        renderSelected(currentState);
+        renderRoster(currentState);
+        renderBoard(currentState);
+      }
     });
 
     byId('add-form').addEventListener('submit', async event => {
@@ -837,10 +1383,12 @@ export const liveDraftHtml = `<!doctype html>
       if (!target) return;
       const owner = byId('add-owner').value;
       const price = Number(byId('add-price').value);
-      if (!Number.isInteger(price) || price <= 0) return;
+      if (saleWarningsFor(target, ownerByName(owner), price).length) {
+        renderSaleControls(currentState);
+        return;
+      }
       const command = owner + ' drafted ' + target.name + ' for ' + price;
-      await postJson('/api/events', { command });
-      selectedTargetName = currentState && currentState.availableTargets[0] ? currentState.availableTargets[0].name : null;
+      await submitCommand(command);
     });
 
     byId('undo-button').addEventListener('click', () => postJson('/api/undo'));

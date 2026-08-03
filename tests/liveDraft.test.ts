@@ -69,6 +69,36 @@ describe("live draft room", () => {
     expect(updatedState.availableTargets[0]?.recommendedMaxBid).toBeLessThanOrEqual(updatedState.watchOwner.maxBid);
   });
 
+  it("rejects impossible sale commands before changing the live draft state", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const overMaxBidState = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+      commands: ["cam drafted jahmyr gibbs for 999"],
+    });
+    const overPositionLimitState = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+      commands: [
+        "cam drafted josh allen for 1",
+        "cam drafted lamar jackson for 1",
+      ],
+    });
+
+    expect(overMaxBidState.events).toHaveLength(0);
+    expect(overMaxBidState.errors[0]?.message).toContain("Cam can only bid up to $184");
+    expect(overMaxBidState.availableTargets[0]?.name).toBe("Jahmyr Gibbs");
+    expect(overPositionLimitState.events).toHaveLength(1);
+    expect(overPositionLimitState.errors[0]?.message).toContain("Cam already has the maximum QB roster count");
+  });
+
   it("exposes board metadata for a simple search-and-add interface", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();

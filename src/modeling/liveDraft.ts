@@ -505,6 +505,24 @@ const ownerStateFor = (
   };
 };
 
+const validateSaleFitsOwner = (
+  sale: ResolvedSale,
+  ownerState: LiveDraftOwnerState,
+): void => {
+  if (ownerState.rosterSlotsRemaining <= 0) {
+    throw new Error(`${sale.owner} has no open roster slots.`);
+  }
+
+  if (sale.parsed.price > ownerState.maxBid) {
+    throw new Error(`${sale.owner} can only bid up to $${ownerState.maxBid}.`);
+  }
+
+  const positionMaximum = leagueConfig.rosterMaximums[sale.player.position];
+  if (ownerState.positionCounts[sale.player.position] >= positionMaximum) {
+    throw new Error(`${sale.owner} already has the maximum ${sale.player.position} roster count (${positionMaximum}).`);
+  }
+};
+
 const buildOwnerStates = (
   rostersByOwner: ReadonlyMap<Owner, readonly LiveDraftRosterPlayer[]>,
 ): LiveDraftOwnerState[] =>
@@ -725,6 +743,7 @@ export const buildLiveDraftState = ({
       }
 
       const roster = rostersByOwner.get(sale.owner) ?? [];
+      validateSaleFitsOwner(sale, ownerStateFor(sale.owner, roster));
       roster.push(livePlayerForRoster(sale.player, sale.parsed.price));
       rostersByOwner.set(sale.owner, roster);
       soldNames.add(sale.player.normalizedName);
