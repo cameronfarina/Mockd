@@ -1168,6 +1168,41 @@ export const liveDraftHtml = `<!doctype html>
       font-size: 13px;
     }
 
+    .mock-results-breakdown {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 5px;
+    }
+
+    .mock-results-breakdown-title {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 750;
+      letter-spacing: 0;
+      line-height: 1.1;
+      text-transform: uppercase;
+    }
+
+    .mock-results-breakdown-item {
+      min-width: 0;
+      padding: 4px 5px;
+      border: 1px solid var(--line-soft);
+      border-radius: 5px;
+      background: rgba(5, 11, 18, 0.34);
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.15;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .mock-results-breakdown-item b {
+      display: block;
+      margin-top: 1px;
+      color: #d9e7f5;
+      font-size: 12px;
+    }
+
     .mock-results-player-list {
       display: grid;
       align-content: start;
@@ -2011,6 +2046,25 @@ export const liveDraftHtml = `<!doctype html>
       return row;
     };
 
+    const mockResultsSeasonParts = team => {
+      const parts = document.createElement('div');
+      parts.className = 'mock-results-breakdown';
+      parts.appendChild(textElement('span', 'Season parts', 'mock-results-breakdown-title'));
+
+      for (const [label, value] of [
+        ['Starters', scoreText(team.starterSeasonScore || team.weeks1To4Score)],
+        ['Depth', scoreText(team.depthScore)],
+        ['Consistency', scoreText(team.consistencyScore)]
+      ]) {
+        const item = document.createElement('span');
+        item.className = 'mock-results-breakdown-item';
+        item.replaceChildren(document.createTextNode(label), textElement('b', value));
+        parts.appendChild(item);
+      }
+
+      return parts;
+    };
+
     const mockResultsTeamCard = team => {
       const card = document.createElement('div');
       card.className = 'mock-results-card';
@@ -2031,7 +2085,8 @@ export const liveDraftHtml = `<!doctype html>
       header.replaceChildren(
         textElement('strong', team.owner + (team.projectedFinishLabel ? ' - ' + team.projectedFinishLabel : '')),
         textElement('div', team.rankExplanation || '-', 'mock-results-reason'),
-        scoreline
+        scoreline,
+        mockResultsSeasonParts(team)
       );
 
       const players = document.createElement('div');

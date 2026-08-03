@@ -104,6 +104,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("ranking.explanation");
     expect(liveDraftHtml).toContain("ranking.week1Rank");
     expect(liveDraftHtml).toContain("Math.max(...rankings.map(ranking => ranking.week1Score))");
+    expect(liveDraftHtml).toContain("const mockResultsSeasonParts = team =>");
+    expect(liveDraftHtml).toContain("team.starterSeasonScore");
+    expect(liveDraftHtml).toContain("team.depthScore");
+    expect(liveDraftHtml).toContain("team.consistencyScore");
     expect(liveDraftHtml).toContain("run.bestBuild");
     expect(liveDraftHtml).toContain("run.worstBuild");
     expect(liveDraftHtml).toContain("window.location.assign('/mock-results')");
@@ -144,6 +148,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("Mock Results");
     expect(liveDraftHtml).toContain("Top W1");
     expect(liveDraftHtml).toContain("Season");
+    expect(liveDraftHtml).toContain("Season parts");
+    expect(liveDraftHtml).toContain("Starters");
+    expect(liveDraftHtml).toContain("Depth");
+    expect(liveDraftHtml).toContain("Consistency");
     expect(liveDraftHtml).not.toContain("Top score");
     expect(liveDraftHtml).toContain("grid-template-columns: repeat(5, minmax(220px, 1fr));");
     expect(liveDraftHtml).not.toContain("mockDraftItem('AI max bids'");
