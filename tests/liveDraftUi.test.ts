@@ -94,6 +94,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderMockResultsRoute = report =>");
     expect(liveDraftHtml).toContain("const renderMockResultsGrid = run =>");
     expect(liveDraftHtml).toContain("const renderMockResultsRankingsCard = rankings =>");
+    expect(liveDraftHtml).toContain("const mockResultsRankingLabels = () =>");
     expect(liveDraftHtml).toContain("const mockResultsIntelligencePanel = run =>");
     expect(liveDraftHtml).toContain("const mockResultsAnalyticsPanel = report =>");
     expect(liveDraftHtml).toContain("report.analytics.strategyLeaderboard");
@@ -102,7 +103,6 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("run.camOutcome");
     expect(liveDraftHtml).toContain("team.rankExplanation");
     expect(liveDraftHtml).toContain("ranking.explanation");
-    expect(liveDraftHtml).toContain("ranking.week1Rank");
     expect(liveDraftHtml).toContain("Math.max(...rankings.map(ranking => ranking.week1Score))");
     expect(liveDraftHtml).toContain("const mockResultsSeasonParts = team =>");
     expect(liveDraftHtml).toContain("team.starterSeasonScore");
@@ -152,6 +152,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("Starters");
     expect(liveDraftHtml).toContain("Depth");
     expect(liveDraftHtml).toContain("Consistency");
+    expect(liveDraftHtml).toContain("textElement('span', 'Rank')");
+    expect(liveDraftHtml).toContain("textElement('span', 'Owner')");
+    expect(liveDraftHtml).toContain("textElement('span', 'Week 1')");
+    expect(liveDraftHtml).not.toContain("ranking.explanation + ' W1 #'");
     expect(liveDraftHtml).not.toContain("Top score");
     expect(liveDraftHtml).toContain("grid-template-columns: repeat(5, minmax(220px, 1fr));");
     expect(liveDraftHtml).not.toContain("mockDraftItem('AI max bids'");

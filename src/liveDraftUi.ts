@@ -1259,6 +1259,23 @@ export const liveDraftHtml = `<!doctype html>
       align-items: start;
     }
 
+    .mock-results-ranking-labels {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) 48px 54px;
+      gap: 6px;
+      padding: 0 6px 1px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 750;
+      line-height: 1.1;
+      text-transform: uppercase;
+    }
+
+    .mock-results-ranking-labels span:nth-child(3),
+    .mock-results-ranking-labels span:nth-child(4) {
+      text-align: right;
+    }
+
     .mock-results-name small {
       display: block;
       margin-top: 2px;
@@ -2096,6 +2113,18 @@ export const liveDraftHtml = `<!doctype html>
       return card;
     };
 
+    const mockResultsRankingLabels = () => {
+      const labels = document.createElement('div');
+      labels.className = 'mock-results-ranking-labels';
+      labels.replaceChildren(
+        textElement('span', 'Rank'),
+        textElement('span', 'Owner'),
+        textElement('span', 'Week 1'),
+        textElement('span', 'Season')
+      );
+      return labels;
+    };
+
     const renderMockResultsRankingsCard = rankings => {
       const card = document.createElement('div');
       card.className = 'mock-results-card rankings-card';
@@ -2112,14 +2141,14 @@ export const liveDraftHtml = `<!doctype html>
 
       const list = document.createElement('div');
       list.className = 'mock-results-player-list';
-      list.replaceChildren(...rankings.map(ranking => {
+      list.replaceChildren(mockResultsRankingLabels(), ...rankings.map(ranking => {
         const row = document.createElement('div');
         row.className = 'mock-results-player';
         const owner = document.createElement('span');
         owner.className = 'mock-results-name';
         owner.replaceChildren(
           textElement('span', ranking.owner),
-          textElement('small', ranking.explanation + ' W1 #' + ranking.week1Rank)
+          textElement('small', ranking.explanation)
         );
         row.replaceChildren(
           textElement('span', '#' + ranking.rank, 'mock-results-slot'),
