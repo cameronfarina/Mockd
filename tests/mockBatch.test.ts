@@ -216,6 +216,48 @@ describe("mock batch simulation", () => {
     expect(eliteRbOwnerPairs.size).toBeGreaterThan(1);
   }, 15000);
 
+  it("keeps owner tendencies from becoming deterministic draft scripts", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const batch = runMockBatch({
+      projections,
+      historicalRecords,
+      keepers,
+      scenarioKeys: ["expected"],
+      runsPerScenario: 30,
+      seedPrefix: "profile-variance-regression",
+      diagnosticsMode: "summary",
+    });
+    const rosterFor = (
+      run: (typeof batch.runs)[number],
+      owner: string,
+    ) => {
+      const roster = run.rosters.find(candidate => candidate.owner === owner);
+      if (!roster) throw new Error(`Missing ${owner} roster.`);
+      return roster;
+    };
+    const seasonWinnerCounts = new Map<string, number>();
+
+    for (const run of batch.runs) {
+      const winner = [...run.rosters]
+        .sort((left, right) => (right.weeks1To4Score ?? 0) - (left.weeks1To4Score ?? 0))[0];
+      if (!winner) throw new Error("Missing season winner.");
+      seasonWinnerCounts.set(winner.owner, (seasonWinnerCounts.get(winner.owner) ?? 0) + 1);
+    }
+
+    const melloExpensiveStudCounts = new Set(batch.runs.map(run =>
+      rosterFor(run, "Mello").players.filter(player => player.price >= 50).length
+    ));
+    const jakubTopTightEndCount = batch.runs.filter(run =>
+      rosterFor(run, "Jakub").players.some(player => player.position === "TE" && player.price >= 25)
+    ).length;
+    const largestWinnerCount = Math.max(...seasonWinnerCounts.values());
+
+    expect(melloExpensiveStudCounts.size).toBeGreaterThan(1);
+    expect(jakubTopTightEndCount).toBeLessThan(batch.runs.length);
+    expect(largestWinnerCount).toBeLessThan(15);
+  }, 20000);
+
   it("varies Cam's true 3RB cores across live-style batch runs", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();

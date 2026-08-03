@@ -11,6 +11,8 @@ import {
   buildOwnerAuctionBehaviors,
   buildOwnerDemandMultipliers,
   buildOwnerRosterMaximums,
+  buildRunVariantOwnerAuctionBehaviors,
+  buildRunVariantOwnerDemandMultipliers,
   resolveAuctionSale,
   selectNominatedPlayer,
   type AuctionBid,
@@ -394,16 +396,25 @@ const buildInteractiveAuctionConfig = ({
   const ownerDemandMultipliers = buildOwnerDemandMultipliers(ownerProfiles);
   const ownerBehaviors = buildOwnerAuctionBehaviors(ownerProfiles);
   const ownerRosterMaximums = buildOwnerRosterMaximums(ownerProfiles);
+  const runOwnerDemandMultipliers = buildRunVariantOwnerDemandMultipliers(ownerDemandMultipliers, seed);
+  const runOwnerBehaviors = buildRunVariantOwnerAuctionBehaviors(ownerBehaviors, seed);
   const strategyOverrides = strategyAuctionOverridesFor(watchOwner, strategyKey);
 
   return buildAuctionConfig({
     seed,
+    nomination: {
+      tieBreakWeight: 0.08,
+    },
+    bidVariance: {
+      maxDiscount: 0.13,
+      maxPremium: 0.12,
+    },
     ownerDemandMultipliers: mergeOwnerPositionMaps(
-      ownerDemandMultipliers,
+      runOwnerDemandMultipliers,
       strategyOverrides.ownerDemandMultipliers,
     ),
     ownerBehaviors: mergeOwnerAuctionBehaviors(
-      ownerBehaviors,
+      runOwnerBehaviors,
       strategyOverrides.ownerBehaviors,
     ),
     ownerRosterMaximums: mergeOwnerPositionMaps(

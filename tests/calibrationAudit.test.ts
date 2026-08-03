@@ -40,20 +40,22 @@ describe("historical calibration audit", () => {
   it("compares batch mock economics to historical league auctions", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
+    const runsPerScenario = 20;
     const batch = runMockBatch({
       projections,
       historicalRecords,
       keepers,
       scenarioKeys: ["expected"],
-      runsPerScenario: 2,
+      runsPerScenario,
       seedPrefix: "calibration-test",
+      diagnosticsMode: "summary",
     });
     const audit = buildHistoricalCalibrationAudit({ historicalRecords, batch });
 
-    expect(audit.runCount).toBe(2);
-    expect(audit.summary.runCount).toBe(2);
+    expect(audit.runCount).toBe(runsPerScenario);
+    expect(audit.summary.runCount).toBe(runsPerScenario);
     expect(audit.summary.scenarioKeys).toEqual(["expected"]);
-    expect(audit.summary.runsPerScenario).toBe(2);
+    expect(audit.summary.runsPerScenario).toBe(runsPerScenario);
     expect(["pass", "warn", "fail"]).toContain(audit.gates.summary.status);
     expect(audit.gates.summary.passCount + audit.gates.summary.warnCount + audit.gates.summary.failCount)
       .toBe(audit.gates.summary.gateCount);
@@ -68,7 +70,7 @@ describe("historical calibration audit", () => {
     expect(audit.scenarios[0]).toMatchObject({
       key: "expected",
       label: "Expected",
-      runCount: 2,
+      runCount: runsPerScenario,
       invalidRosterCount: 0,
       scenarioAverageOpenAuctionDollars: audit.overall.scenarioAverageOpenAuctionDollars,
     });

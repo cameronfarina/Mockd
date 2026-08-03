@@ -2573,6 +2573,187 @@ export const buildOwnerAuctionBehaviors = (
   return behaviors;
 };
 
+export interface OwnerRunVarianceConfig {
+  demandPriorWeight: number;
+  demandJitter: number;
+  specialTeamsDemandJitter: number;
+  behaviorPriorWeight: number;
+  priceAggressionJitter: number;
+  scarcityChaseJitter: number;
+  replacementPatienceJitter: number;
+  anchorAggressionJitter: number;
+  depthAggressionJitter: number;
+}
+
+const defaultOwnerRunVarianceConfig: OwnerRunVarianceConfig = {
+  demandPriorWeight: 0.35,
+  demandJitter: 0.16,
+  specialTeamsDemandJitter: 0.04,
+  behaviorPriorWeight: 0.4,
+  priceAggressionJitter: 0.07,
+  scarcityChaseJitter: 0.12,
+  replacementPatienceJitter: 0.07,
+  anchorAggressionJitter: 0.13,
+  depthAggressionJitter: 0.14,
+};
+
+const ownerRunVarianceConfigFor = (
+  config: Partial<OwnerRunVarianceConfig> = {},
+): OwnerRunVarianceConfig => ({
+  ...defaultOwnerRunVarianceConfig,
+  ...config,
+});
+
+const centeredVarianceRoll = (
+  seed: string,
+  owner: Owner,
+  key: string,
+): number =>
+  deterministicTieBreak(`${seed}:owner-run-variance`, owner, key) * 2 - 1;
+
+const blendMultiplierToNeutral = (value: number, priorWeight: number): number =>
+  1 + (value - 1) * clamp(priorWeight, 0, 1);
+
+const jitterMultiplier = (
+  seed: string,
+  owner: Owner,
+  key: string,
+  amount: number,
+): number =>
+  1 + centeredVarianceRoll(seed, owner, key) * amount;
+
+const runBuildStyleMultipliersFor = (
+  seed: string,
+  owner: Owner,
+): Required<OwnerAuctionBehavior> => {
+  const roll = deterministicTieBreak(`${seed}:owner-build-style`, owner, "style");
+
+  if (roll < 0.2) {
+    return {
+      priceAggression: 1.04,
+      scarcityChase: 1.08,
+      replacementPatience: 0.97,
+      anchorAggression: 1.12,
+      depthAggression: 0.9,
+    };
+  }
+  if (roll < 0.4) {
+    return {
+      priceAggression: 0.97,
+      scarcityChase: 0.94,
+      replacementPatience: 1.05,
+      anchorAggression: 0.9,
+      depthAggression: 1.14,
+    };
+  }
+  if (roll < 0.58) {
+    return {
+      priceAggression: 1.02,
+      scarcityChase: 1.1,
+      replacementPatience: 1,
+      anchorAggression: 0.98,
+      depthAggression: 1.04,
+    };
+  }
+  if (roll < 0.74) {
+    return {
+      priceAggression: 0.99,
+      scarcityChase: 0.98,
+      replacementPatience: 1.03,
+      anchorAggression: 0.96,
+      depthAggression: 1.08,
+    };
+  }
+
+  return defaultOwnerAuctionBehavior;
+};
+
+export const buildRunVariantOwnerDemandMultipliers = (
+  base: OwnerDemandMultipliers,
+  seed: string,
+  options: Partial<OwnerRunVarianceConfig> = {},
+): OwnerDemandMultipliers => {
+  const variance = ownerRunVarianceConfigFor(options);
+  const multipliersByOwner: OwnerDemandMultipliers = {};
+
+  for (const owner of ownerOrder) {
+    const multipliers: Partial<Record<Position, number>> = {};
+
+    for (const position of positions) {
+      const baseMultiplier = base[owner]?.[position] ?? 1;
+      const positionJitter = position === "K" || position === "DST"
+        ? variance.specialTeamsDemandJitter
+        : variance.demandJitter;
+      const adjustedMultiplier =
+        blendMultiplierToNeutral(baseMultiplier, variance.demandPriorWeight) *
+        jitterMultiplier(seed, owner, `demand:${position}`, positionJitter);
+
+      multipliers[position] = clamp(adjustedMultiplier, 0.82, 1.2);
+    }
+
+    multipliersByOwner[owner] = multipliers;
+  }
+
+  return multipliersByOwner;
+};
+
+export const buildRunVariantOwnerAuctionBehaviors = (
+  base: OwnerAuctionBehaviors,
+  seed: string,
+  options: Partial<OwnerRunVarianceConfig> = {},
+): OwnerAuctionBehaviors => {
+  const variance = ownerRunVarianceConfigFor(options);
+  const behaviors: OwnerAuctionBehaviors = {};
+
+  for (const owner of ownerOrder) {
+    const baseBehavior = {
+      ...defaultOwnerAuctionBehavior,
+      ...base[owner],
+    };
+    const buildStyle = runBuildStyleMultipliersFor(seed, owner);
+
+    behaviors[owner] = {
+      priceAggression: clamp(
+        blendMultiplierToNeutral(baseBehavior.priceAggression, variance.behaviorPriorWeight) *
+          buildStyle.priceAggression *
+          jitterMultiplier(seed, owner, "priceAggression", variance.priceAggressionJitter),
+        0.86,
+        1.16,
+      ),
+      scarcityChase: clamp(
+        blendMultiplierToNeutral(baseBehavior.scarcityChase, variance.behaviorPriorWeight) *
+          buildStyle.scarcityChase *
+          jitterMultiplier(seed, owner, "scarcityChase", variance.scarcityChaseJitter),
+        0.82,
+        1.22,
+      ),
+      replacementPatience: clamp(
+        blendMultiplierToNeutral(baseBehavior.replacementPatience, variance.behaviorPriorWeight) *
+          buildStyle.replacementPatience *
+          jitterMultiplier(seed, owner, "replacementPatience", variance.replacementPatienceJitter),
+        0.88,
+        1.12,
+      ),
+      anchorAggression: clamp(
+        blendMultiplierToNeutral(baseBehavior.anchorAggression, variance.behaviorPriorWeight) *
+          buildStyle.anchorAggression *
+          jitterMultiplier(seed, owner, "anchorAggression", variance.anchorAggressionJitter),
+        0.82,
+        1.24,
+      ),
+      depthAggression: clamp(
+        blendMultiplierToNeutral(baseBehavior.depthAggression, variance.behaviorPriorWeight) *
+          buildStyle.depthAggression *
+          jitterMultiplier(seed, owner, "depthAggression", variance.depthAggressionJitter),
+        0.82,
+        1.24,
+      ),
+    };
+  }
+
+  return behaviors;
+};
+
 export const buildOwnerRosterMaximums = (
   profiles: readonly OwnerProfile[],
 ): OwnerRosterMaximums => {

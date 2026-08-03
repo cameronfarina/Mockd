@@ -12,6 +12,8 @@ import {
   buildOwnerAuctionBehaviors,
   buildOwnerDemandMultipliers,
   buildOwnerRosterMaximums,
+  buildRunVariantOwnerAuctionBehaviors,
+  buildRunVariantOwnerDemandMultipliers,
   simulateAuction,
   type AuctionDiagnosticsMode,
   type AuctionEngineConfigOverrides,
@@ -505,15 +507,29 @@ const runPreparedScenario = (
   forcedSales: readonly ForcedAuctionSale[] = [],
   diagnosticsMode: AuctionDiagnosticsMode = "full",
 ): MockRun => {
+  const runOwnerDemandMultipliers = buildRunVariantOwnerDemandMultipliers(
+    ownerDemandMultipliers,
+    seed,
+  );
+  const runOwnerBehaviors = buildRunVariantOwnerAuctionBehaviors(ownerBehaviors, seed);
   const auctionConfig = buildAuctionConfig({
     ...auctionConfigOverrides,
     seed,
+    nomination: {
+      tieBreakWeight: 0.08,
+      ...auctionConfigOverrides.nomination,
+    },
+    bidVariance: {
+      maxDiscount: 0.13,
+      maxPremium: 0.12,
+      ...auctionConfigOverrides.bidVariance,
+    },
     ownerDemandMultipliers: mergeOwnerPositionMaps(
-      ownerDemandMultipliers,
+      runOwnerDemandMultipliers,
       auctionConfigOverrides.ownerDemandMultipliers,
     ),
     ownerBehaviors: mergeOwnerAuctionBehaviors(
-      ownerBehaviors,
+      runOwnerBehaviors,
       auctionConfigOverrides.ownerBehaviors,
     ),
     ownerRosterMaximums: mergeOwnerPositionMaps(
