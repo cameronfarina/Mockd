@@ -81,7 +81,7 @@ describe("interactive mock draft", () => {
     expect(state.phase).toBe("human-decision");
     expect(state.nomination?.player).toBe("Breece Hall");
     expect(state.camDecision).toMatchObject({
-      maxBid: 44,
+      maxBid: 42,
       recommendedBid: 42,
       topAiBid: 41,
       topAiBidOwner: "Chip",

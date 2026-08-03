@@ -897,7 +897,9 @@ export const createLiveDraftServer = async (
           scenarioKeys: ["expected"],
           runsPerScenario,
           seedPrefix,
-          auctionConfigOverrides: strategyAuctionOverridesFor("Cam", job.strategyKey),
+          auctionConfigOverrides: strategyAuctionOverridesFor("Cam", job.strategyKey, {
+            variantSeed: seedPrefix,
+          }),
           diagnosticsMode: "summary",
         })
         : await runMockBatchProgressively({
@@ -908,7 +910,11 @@ export const createLiveDraftServer = async (
           runsPerScenario,
           seedPrefix,
           auctionConfigOverridesForRun: context =>
-            strategyAuctionOverridesFor("Cam", job.runStrategyKeys[context.completedRuns] ?? job.strategyKey),
+            strategyAuctionOverridesFor(
+              "Cam",
+              job.runStrategyKeys[context.completedRuns] ?? job.strategyKey,
+              { variantSeed: context.seed },
+            ),
           diagnosticsMode: "summary",
           onRunComplete: async progress => {
             updateMockBatchJobProgress(job, progress.completedRuns);

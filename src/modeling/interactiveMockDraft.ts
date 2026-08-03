@@ -21,6 +21,7 @@ import {
   type OwnerAuctionBehaviors,
   type OwnerDemandMultipliers,
   type OwnerPositionAnchorTargets,
+  type OwnerPositionCoreBudgetEnvelopes,
   type OwnerPositionCoreMaxBids,
   type OwnerPositionCoreTargets,
   type OwnerPositionSlotMaxBids,
@@ -177,6 +178,28 @@ const mergeOwnerPositionMaps = <T extends OwnerDemandMultipliers | OwnerRosterMa
   return merged;
 };
 
+const mergeOwnerPositionCoreBudgetEnvelopes = (
+  base: OwnerPositionCoreBudgetEnvelopes,
+  overrides?: OwnerPositionCoreBudgetEnvelopes,
+): OwnerPositionCoreBudgetEnvelopes => {
+  if (!overrides) return base;
+
+  const merged: OwnerPositionCoreBudgetEnvelopes = { ...base };
+  const owners = new Set<Owner>([
+    ...(Object.keys(base) as Owner[]),
+    ...(Object.keys(overrides) as Owner[]),
+  ]);
+
+  for (const owner of owners) {
+    merged[owner] = {
+      ...(base[owner] ?? {}),
+      ...(overrides[owner] ?? {}),
+    };
+  }
+
+  return merged;
+};
+
 const mergeOwnerPriceLadders = <
   T extends OwnerPositionCoreTargets | OwnerPositionCoreMaxBids | OwnerPositionSlotMaxBids,
 >(
@@ -247,9 +270,14 @@ const mergeOwnerAuctionBehaviors = (
 export const strategyAuctionOverridesFor = (
   owner: Owner,
   strategyKey: LiveDraftStrategyKey,
+  options: { variantSeed?: string } = {},
 ): AuctionEngineConfigOverrides => {
   if (strategyKey === "three-rb") {
-    return draftPlanAuctionOverridesFor({ owner, strategyKey });
+    return draftPlanAuctionOverridesFor({
+      owner,
+      strategyKey,
+      ...(options.variantSeed === undefined ? {} : { variantSeed: options.variantSeed }),
+    });
   }
   if (strategyKey === "hero-rb") {
     return {
@@ -357,6 +385,10 @@ const buildInteractiveAuctionConfig = ({
     ownerPositionSlotMaxBids: mergeOwnerPriceLadders(
       {},
       strategyOverrides.ownerPositionSlotMaxBids,
+    ),
+    ownerPositionCoreBudgetEnvelopes: mergeOwnerPositionCoreBudgetEnvelopes(
+      {},
+      strategyOverrides.ownerPositionCoreBudgetEnvelopes,
     ),
   });
 };

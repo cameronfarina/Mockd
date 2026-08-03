@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { keepers } from "../config/keepers.js";
 import { ownerOrder } from "../config/league.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
-import { runMockBatch } from "../src/modeling/mockBatch.js";
+import { strategyAuctionOverridesFor } from "../src/modeling/interactiveMockDraft.js";
+import { runMockBatch, runMockBatchProgressively } from "../src/modeling/mockBatch.js";
+import type { LiveDraftStrategyKey } from "../src/modeling/liveDraftStrategies.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
@@ -154,4 +156,61 @@ describe("mock batch simulation", () => {
     expect(beatonBothCount).toBeLessThan(batch.runs.length);
     expect(eliteRbOwnerPairs.size).toBeGreaterThan(1);
   }, 15000);
+
+  it("varies Cam's true 3RB cores across live-style batch runs", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const strategySequence = [
+      "three-rb",
+      "balanced",
+      "hero-rb",
+      "wr-heavy",
+    ] as const satisfies readonly LiveDraftStrategyKey[];
+    const batch = await runMockBatchProgressively({
+      projections,
+      historicalRecords,
+      keepers,
+      scenarioKeys: ["expected"],
+      runsPerScenario: 24,
+      seedPrefix: "cam-three-rb-variance",
+      diagnosticsMode: "summary",
+      auctionConfigOverridesForRun: context =>
+        strategyAuctionOverridesFor(
+          "Cam",
+          strategySequence[context.completedRuns % strategySequence.length] ?? "three-rb",
+          { variantSeed: context.seed },
+        ),
+    });
+    const camRbCoreFor = (run: (typeof batch.runs)[number]): string[] => {
+      const camRoster = run.rosters.find(roster => roster.owner === "Cam");
+      if (!camRoster) throw new Error("Missing Cam roster.");
+
+      return camRoster.players
+        .filter(player => player.position === "RB")
+        .sort((left, right) => right.price - left.price || left.name.localeCompare(right.name))
+        .slice(0, 3)
+        .map(player => player.name);
+    };
+    const threeRbRuns = batch.runs.filter(
+      (_run, index) => strategySequence[index % strategySequence.length] === "three-rb",
+    );
+    const rbCores = threeRbRuns.map(camRbCoreFor);
+    const uniqueRbCores = new Set(rbCores.map(core => core.join("|")));
+    const hasHighHighLowBuild = threeRbRuns.some(run => {
+      const camRoster = run.rosters.find(roster => roster.owner === "Cam");
+      if (!camRoster) throw new Error("Missing Cam roster.");
+      const rbPrices = camRoster.players
+        .filter(player => player.position === "RB")
+        .map(player => player.price)
+        .sort((left, right) => right - left);
+      return (rbPrices[0] ?? 0) >= 60 &&
+        (rbPrices[1] ?? 0) >= 60 &&
+        (rbPrices[2] ?? 0) <= 30 &&
+        (rbPrices[2] ?? 0) >= 5;
+    });
+
+    expect(rbCores.every(core => core.length === 3)).toBe(true);
+    expect(uniqueRbCores.size).toBeGreaterThan(1);
+    expect(hasHighHighLowBuild).toBe(true);
+  }, 20000);
 });

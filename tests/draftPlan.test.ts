@@ -186,57 +186,57 @@ describe("draft plan generation", () => {
     });
 
     expect(report.runCount).toBe(2);
-    expect(report.matchedRunCount).toBe(1);
+    expect(report.matchedRunCount).toBe(2);
     expect(report.recommendations.maxPriceBands).toEqual([
       expect.objectContaining({
         slot: "RB1",
         position: "RB",
-        minimumPrice: 55,
-        maximumPrice: 62,
+        minimumPrice: 50,
+        maximumPrice: 76,
       }),
       expect.objectContaining({
         slot: "RB2",
         position: "RB",
-        minimumPrice: 45,
-        maximumPrice: 54,
+        minimumPrice: 35,
+        maximumPrice: 76,
       }),
       expect.objectContaining({
         slot: "RB3",
         position: "RB",
-        minimumPrice: 35,
-        maximumPrice: 44,
+        minimumPrice: 12,
+        maximumPrice: 48,
       }),
       expect.objectContaining({
         slot: "WR1",
         position: "WR",
-        minimumPrice: 14,
-        maximumPrice: 24,
+        minimumPrice: 12,
+        maximumPrice: 26,
       }),
       expect.objectContaining({
         slot: "WR2",
         position: "WR",
-        minimumPrice: 10,
-        maximumPrice: 18,
+        minimumPrice: 8,
+        maximumPrice: 20,
       }),
       expect.objectContaining({
         slot: "TE",
         position: "TE",
         minimumPrice: 1,
-        maximumPrice: 3,
+        maximumPrice: 4,
       }),
     ]);
     expect(report.recommendations.targetClusters[0]).toEqual(expect.objectContaining({
       label: "RB core",
       position: "RB",
       targetNames: ["Elite RB", "Strong RB", "Flex RB"],
-      priceBand: "$55-$62 / $45-$54 / $35-$44",
+      priceBand: "$50-$76 / $35-$76 / $12-$48",
     }));
     expect(report.recommendations.pivotRules[0]).toEqual(expect.objectContaining({
-      label: "RB2 over band",
-      trigger: "Second RB costs more than $54.",
+      label: "RB budget envelope",
+      trigger: "The first two RBs use most of the RB core budget.",
     }));
     expect(report.recommendations.deadZoneWarnings).toEqual([]);
-    expect(report.candidates).toHaveLength(1);
+    expect(report.candidates).toHaveLength(2);
     expect(report.candidates[0]).toMatchObject({
       seed: "draft-plan-test:expected:1",
       owner: "Cam",
@@ -278,5 +278,87 @@ describe("draft plan generation", () => {
       "DST",
       "FLEX",
     ]);
+  });
+
+  it("accepts fluid true 3RB builds when two elite backs change the third-RB budget", () => {
+    const batch: MockBatch = {
+      options: {
+        scenarioKeys: ["expected"],
+        runsPerScenario: 1,
+        seedPrefix: "draft-plan-fluid-test",
+      },
+      runs: [
+        {
+          seed: "draft-plan-fluid-test:expected:1",
+          keeperScenario: expectedScenario,
+          inputCounts: {
+            pricedPlayers: 0,
+            auctionPlayers: 0,
+            lockedKeepers: 0,
+          },
+          pickCount: 0,
+          picks: [],
+          budgetTrajectory: [],
+          rosters: [
+            {
+              owner: "Cam",
+              spend: 200,
+              budgetRemaining: 0,
+              week1Score: 124,
+              weeks1To4Score: 496,
+              valid: true,
+              errors: [],
+              positionSpend: {
+                QB: 2,
+                RB: 146,
+                WR: 47,
+                TE: 3,
+                K: 1,
+                DST: 1,
+              },
+              players: [
+                player("Justin Herbert", "QB", 2),
+                player("Elite RB 1", "RB", 65, 84),
+                player("Elite RB 2", "RB", 65, 82),
+                player("Value RB 3", "RB", 16, 58),
+                player("WR Value 1", "WR", 22, 64),
+                player("WR Value 2", "WR", 16, 54),
+                player("WR Value 3", "WR", 9, 42),
+                player("Cheap TE", "TE", 3, 32),
+                player("Bench WR", "WR", 1, 18),
+                player("Bench RB", "RB", 1, 12),
+                player("Bench TE", "TE", 1, 6),
+                player("Kicker", "K", 1),
+                player("Defense", "DST", 1),
+              ],
+            },
+          ],
+          invalidRosterCount: 0,
+          unsoldPlayerCount: 0,
+        },
+      ],
+      summary: {
+        runCount: 1,
+        scenarios: [],
+        players: [],
+        owners: [],
+        ownerPlayerExposure: [],
+      },
+    };
+
+    const report = buildDraftPlanReport({
+      batch,
+      owner: "Cam",
+      strategyKey: "three-rb",
+      limit: 5,
+    });
+
+    expect(report.matchedRunCount).toBe(1);
+    expect(report.candidates[0]?.rbCore.map(player => `${player.name} $${player.price}`)).toEqual([
+      "Elite RB 1 $65",
+      "Elite RB 2 $65",
+      "Value RB 3 $16",
+    ]);
+    expect(report.candidates[0]?.lineup.find(entry => entry.slot === "FLEX")?.player.name).toBe("Value RB 3");
   });
 });

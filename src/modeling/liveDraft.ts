@@ -880,14 +880,45 @@ const slotMaxBidsFor = (
   return undefined;
 };
 
+const ownerPositionSpend = (
+  owner: LiveDraftOwnerState,
+  position: Position,
+): number =>
+  owner.roster
+    .filter(player => player.position === position)
+    .reduce((total, player) => total + player.price, 0);
+
+const coreBudgetPathMaxBidFor = (
+  strategy: LiveDraftStrategyDefinition,
+  position: Position,
+  watchOwner: LiveDraftOwnerState,
+): number | undefined => {
+  if (strategy.key !== "three-rb" || position !== "RB") return undefined;
+
+  const coreBudget = threeRbPathRules.rbCoreBudget;
+  const positionCount = watchOwner.positionCounts[position];
+  if (positionCount >= coreBudget.targetCount) return undefined;
+
+  const futureCoreSlots = Math.max(0, coreBudget.targetCount - positionCount - 1);
+  return Math.floor(
+    coreBudget.hardBudget -
+      ownerPositionSpend(watchOwner, position) -
+      futureCoreSlots * coreBudget.minimumFutureCorePrice,
+  );
+};
+
 const strategyPathMaxBidFor = (
   player: LiveDraftPlayerRecord,
   watchOwner: LiveDraftOwnerState,
   strategy: LiveDraftStrategyDefinition,
 ): number | undefined => {
   const slotMaxBids = slotMaxBidsFor(strategy, player.position);
-  if (!slotMaxBids) return undefined;
-  return slotMaxBids[watchOwner.positionCounts[player.position]];
+  const slotMaxBid = slotMaxBids?.[watchOwner.positionCounts[player.position]];
+  const coreBudgetMaxBid = coreBudgetPathMaxBidFor(strategy, player.position, watchOwner);
+  const maxBids = [slotMaxBid, coreBudgetMaxBid]
+    .filter((value): value is number => value !== undefined);
+  if (maxBids.length === 0) return undefined;
+  return Math.min(watchOwner.maxBid, Math.max(1, Math.min(...maxBids)));
 };
 
 const canWatchOwnerRosterPlayer = (
@@ -1078,12 +1109,24 @@ const maxPriceBandsForThreeRb = (watchOwner: LiveDraftOwnerState): LiveDraftPath
     seenByPosition.set(band.position, index + 1);
     const filledPlayer = filledByPosition.get(band.position)?.[index];
     const status = pathBandStatusFor(filledPlayer, index, watchOwner, band.position);
+    const remainingCoreSlotsAfterBand = Math.max(0, threeRbPathRules.rbCoreBudget.targetCount - index - 1);
+    const budgetAdjustedMaximumPrice = band.position === "RB" && !filledPlayer
+      ? Math.min(
+        band.maximumPrice,
+        Math.max(
+          band.minimumPrice,
+          threeRbPathRules.rbCoreBudget.hardBudget -
+            ownerPositionSpend(watchOwner, band.position) -
+            remainingCoreSlotsAfterBand * threeRbPathRules.rbCoreBudget.minimumFutureCorePrice,
+        ),
+      )
+      : band.maximumPrice;
 
     return {
       slot: band.slot,
       position: band.position,
       minimumPrice: band.minimumPrice,
-      maximumPrice: band.maximumPrice,
+      maximumPrice: budgetAdjustedMaximumPrice,
       status,
       note: band.note,
       ...(filledPlayer ? { filledBy: filledPlayer.name } : {}),
@@ -1154,8 +1197,8 @@ const buildThreeRbDraftPath = (
     strategyKey: strategy.key,
     label: strategy.label,
     summary: nextRbBand
-      ? `3 premium RB path: ${3 - openRbCoreCount}/3 core RBs filled. Next ${nextRbBand.slot} lane is ${priceBandText(nextRbBand)}.`
-      : "3 premium RB path: RB core filled. Shift attention to WR value and cheap TE.",
+      ? `3RB path: ${3 - openRbCoreCount}/3 core RBs filled. Next ${nextRbBand.slot} lane is ${priceBandText(nextRbBand)}.`
+      : "3RB path: RB core filled. Shift attention to WR value and cheap TE.",
     maxPriceBands,
     targetClusters,
     pivotRules: threeRbPathRules.pivotRules.map(rule => ({

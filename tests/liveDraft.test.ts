@@ -174,25 +174,25 @@ describe("live draft room", () => {
     const receiver = state.availableTargets.find(target => target.position === "WR");
     expect(receiver?.strategyValues["wr-heavy"]).toBeGreaterThanOrEqual(receiver?.strategyValues["three-rb"] ?? 0);
     expect(gibbs?.recommendedMaxBid).toBeLessThanOrEqual(state.watchOwner.maxBid);
-    expect(gibbs?.recommendedMaxBid).toBe(62);
-    expect(gibbs?.tags).toContain("path max $62");
+    expect(gibbs?.recommendedMaxBid).toBe(76);
+    expect(gibbs?.tags).toContain("path max $76");
     expect(state.draftPath).toMatchObject({
       strategyKey: "three-rb",
       label: "True 3RB",
-      summary: expect.stringContaining("3 premium RB"),
+      summary: expect.stringContaining("3RB path"),
       maxPriceBands: expect.arrayContaining([
         expect.objectContaining({
           slot: "RB1",
           position: "RB",
-          minimumPrice: 55,
-          maximumPrice: 62,
+          minimumPrice: 50,
+          maximumPrice: 76,
           status: "next",
         }),
         expect.objectContaining({
           slot: "RB2",
           position: "RB",
-          minimumPrice: 45,
-          maximumPrice: 54,
+          minimumPrice: 35,
+          maximumPrice: 76,
           status: "open",
         }),
       ]),
@@ -200,13 +200,13 @@ describe("live draft room", () => {
         expect.objectContaining({
           label: "Target",
           position: "RB",
-          priceBand: "$55-$62",
+          priceBand: "$50-$76",
         }),
       ]),
       pivotRules: expect.arrayContaining([
         expect.objectContaining({
           label: "Pivot",
-          action: expect.stringContaining("Hero RB"),
+          action: expect.stringContaining("third RB flex down"),
         }),
       ]),
       deadZoneWarnings: [],
@@ -254,10 +254,39 @@ describe("live draft room", () => {
       expect.objectContaining({
         slot: "RB2",
         status: "next",
-        maximumPrice: 54,
+        maximumPrice: 76,
       }),
     ]));
-    expect(nextRb?.recommendedMaxBid).toBeLessThanOrEqual(54);
-    expect(nextRb?.tags).toContain("path max $54");
+    expect(nextRb?.recommendedMaxBid).toBeLessThanOrEqual(76);
+    expect(nextRb?.tags).toContain("path max $76");
+  });
+
+  it("compresses the third 3RB max bid after Cam buys two expensive backs", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+      strategyKey: "three-rb",
+      commands: [
+        "cam drafted jahmyr gibbs for 65",
+        "cam drafted bijan robinson for 65",
+      ],
+    });
+
+    const nextRb = state.availableTargets.find(target => target.position === "RB");
+
+    expect(state.draftPath.maxPriceBands).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        slot: "RB3",
+        status: "next",
+        maximumPrice: 28,
+      }),
+    ]));
+    expect(nextRb?.recommendedMaxBid).toBeLessThanOrEqual(28);
+    expect(nextRb?.tags).toContain("path max $28");
   });
 });

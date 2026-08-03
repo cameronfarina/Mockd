@@ -68,26 +68,26 @@ describe("CLI draft plan report", () => {
     expect(report.matchedRunCount).toBeGreaterThan(0);
     expect(report.candidateLimit).toBe(3);
     expect(report.recommendations.maxPriceBands).toEqual(expect.arrayContaining([
-      expect.objectContaining({ slot: "RB1", maximumPrice: 62 }),
-      expect.objectContaining({ slot: "RB2", maximumPrice: 54 }),
-      expect.objectContaining({ slot: "RB3", maximumPrice: 44 }),
+      expect.objectContaining({ slot: "RB1", maximumPrice: 76 }),
+      expect.objectContaining({ slot: "RB2", maximumPrice: 76 }),
+      expect.objectContaining({ slot: "RB3", maximumPrice: 48 }),
     ]));
     expect(report.recommendations.pivotRules[0]).toEqual(expect.objectContaining({
-      label: "RB2 over band",
-      action: expect.stringContaining("Hero RB"),
+      label: "RB budget envelope",
+      action: expect.stringContaining("third RB flex down"),
     }));
     expect(report.candidates.length).toBeGreaterThan(0);
     for (const candidate of report.candidates) {
       expect(candidate.owner).toBe("Cam");
       expect(candidate.rbCore).toHaveLength(3);
-      expect(candidate.rbCore[0]?.price).toBeGreaterThanOrEqual(55);
-      expect(candidate.rbCore[1]?.price).toBeGreaterThanOrEqual(45);
-      expect(candidate.rbCore[2]?.price).toBeGreaterThanOrEqual(35);
+      expect(candidate.rbCore[0]?.price).toBeGreaterThanOrEqual(50);
+      expect(candidate.rbCore[1]?.price).toBeGreaterThanOrEqual(35);
+      expect(candidate.rbCore[2]?.price).toBeGreaterThanOrEqual(12);
       const paidReceivers = candidate.players
         .filter(player => player.position === "WR")
         .sort((left, right) => right.price - left.price);
-      expect(paidReceivers[0]?.price).toBeGreaterThanOrEqual(14);
-      expect(paidReceivers[1]?.price).toBeGreaterThanOrEqual(12);
+      expect(paidReceivers[0]?.price).toBeGreaterThanOrEqual(12);
+      expect(paidReceivers[1]?.price).toBeGreaterThanOrEqual(5);
       const rbDepth = candidate.players
         .filter(player => player.position === "RB")
         .sort((left, right) => right.price - left.price)
@@ -128,9 +128,9 @@ describe("CLI draft plan report", () => {
     expect(firstRow[3]).toBe("Cam");
     expect(firstRow[5]).toBe("fast");
     expect(Number(firstRow[6])).toBeLessThanOrEqual(200);
-    expect(Number(firstRow[12])).toBeGreaterThanOrEqual(55);
-    expect(Number(firstRow[14])).toBeGreaterThanOrEqual(45);
-    expect(Number(firstRow[16])).toBeGreaterThanOrEqual(35);
+    expect(Number(firstRow[12])).toBeGreaterThanOrEqual(50);
+    expect(Number(firstRow[14])).toBeGreaterThanOrEqual(35);
+    expect(Number(firstRow[16])).toBeGreaterThanOrEqual(12);
     expect(firstRow[27]).toContain("RB1:");
   }, 30000);
 
@@ -145,7 +145,7 @@ describe("CLI draft plan report", () => {
         "--owner=Cam",
         "--strategy=three-rb",
         "--scenario=expected",
-        "--runs=4",
+        "--runs=8",
         "--limit=1",
         "--strategy-mode=force",
         "--format=markdown",
@@ -158,9 +158,9 @@ describe("CLI draft plan report", () => {
     );
 
     expect(stdout).toContain("## Path Recommendations");
-    expect(stdout).toContain("Max bands: RB1 $55-$62");
+    expect(stdout).toContain("Max bands: RB1 $50-$76");
     expect(stdout).toContain("Targets: RB core");
-    expect(stdout).toContain("Pivots: RB2 over band");
+    expect(stdout).toContain("Pivots: RB budget envelope");
     expect(stdout).toContain("Dead zones: none");
   }, 30000);
 });
