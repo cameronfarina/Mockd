@@ -1117,17 +1117,42 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .sort-heading {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
       width: 100%;
-      height: auto;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
+      min-height: 28px;
+      padding: 4px 8px;
+      border: 1px solid transparent;
+      border-radius: 6px;
       background: transparent;
       color: inherit;
       font: inherit;
       font-weight: inherit;
+      line-height: 1.2;
       text-align: inherit;
       cursor: pointer;
+    }
+
+    th.money .sort-heading {
+      justify-content: flex-end;
+    }
+
+    th.center .sort-heading {
+      justify-content: center;
+    }
+
+    .sort-heading:hover,
+    .sort-heading[data-active-sort="true"] {
+      border-color: rgba(99, 168, 255, 0.38);
+      background: rgba(99, 168, 255, 0.14);
+      color: #d9e7f5;
+    }
+
+    .sort-heading:focus-visible {
+      outline: 0;
+      border-color: rgba(99, 168, 255, 0.82);
+      box-shadow: 0 0 0 3px rgba(99, 168, 255, 0.12);
     }
 
     td.money, th.money, td.center, th.center {
@@ -2799,17 +2824,17 @@ export const liveDraftHtml = `<!doctype html>
             <option value="wr-heavy">WR Heavy</option>
           </select>
           <select id="sort-select" aria-label="Board sort">
-            <option value="liveExpectedPrice:desc">Expected draft price</option>
-            <option value="seasonProjection:desc">Season points</option>
-            <option value="week1Projection:desc">Week 1 points</option>
-            <option value="valueGap:desc">Best value gap</option>
-            <option value="tierDrop:desc">Biggest tier drop</option>
-            <option value="personalValue:desc">Our value</option>
-            <option value="recommendedMaxBid:desc">Max bid</option>
-            <option value="expectedPrice:desc">Base price</option>
-            <option value="byeWeek:asc">Bye week</option>
-            <option value="position:asc">Position</option>
-            <option value="teamAbbreviation:asc">NFL team</option>
+            <option value="liveExpectedPrice">Expected draft price</option>
+            <option value="seasonProjection">Season points</option>
+            <option value="week1Projection">Week 1 points</option>
+            <option value="valueGap">Best value gap</option>
+            <option value="tierDrop">Biggest tier drop</option>
+            <option value="personalValue">Our value</option>
+            <option value="recommendedMaxBid">Max bid</option>
+            <option value="expectedPrice">Base price</option>
+            <option value="byeWeek">Bye week</option>
+            <option value="position">Position</option>
+            <option value="teamAbbreviation">NFL team</option>
           </select>
         </div>
         <div class="market-strip" id="position-market"></div>
@@ -3067,7 +3092,6 @@ export const liveDraftHtml = `<!doctype html>
     let selectedRosterOwner = 'Cam';
     let boardPositionFilter = 'ALL';
     let boardSortKey = 'liveExpectedPrice';
-    let boardSortDirection = 'desc';
     let currentStrategyKey = 'three-rb';
     let currentDraftMode = 'real';
     let currentDraftSession = 'live';
@@ -3129,8 +3153,10 @@ export const liveDraftHtml = `<!doctype html>
       liveExpectedPrice: 'Live',
       personalValue: 'Our',
       valueGap: 'Gap',
-      recommendedMaxBid: 'Max'
+      recommendedMaxBid: 'Max',
+      tierDrop: 'Tier drop'
     };
+    const boardSortKeys = Object.keys(sortLabels);
 
     const byId = id => document.getElementById(id);
     const money = value => '$' + Math.round(Number(value || 0));
@@ -3807,11 +3833,13 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       byId('strategy-select').value = currentStrategyKey;
-      byId('sort-select').value = boardSortKey + ':' + boardSortDirection;
+      byId('sort-select').value = boardSortKey;
       for (const button of document.querySelectorAll('[data-sort-key]')) {
         const key = button.dataset.sortKey;
-        const marker = key === boardSortKey ? (boardSortDirection === 'asc' ? ' ^' : ' v') : '';
-        button.textContent = sortLabels[key] + marker;
+        const isActive = key === boardSortKey;
+        button.textContent = sortLabels[key] || '';
+        button.dataset.activeSort = String(isActive);
+        button.setAttribute('aria-pressed', String(isActive));
       }
     };
 
@@ -4977,7 +5005,6 @@ export const liveDraftHtml = `<!doctype html>
     const sortedTargets = (targets, tierDrops) => [...targets].sort((left, right) => {
       const leftValue = sortValueFor(left, tierDrops);
       const rightValue = sortValueFor(right, tierDrops);
-      const direction = boardSortDirection === 'asc' ? 1 : -1;
       const defaultTieBreak =
         right.liveExpectedPrice - left.liveExpectedPrice ||
         right.seasonProjection - left.seasonProjection ||
@@ -4986,9 +5013,9 @@ export const liveDraftHtml = `<!doctype html>
         return left.draftable === false ? 1 : -1;
       }
       if (typeof leftValue === 'string' || typeof rightValue === 'string') {
-        return direction * cleanText(leftValue).localeCompare(cleanText(rightValue)) || defaultTieBreak;
+        return cleanText(rightValue).localeCompare(cleanText(leftValue)) || defaultTieBreak;
       }
-      return direction * (leftValue - rightValue) || defaultTieBreak;
+      return (rightValue - leftValue) || defaultTieBreak;
     });
 
     const renderMetrics = state => {
@@ -6343,9 +6370,7 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     byId('sort-select').addEventListener('change', event => {
-      const [key, direction] = event.target.value.split(':');
-      boardSortKey = key;
-      boardSortDirection = direction;
+      boardSortKey = boardSortKeys.includes(event.target.value) ? event.target.value : 'liveExpectedPrice';
       if (currentState) renderBoard(currentState);
     });
 
@@ -6360,12 +6385,7 @@ export const liveDraftHtml = `<!doctype html>
     for (const button of document.querySelectorAll('[data-sort-key]')) {
       button.addEventListener('click', event => {
         const key = event.currentTarget.dataset.sortKey;
-        if (boardSortKey === key) {
-          boardSortDirection = boardSortDirection === 'asc' ? 'desc' : 'asc';
-        } else {
-          boardSortKey = key;
-          boardSortDirection = key === 'byeWeek' || key === 'position' || key === 'teamAbbreviation' ? 'asc' : 'desc';
-        }
+        boardSortKey = boardSortKeys.includes(key) ? key : 'liveExpectedPrice';
         if (currentState) renderBoard(currentState);
       });
     }
