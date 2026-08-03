@@ -19,6 +19,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"export-csv-button\"");
     expect(liveDraftHtml).toContain("id=\"import-log-button\"");
     expect(liveDraftHtml).toContain("id=\"import-log-file\"");
+    expect(liveDraftHtml).toContain("id=\"draft-session-select\"");
+    expect(liveDraftHtml).toContain("id=\"scratch-session-name\"");
+    expect(liveDraftHtml).toContain("id=\"open-scratch-session-button\"");
+    expect(liveDraftHtml).toContain("id=\"active-session-label\"");
     expect(liveDraftHtml).toContain("id=\"start-real-draft-button\"");
     expect(liveDraftHtml).toContain("id=\"start-mock-draft-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-batch-runs\"");
@@ -102,6 +106,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("currentDraftMode === 'interactive-mock'");
     expect(liveDraftHtml).toContain("mode: currentDraftMode");
     expect(liveDraftHtml).toContain("mode=' + currentDraftMode");
+    expect(liveDraftHtml).toContain("let currentDraftSession = 'live'");
+    expect(liveDraftHtml).toContain("const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession)");
+    expect(liveDraftHtml).toContain("draftSession: currentDraftSession");
+    expect(liveDraftHtml).toContain("const setDraftSession = async draftSession =>");
+    expect(liveDraftHtml).toContain("const openScratchSession = async () =>");
+    expect(liveDraftHtml).toContain("syncDraftSession(state)");
     expect(liveDraftHtml).toContain("aria-label=\"Start real draft\">Real draft");
     expect(liveDraftHtml).toContain("aria-label=\"Start mock draft\">Mock draft");
     expect(liveDraftHtml).toContain("Run mocks");

@@ -41,10 +41,18 @@ const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
 const defaultPort = 4317;
 const liveTargetLimit = 500;
 const defaultLiveDraftSessionMode = "real";
+const defaultLiveDraftSessionKey = "live";
+const defaultLiveDraftSessionDirectory = "data/live-draft";
 const interactiveMockSessionDirectoryName = "interactive-mock";
 const maximumBatchRunsPerScenario = 250;
 
 export type LiveDraftSessionMode = "real" | "interactive-mock";
+
+interface LiveDraftSessionDescriptor {
+  key: string;
+  label: string;
+  description: string;
+}
 
 interface LiveDraftModeDescriptor {
   key: LiveDraftSessionMode;
@@ -62,6 +70,24 @@ const liveDraftModes: readonly LiveDraftModeDescriptor[] = [
     key: "interactive-mock",
     label: "Mock draft",
     description: "Practice room. Cam controls Cam while AI owners bid and nominate.",
+  },
+];
+
+const presetDraftSessions: readonly LiveDraftSessionDescriptor[] = [
+  {
+    key: "live",
+    label: "Live",
+    description: "Draft-night room. Writes to the main live-draft files.",
+  },
+  {
+    key: "practice-3rb",
+    label: "Practice 3RB",
+    description: "Practice room for true-three-RB prep.",
+  },
+  {
+    key: "practice-wr-heavy",
+    label: "Practice WR Heavy",
+    description: "Practice room for receiver-heavy builds.",
   },
 ];
 
@@ -172,6 +198,8 @@ const parseJsonBody = async (request: IncomingMessage): Promise<Record<string, u
 interface LiveDraftStateResponse extends LiveDraftState {
   draftMode: LiveDraftSessionMode;
   draftModes: readonly LiveDraftModeDescriptor[];
+  activeDraftSession: LiveDraftSessionDescriptor;
+  draftSessions: readonly LiveDraftSessionDescriptor[];
   session: LiveDraftSessionStatus;
   readiness: LiveDraftReadiness;
 }
@@ -269,6 +297,72 @@ const sessionModeFromBody = (
 ): LiveDraftSessionMode =>
   sessionModeFromValue(body.mode, fallback);
 
+const scratchSessionPrefix = "scratch:";
+
+const scratchSlugFromValue = (value: string): string => {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  if (!slug) throw new Error("Scratch session name is required.");
+  return slug;
+};
+
+const draftSessionKeyFromValue = (
+  value: unknown,
+  fallback = defaultLiveDraftSessionKey,
+): string => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value !== "string") throw new Error("Draft session must be a string.");
+
+  const trimmed = value.trim();
+  if (presetDraftSessions.some(session => session.key === trimmed)) return trimmed;
+  if (trimmed.startsWith(scratchSessionPrefix)) {
+    return `${scratchSessionPrefix}${scratchSlugFromValue(trimmed.slice(scratchSessionPrefix.length))}`;
+  }
+
+  throw new Error("Draft session must be live, practice-3rb, practice-wr-heavy, or scratch:<name>.");
+};
+
+const draftSessionKeyFromQuery = (
+  url: URL,
+  fallback = defaultLiveDraftSessionKey,
+): string =>
+  draftSessionKeyFromValue(url.searchParams.get("draftSession") ?? url.searchParams.get("session"), fallback);
+
+const draftSessionKeyFromBody = (
+  body: Record<string, unknown>,
+  fallback = defaultLiveDraftSessionKey,
+): string =>
+  draftSessionKeyFromValue(body.draftSession ?? body.sessionKey ?? body.session, fallback);
+
+const draftSessionDirectoryFor = (baseDirectory: string, draftSessionKey: string): string => {
+  if (draftSessionKey === defaultLiveDraftSessionKey) return baseDirectory;
+  if (draftSessionKey.startsWith(scratchSessionPrefix)) {
+    return join(baseDirectory, "scratch", draftSessionKey.slice(scratchSessionPrefix.length));
+  }
+  return join(baseDirectory, draftSessionKey);
+};
+
+const activeDraftSessionDescriptorFor = (draftSessionKey: string): LiveDraftSessionDescriptor => {
+  const preset = presetDraftSessions.find(session => session.key === draftSessionKey);
+  if (preset) return preset;
+
+  return {
+    key: draftSessionKey,
+    label: `Scratch: ${draftSessionKey.slice(scratchSessionPrefix.length)}`,
+    description: "Custom scratch room. Isolated from live and preset practice rooms.",
+  };
+};
+
+const draftSessionDescriptorsFor = (draftSessionKey: string): readonly LiveDraftSessionDescriptor[] => {
+  const active = activeDraftSessionDescriptorFor(draftSessionKey);
+  if (presetDraftSessions.some(session => session.key === active.key)) return presetDraftSessions;
+  return [...presetDraftSessions, active];
+};
+
 const batchRunsPerScenarioFromValue = (value: unknown): number => {
   const parsed = value === undefined ? 25 : Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -330,26 +424,48 @@ export const createLiveDraftServer = async (
 ): Promise<LiveDraftServerApp> => {
   const projections = options.projections ?? (await loadEspnWeeksOneToFour(projectionPath));
   const historicalRecords = options.historicalRecords ?? (await loadHistoricalAuctionRecords());
-  const sessionDirectory = options.sessionDirectory;
-  const realStore = new FileBackedLiveDraftSessionStore(
-    sessionDirectory === undefined ? {} : { directory: sessionDirectory },
-  );
-  const interactiveMockStore = new FileBackedLiveDraftSessionStore({
-    directory: join(realStore.paths.directory, interactiveMockSessionDirectoryName),
-  });
-  const storeFor = (mode: LiveDraftSessionMode): FileBackedLiveDraftSessionStore =>
-    mode === "interactive-mock" ? interactiveMockStore : realStore;
-  await Promise.all([realStore.load(), interactiveMockStore.load()]);
-  const stateFor = ({
+  const baseSessionDirectory = options.sessionDirectory ?? defaultLiveDraftSessionDirectory;
+  const sessionStorePairs = new Map<string, Promise<{
+    real: FileBackedLiveDraftSessionStore;
+    interactiveMock: FileBackedLiveDraftSessionStore;
+  }>>();
+  const storePairFor = (draftSessionKey: string): Promise<{
+    real: FileBackedLiveDraftSessionStore;
+    interactiveMock: FileBackedLiveDraftSessionStore;
+  }> => {
+    const existing = sessionStorePairs.get(draftSessionKey);
+    if (existing) return existing;
+
+    const sessionDirectory = draftSessionDirectoryFor(baseSessionDirectory, draftSessionKey);
+    const real = new FileBackedLiveDraftSessionStore({ directory: sessionDirectory });
+    const interactiveMock = new FileBackedLiveDraftSessionStore({
+      directory: join(sessionDirectory, interactiveMockSessionDirectoryName),
+    });
+    const loaded = Promise.all([real.load(), interactiveMock.load()])
+      .then(() => ({ real, interactiveMock }));
+    sessionStorePairs.set(draftSessionKey, loaded);
+    return loaded;
+  };
+  const storeFor = async (
+    draftSessionKey: string,
+    mode: LiveDraftSessionMode,
+  ): Promise<FileBackedLiveDraftSessionStore> => {
+    const pair = await storePairFor(draftSessionKey);
+    return mode === "interactive-mock" ? pair.interactiveMock : pair.real;
+  };
+  await storePairFor(defaultLiveDraftSessionKey);
+  const stateFor = async ({
+    draftSessionKey = defaultLiveDraftSessionKey,
     mode = defaultLiveDraftSessionMode,
     commands,
     strategyKey = defaultLiveDraftStrategyKey,
   }: {
+    draftSessionKey?: string;
     mode?: LiveDraftSessionMode;
     commands?: readonly string[];
     strategyKey?: LiveDraftStrategyKey;
-  } = {}): LiveDraftStateResponse => {
-    const store = storeFor(mode);
+  } = {}): Promise<LiveDraftStateResponse> => {
+    const store = await storeFor(draftSessionKey, mode);
     const state = buildLiveDraftState({
       projections,
       historicalRecords,
@@ -365,41 +481,49 @@ export const createLiveDraftServer = async (
       ...state,
       draftMode: mode,
       draftModes: liveDraftModes,
+      activeDraftSession: activeDraftSessionDescriptorFor(draftSessionKey),
+      draftSessions: draftSessionDescriptorsFor(draftSessionKey),
       session,
       readiness: readinessWithSession(state.readiness, session),
     };
   };
   const mockDraftFor = async ({
-    commands = interactiveMockStore.currentCommands(),
+    draftSessionKey = defaultLiveDraftSessionKey,
+    commands,
     strategyKey,
     seed,
   }: {
+    draftSessionKey?: string;
     commands?: readonly string[];
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
   }): Promise<unknown> => {
     const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
+    const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
     return interactiveMockDraft.buildInteractiveMockDraftState({
       projections,
       historicalRecords,
       keepers,
-      commands,
+      commands: commands ?? interactiveMockStore.currentCommands(),
       watchOwner: "Cam",
       strategyKey,
       ...(seed === undefined ? {} : { seed }),
     });
   };
   const stateWithMockDraft = async ({
+    draftSessionKey = defaultLiveDraftSessionKey,
     strategyKey,
     seed,
   }: {
+    draftSessionKey?: string;
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
   }): Promise<LiveDraftStateResponse & { mockDraft: unknown }> => {
+    const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
     const commands = interactiveMockStore.currentCommands();
     return {
-      ...stateFor({ mode: "interactive-mock", commands, strategyKey }),
-      mockDraft: await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed), commands }),
+      ...await stateFor({ draftSessionKey, mode: "interactive-mock", commands, strategyKey }),
+      mockDraft: await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, commands }),
     };
   };
   const mockBatchJobs = new Map<string, MockBatchJob>();
@@ -533,7 +657,8 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "GET" && url.pathname === "/api/state") {
-        sendJson(response, 200, stateFor({
+        sendJson(response, 200, await stateFor({
+          draftSessionKey: draftSessionKeyFromQuery(url),
           mode: sessionModeFromQuery(url),
           strategyKey: strategyKeyFromQuery(url),
         }));
@@ -543,13 +668,16 @@ export const createLiveDraftServer = async (
       if (request.method === "GET" && url.pathname === "/api/mock/state") {
         const strategyKey = strategyKeyFromQuery(url);
         const seed = seedFromValue(url.searchParams.get("seed"));
-        sendJson(response, 200, await stateWithMockDraft(mockDraftRequestFor(strategyKey, seed)));
+        sendJson(response, 200, await stateWithMockDraft({
+          ...mockDraftRequestFor(strategyKey, seed),
+          draftSessionKey: draftSessionKeyFromQuery(url),
+        }));
         return;
       }
 
       if (request.method === "GET" && url.pathname === "/api/export") {
         const format = url.searchParams.get("format") === "csv" ? "csv" : "json";
-        const store = storeFor(sessionModeFromQuery(url));
+        const store = await storeFor(draftSessionKeyFromQuery(url), sessionModeFromQuery(url));
         const commands = store.currentCommands();
         if (format === "csv") {
           sendText(response, 200, "text/csv", liveDraftCommandsCsv(commands));
@@ -563,60 +691,68 @@ export const createLiveDraftServer = async (
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
         const mode = sessionModeFromBody(body);
-        const store = storeFor(mode);
+        const draftSessionKey = draftSessionKeyFromBody(body);
+        const store = await storeFor(draftSessionKey, mode);
         const command = typeof body.command === "string" ? body.command.trim() : "";
         if (!command) {
           sendJson(response, 422, {
-            ...stateFor({ mode, strategyKey }),
+            ...await stateFor({ draftSessionKey, mode, strategyKey }),
             errors: [{ input: "", message: "Command is required." }],
           });
           return;
         }
 
         const trialCommands = [...store.currentCommands(), command];
-        const trialState = stateFor({ mode, commands: trialCommands, strategyKey });
+        const trialState = await stateFor({ draftSessionKey, mode, commands: trialCommands, strategyKey });
         const commandError = trialState.errors.find(error => error.input === command);
         if (commandError) {
-          sendJson(response, 422, { ...stateFor({ mode, strategyKey }), errors: [commandError] });
+          sendJson(response, 422, { ...await stateFor({ draftSessionKey, mode, strategyKey }), errors: [commandError] });
           return;
         }
 
         await store.appendCommand(command);
-        sendJson(response, 200, stateFor({ mode, strategyKey }));
+        sendJson(response, 200, await stateFor({ draftSessionKey, mode, strategyKey }));
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/api/mock/advance") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
+        const draftSessionKey = draftSessionKeyFromBody(body);
         const seed = seedFromValue(body.seed);
         const action = typeof body.action === "string" ? body.action.trim() : "";
         if (!action) {
           sendJson(response, 422, {
-            ...await stateWithMockDraft(mockDraftRequestFor(strategyKey, seed)),
+            ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
             errors: [{ input: "", message: "Mock draft action is required." }],
           });
           return;
         }
 
         const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
-        const mockDraft = await mockDraftFor(mockDraftRequestFor(strategyKey, seed));
+        const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
+        const mockDraft = await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey });
         const command = commandFromInteractiveMockAction(
           interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, action),
         );
         const trialCommands = [...interactiveMockStore.currentCommands(), command];
-        const trialState = stateFor({ mode: "interactive-mock", commands: trialCommands, strategyKey });
+        const trialState = await stateFor({
+          draftSessionKey,
+          mode: "interactive-mock",
+          commands: trialCommands,
+          strategyKey,
+        });
         const commandError = trialState.errors.find(error => error.input === command);
         if (commandError) {
           sendJson(response, 422, {
-            ...await stateWithMockDraft(mockDraftRequestFor(strategyKey, seed)),
+            ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
             errors: [commandError],
           });
           return;
         }
 
         await interactiveMockStore.appendCommand(command);
-        sendJson(response, 200, await stateWithMockDraft(mockDraftRequestFor(strategyKey, seed)));
+        sendJson(response, 200, await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }));
         return;
       }
 
@@ -661,21 +797,22 @@ export const createLiveDraftServer = async (
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
         const mode = sessionModeFromBody(body);
-        const store = storeFor(mode);
+        const draftSessionKey = draftSessionKeyFromBody(body);
+        const store = await storeFor(draftSessionKey, mode);
         const importedCommands = Array.isArray(body.commands)
           ? parseLiveDraftCommandImport(JSON.stringify({ commands: body.commands }), "json")
           : parseLiveDraftCommandImport(
             typeof body.content === "string" ? body.content : "",
             importFormatFor(body.format),
           );
-        const trialState = stateFor({ mode, commands: importedCommands, strategyKey });
+        const trialState = await stateFor({ draftSessionKey, mode, commands: importedCommands, strategyKey });
         if (trialState.errors.length) {
-          sendJson(response, 422, { ...stateFor({ mode, strategyKey }), errors: trialState.errors });
+          sendJson(response, 422, { ...await stateFor({ draftSessionKey, mode, strategyKey }), errors: trialState.errors });
           return;
         }
 
         await store.importCommands(importedCommands);
-        sendJson(response, 200, stateFor({ mode, strategyKey }));
+        sendJson(response, 200, await stateFor({ draftSessionKey, mode, strategyKey }));
         return;
       }
 
@@ -683,9 +820,10 @@ export const createLiveDraftServer = async (
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
         const mode = sessionModeFromBody(body);
-        const store = storeFor(mode);
+        const draftSessionKey = draftSessionKeyFromBody(body);
+        const store = await storeFor(draftSessionKey, mode);
         await store.undo();
-        sendJson(response, 200, stateFor({ mode, strategyKey }));
+        sendJson(response, 200, await stateFor({ draftSessionKey, mode, strategyKey }));
         return;
       }
 
@@ -693,9 +831,10 @@ export const createLiveDraftServer = async (
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
         const mode = sessionModeFromBody(body);
-        const store = storeFor(mode);
+        const draftSessionKey = draftSessionKeyFromBody(body);
+        const store = await storeFor(draftSessionKey, mode);
         await store.reset();
-        sendJson(response, 200, stateFor({ mode, strategyKey }));
+        sendJson(response, 200, await stateFor({ draftSessionKey, mode, strategyKey }));
         return;
       }
 

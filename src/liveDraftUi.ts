@@ -238,6 +238,39 @@ export const liveDraftHtml = `<!doctype html>
       color: #b9cbe0;
     }
 
+    .session-picker {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .session-picker select,
+    .session-picker input {
+      width: 100%;
+      height: 32px;
+    }
+
+    .session-picker select,
+    .active-session-label {
+      grid-column: 1 / -1;
+    }
+
+    .session-picker button {
+      height: 32px;
+      padding: 0 10px;
+      white-space: nowrap;
+    }
+
+    .active-session-label {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .mode-actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -1279,6 +1312,16 @@ export const liveDraftHtml = `<!doctype html>
       </div>
       <div class="sidebar-section">
         <div class="section-label">Session</div>
+        <div class="session-picker">
+          <select id="draft-session-select" aria-label="Draft session">
+            <option value="live">Live</option>
+            <option value="practice-3rb">Practice 3RB</option>
+            <option value="practice-wr-heavy">Practice WR Heavy</option>
+          </select>
+          <input id="scratch-session-name" autocomplete="off" placeholder="Scratch room">
+          <button type="button" id="open-scratch-session-button">Open</button>
+          <div class="active-session-label" id="active-session-label">Live session</div>
+        </div>
         <div class="top-actions">
           <button type="button" id="export-json-button">Export JSON</button>
           <button type="button" id="export-csv-button">CSV</button>
@@ -1461,6 +1504,7 @@ export const liveDraftHtml = `<!doctype html>
     let boardSortDirection = 'desc';
     let currentStrategyKey = 'three-rb';
     let currentDraftMode = 'real';
+    let currentDraftSession = 'live';
     let latestMockBatchReport = null;
     let latestMockBatchJob = null;
     let selectedMockResultsRunIndex = 0;
@@ -1509,8 +1553,9 @@ export const liveDraftHtml = `<!doctype html>
     const currentOwner = () => ownerByName(selectedRosterOwner);
     const priceInputValue = () => Number(byId('add-price').value);
     const gapClassFor = gap => gap > 0 ? 'gap-positive' : gap < 0 ? 'gap-negative' : '';
-    const stateUrl = () => '/api/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey;
-    const mockDraftUrl = () => '/api/mock/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + '&seed=live-ui';
+    const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession);
+    const stateUrl = () => '/api/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery();
+    const mockDraftUrl = () => '/api/mock/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery() + '&seed=live-ui';
 
     const textElement = (tagName, text, className) => {
       const element = document.createElement(tagName);
@@ -1529,7 +1574,7 @@ export const liveDraftHtml = `<!doctype html>
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ strategyKey: currentStrategyKey, mode: currentDraftMode, ...(body || {}) })
+        body: JSON.stringify({ strategyKey: currentStrategyKey, mode: currentDraftMode, draftSession: currentDraftSession, ...(body || {}) })
       });
       const data = await response.json();
       render(data);
@@ -1708,6 +1753,32 @@ export const liveDraftHtml = `<!doctype html>
       const key = state.strategy && strategyKeys.includes(state.strategy.key) ? state.strategy.key : currentStrategyKey;
       currentStrategyKey = key;
       byId('strategy-select').value = currentStrategyKey;
+    };
+
+    const syncDraftSession = state => {
+      if (state && state.activeDraftSession && state.activeDraftSession.key) {
+        currentDraftSession = state.activeDraftSession.key;
+      }
+
+      const select = byId('draft-session-select');
+      const sessions = state && Array.isArray(state.draftSessions) ? state.draftSessions : [];
+      const selectedSession = sessions.find(session => session.key === currentDraftSession) ||
+        { key: currentDraftSession, label: currentDraftSession };
+      const options = sessions.map(session => {
+        const option = document.createElement('option');
+        option.value = session.key;
+        option.textContent = session.label;
+        return option;
+      });
+      if (!sessions.some(session => session.key === currentDraftSession)) {
+        const option = document.createElement('option');
+        option.value = currentDraftSession;
+        option.textContent = selectedSession.label;
+        options.push(option);
+      }
+      select.replaceChildren(...options);
+      select.value = currentDraftSession;
+      byId('active-session-label').textContent = selectedSession.label + ' - ' + (selectedSession.description || 'Isolated draft room.');
     };
 
     const renderDraftMode = state => {
@@ -2474,6 +2545,7 @@ export const liveDraftHtml = `<!doctype html>
     const render = state => {
       currentState = state;
       syncStrategy(state);
+      syncDraftSession(state);
       renderDraftMode(state);
       if (!state.owners.some(owner => owner.owner === selectedRosterOwner)) selectedRosterOwner = 'Cam';
       syncOwnerSelects(state);
@@ -2535,6 +2607,23 @@ export const liveDraftHtml = `<!doctype html>
       selectedTargetName = null;
       await refreshDraftRoom();
       focusCommandInput();
+    };
+
+    const setDraftSession = async draftSession => {
+      currentDraftSession = draftSession || 'live';
+      selectedTargetName = null;
+      await refreshDraftRoom();
+      focusCommandInput();
+    };
+
+    const openScratchSession = async () => {
+      const scratchName = byId('scratch-session-name').value.trim();
+      if (!scratchName) {
+        byId('active-session-label').textContent = 'Enter a scratch room name.';
+        byId('scratch-session-name').focus();
+        return;
+      }
+      await setDraftSession('scratch:' + scratchName);
     };
 
     const renderMockBatchButtonState = job => {
@@ -2615,6 +2704,7 @@ export const liveDraftHtml = `<!doctype html>
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             strategyKey: currentStrategyKey,
+            draftSession: currentDraftSession,
             runs,
             seedPrefix: 'live-ui-' + currentStrategyKey
           })
@@ -2704,6 +2794,7 @@ export const liveDraftHtml = `<!doctype html>
       const data = await postJson('/api/mock/advance', {
         strategyKey: currentStrategyKey,
         mode: 'interactive-mock',
+        draftSession: currentDraftSession,
         seed: 'live-ui',
         action
       });
@@ -2725,7 +2816,7 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const exportLog = async format => {
-      const response = await fetch('/api/export?mode=' + currentDraftMode + '&format=' + format);
+      const response = await fetch('/api/export?mode=' + currentDraftMode + '&format=' + format + sessionQuery());
       const content = await response.text();
       if (!response.ok) {
         if (currentState) render({ ...currentState, errors: [{ input: '', message: content || 'Could not export draft log.' }] });
@@ -2849,6 +2940,14 @@ export const liveDraftHtml = `<!doctype html>
     byId('export-csv-button').addEventListener('click', () => exportLog('csv'));
     byId('import-log-button').addEventListener('click', () => byId('import-log-file').click());
     byId('import-log-file').addEventListener('change', event => importDraftLogFile(event.target.files[0]));
+    byId('draft-session-select').addEventListener('change', event => setDraftSession(event.target.value));
+    byId('open-scratch-session-button').addEventListener('click', () => openScratchSession());
+    byId('scratch-session-name').addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        openScratchSession();
+      }
+    });
     byId('start-real-draft-button').addEventListener('click', () => setDraftMode('real'));
     byId('start-mock-draft-button').addEventListener('click', () => setDraftMode('interactive-mock'));
     byId('run-mock-batch-button').addEventListener('click', () => runMockBatch());
