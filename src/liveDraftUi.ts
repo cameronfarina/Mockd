@@ -649,6 +649,44 @@ export const liveDraftHtml = `<!doctype html>
       min-width: 1060px;
     }
 
+    .board-table th:first-child,
+    .board-table td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      background: #081826;
+    }
+
+    .board-table th:nth-child(2),
+    .board-table td:nth-child(2) {
+      position: sticky;
+      left: 42px;
+      z-index: 2;
+      background: #081826;
+      box-shadow: 12px 0 18px rgba(0, 0, 0, 0.18);
+    }
+
+    .board-table th:first-child,
+    .board-table th:nth-child(2) {
+      z-index: 4;
+      background: #07131f;
+    }
+
+    .board-table tbody tr:hover > td:first-child,
+    .board-table tbody tr:hover > td:nth-child(2) {
+      background: #0b1c2d;
+    }
+
+    .board-table tbody tr.is-selected > td:first-child,
+    .board-table tbody tr.is-selected > td:nth-child(2) {
+      background: #0b2137;
+    }
+
+    .board-table tbody tr.keeper-row > td:first-child,
+    .board-table tbody tr.keeper-row > td:nth-child(2) {
+      background: #0a1825;
+    }
+
     th, td {
       padding: 8px 10px;
       border-bottom: 1px solid var(--line-soft);

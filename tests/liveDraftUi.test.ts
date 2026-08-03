@@ -239,6 +239,11 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain(".decision-panel {");
     expect(liveDraftHtml).toContain(".board-table {");
     expect(liveDraftHtml).toContain("min-width: 1060px;");
+    expect(liveDraftHtml).toContain(".board-table th:first-child,");
+    expect(liveDraftHtml).toContain(".board-table td:nth-child(2)");
+    expect(liveDraftHtml).toContain("left: 42px;");
+    expect(liveDraftHtml).toContain("box-shadow: 12px 0 18px rgba(0, 0, 0, 0.18);");
+    expect(liveDraftHtml).toContain(".board-table tbody tr:hover > td:first-child");
     expect(liveDraftHtml).toContain("overflow-wrap: normal;");
     expect(liveDraftHtml).toContain("white-space: nowrap;");
   });
