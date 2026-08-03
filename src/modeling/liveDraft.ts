@@ -834,6 +834,8 @@ const targetTagsFor = (
   const tags: string[] = [];
   const counts = watchOwner.positionCounts;
 
+  if (watchOwner.rosterSlotsRemaining <= 0) tags.push("roster full");
+  if (counts[player.position] >= leagueConfig.rosterMaximums[player.position]) tags.push("roster max");
   if (counts[player.position] < leagueConfig.lineup[player.position]) tags.push("starter need");
   const anchorTarget = strategy.anchorTargets?.[player.position] ?? 0;
   const strategyTag = strategy.tags[player.position];
@@ -1068,25 +1070,29 @@ const buildTargets = ({
 }): LiveDraftTarget[] =>
   records
     .filter(player => !soldNames.has(player.normalizedName))
-    .filter(player => canWatchOwnerRosterPlayer(player, watchOwner))
     .map(player => {
+      const fitsWatchOwnerRoster = canWatchOwnerRosterPlayer(player, watchOwner);
       const liveExpectedPrice = roundPrice(player.expectedPrice * room.liveInflationFactor);
       const needMultiplier = positionNeedMultiplierFor(player, watchOwner, strategy);
       const strategyValues = Object.fromEntries(
         Object.values(liveDraftStrategies).map(candidateStrategy => [
           candidateStrategy.key,
-          personalValueForStrategy({
-            player,
-            watchOwner,
-            liveExpectedPrice,
-            strategy: candidateStrategy,
-            pricingConfig,
-          }),
+          fitsWatchOwnerRoster
+            ? personalValueForStrategy({
+              player,
+              watchOwner,
+              liveExpectedPrice,
+              strategy: candidateStrategy,
+              pricingConfig,
+            })
+            : 0,
         ]),
       ) as Record<LiveDraftStrategyKey, number>;
       const strategyPathMaxBid = strategyPathMaxBidFor(player, watchOwner, strategy);
       const personalValue = strategyValues[strategy.key];
-      const recommendedMaxBid = Math.min(personalValue, strategyPathMaxBid ?? personalValue);
+      const recommendedMaxBid = fitsWatchOwnerRoster
+        ? Math.min(personalValue, strategyPathMaxBid ?? personalValue)
+        : 0;
       const valueScore = roundToTwo((player.weeks1To4 * needMultiplier) - recommendedMaxBid * 0.35);
       const tags = targetTagsFor(player, watchOwner, strategy);
       if (strategyPathMaxBid !== undefined && strategyPathMaxBid < personalValue) {
@@ -1317,6 +1323,7 @@ const targetNamesFor = (
 ): string[] =>
   targets
     .filter(target => target.position === position)
+    .filter(target => target.recommendedMaxBid > 0)
     .slice(0, limit)
     .map(target => target.name);
 
@@ -1426,16 +1433,32 @@ const readinessStatusFor = (checks: readonly LiveDraftReadinessCheck[]): LiveDra
   return "pass";
 };
 
+const keeperCoverageCheck = (keepers: readonly KeeperDeclaration[]): LiveDraftReadinessCheck => {
+  const ownersWithKeeperDecisions = new Set(keepers.map(keeper => keeper.owner));
+  const missingOwners = ownerOrder.filter(owner => !ownersWithKeeperDecisions.has(owner));
+
+  return {
+    key: "keeper-coverage",
+    label: "Keeper coverage",
+    status: missingOwners.length ? "warn" : "pass",
+    detail: missingOwners.length
+      ? `${ownersWithKeeperDecisions.size}/${ownerOrder.length} owners have keeper declarations. Missing: ${missingOwners.join(", ")}.`
+      : `Keeper declarations cover all ${ownerOrder.length} owners.`,
+  };
+};
+
 const buildReadiness = ({
   errors,
   availableTargets,
   owners,
   draftPath,
+  keepers,
 }: {
   errors: readonly LiveDraftCommandError[];
   availableTargets: readonly LiveDraftTarget[];
   owners: readonly LiveDraftOwnerState[];
   draftPath: LiveDraftPathRecommendation;
+  keepers: readonly KeeperDeclaration[];
 }): LiveDraftReadiness => {
   const checks: LiveDraftReadinessCheck[] = [
     {
@@ -1456,6 +1479,7 @@ const buildReadiness = ({
       status: owners.every(owner => owner.rosterSlotsRemaining >= 0 && owner.budgetRemaining >= 0) ? "pass" : "fail",
       detail: "Owner budgets, roster slots, and max bids are rebuilt from commands.",
     },
+    keeperCoverageCheck(keepers),
     {
       key: "draft-path",
       label: "Draft path",
@@ -1604,6 +1628,6 @@ export const buildLiveDraftState = ({
     draftPath,
     shortlist: buildShortlist(availableTargets),
     positionContexts: buildPositionContexts(owners, currentWatchOwner),
-    readiness: buildReadiness({ errors, availableTargets, owners, draftPath }),
+    readiness: buildReadiness({ errors, availableTargets, owners, draftPath, keepers }),
   };
 };

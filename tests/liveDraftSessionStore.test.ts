@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -80,5 +80,86 @@ describe("live draft session store", () => {
       "index,command\n1,cam drafted jahmyr gibbs for 80\n2,jakub drafted george kittle for 28\n",
     );
     expect(parseLiveDraftCommandImport(liveDraftCommandsCsv(commands), "csv")).toEqual(commands);
+  });
+
+  it("serializes concurrent mutations without dropping commands or corrupting snapshots", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const store = new FileBackedLiveDraftSessionStore({ directory });
+      await store.load();
+
+      const [firstResult, secondResult] = await Promise.all([
+        store.appendCommand("cam drafted jahmyr gibbs for 76"),
+        store.appendCommand("jakub drafted george kittle for 28"),
+      ]);
+
+      expect([firstResult, secondResult]).toEqual([
+        ["cam drafted jahmyr gibbs for 76"],
+        ["cam drafted jahmyr gibbs for 76", "jakub drafted george kittle for 28"],
+      ]);
+      expect(store.currentCommands()).toEqual([
+        "cam drafted jahmyr gibbs for 76",
+        "jakub drafted george kittle for 28",
+      ]);
+
+      const current = await readJson<{ commands: string[]; commandCount: number }>(store.paths.currentPath);
+      const backup = await readJson<{ commands: string[]; commandCount: number }>(store.paths.backupPath);
+      const logLines = (await readFile(store.paths.logPath, "utf8")).trim().split("\n");
+
+      expect(current).toMatchObject({
+        commandCount: 2,
+        commands: [
+          "cam drafted jahmyr gibbs for 76",
+          "jakub drafted george kittle for 28",
+        ],
+      });
+      expect(backup).toMatchObject(current);
+      expect(logLines).toHaveLength(3);
+      expect(logLines.map(line => JSON.parse(line) as { sequence: number }).map(line => line.sequence)).toEqual([1, 2, 3]);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("recovers commands from the append-only audit log when snapshots are corrupted", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const store = new FileBackedLiveDraftSessionStore({ directory });
+      await store.load();
+      await store.appendCommand("cam drafted jahmyr gibbs for 76");
+      await store.appendCommand("jakub drafted george kittle for 28");
+      await writeFile(store.paths.currentPath, "{ broken current", "utf8");
+      await writeFile(store.paths.backupPath, "{ broken backup", "utf8");
+
+      const reloadedStore = new FileBackedLiveDraftSessionStore({ directory });
+
+      await expect(reloadedStore.load()).resolves.toEqual([
+        "cam drafted jahmyr gibbs for 76",
+        "jakub drafted george kittle for 28",
+      ]);
+      expect(reloadedStore.currentCommands()).toEqual([
+        "cam drafted jahmyr gibbs for 76",
+        "jakub drafted george kittle for 28",
+      ]);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("does not silently initialize an empty room when existing files are unrecoverable", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const store = new FileBackedLiveDraftSessionStore({ directory });
+      await store.load();
+      await writeFile(store.paths.currentPath, "{ broken current", "utf8");
+      await rm(store.paths.backupPath, { force: true });
+      await rm(store.paths.logPath, { force: true });
+
+      const reloadedStore = new FileBackedLiveDraftSessionStore({ directory });
+
+      await expect(reloadedStore.load()).rejects.toThrow("Unable to recover live draft session");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
   });
 });

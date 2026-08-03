@@ -121,6 +121,34 @@ describe("live draft room", () => {
     expect(overPositionLimitState.errors[0]?.message).toBe("Cam cannot buy Justin Herbert: roster limit is 3 QBs.");
   });
 
+  it("keeps room-wide targets visible after Cam reaches a position maximum", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+      commands: [
+        "cam drafted josh allen for 1",
+        "cam drafted lamar jackson for 1",
+        "cam drafted jayden daniels for 1",
+      ],
+    });
+
+    const availableQuarterback = state.availableTargets.find(target => target.position === "QB");
+
+    expect(state.watchOwner.positionCounts.QB).toBe(3);
+    expect(availableQuarterback).toMatchObject({
+      position: "QB",
+      personalValue: 0,
+      recommendedMaxBid: 0,
+      tags: expect.arrayContaining(["roster max"]),
+    });
+    expect(state.shortlist.some(target => target.position === "QB")).toBe(false);
+  });
+
   it("rejects ambiguous quick-sale player names with explicit match options", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
@@ -239,6 +267,11 @@ describe("live draft room", () => {
       expect.arrayContaining([
         expect.objectContaining({ key: "engine-state", status: "pass" }),
         expect.objectContaining({ key: "target-board", status: "pass" }),
+        expect.objectContaining({
+          key: "keeper-coverage",
+          status: "warn",
+          detail: expect.stringContaining("6/14 owners"),
+        }),
         expect.objectContaining({ key: "draft-path", status: "pass" }),
       ]),
     );

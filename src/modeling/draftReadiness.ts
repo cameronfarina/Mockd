@@ -105,15 +105,20 @@ const dataCheck = (dataCounts: DraftReadyDataCounts): DraftReadyCheck => {
     dataCounts.historicalRecords > 0 ? undefined : "historical records",
     dataCounts.keepers > 0 ? undefined : "keepers",
   ].filter((input): input is string => input !== undefined);
+  const keeperCoverageIsPartial =
+    missingInputs.length === 0 &&
+    dataCounts.keepers < leagueConfig.teams;
 
   return {
     key: "data-inputs",
     label: "Data inputs",
-    status: missingInputs.length === 0 ? "pass" : "fail",
+    status: missingInputs.length === 0 ? (keeperCoverageIsPartial ? "warn" : "pass") : "fail",
     severity: "hard",
-    message: missingInputs.length === 0
-      ? `${dataCounts.projections} projections, ${dataCounts.historicalRecords} historical records, and ${dataCounts.keepers} keeper declarations loaded.`
-      : `Missing required input data: ${missingInputs.join(", ")}.`,
+    message: missingInputs.length
+      ? `Missing required input data: ${missingInputs.join(", ")}.`
+      : keeperCoverageIsPartial
+        ? `${dataCounts.projections} projections, ${dataCounts.historicalRecords} historical records, and ${dataCounts.keepers}/${leagueConfig.teams} keeper declarations loaded. Confirm missing owners before draft night.`
+        : `${dataCounts.projections} projections, ${dataCounts.historicalRecords} historical records, and ${dataCounts.keepers} keeper declarations loaded.`,
   };
 };
 

@@ -4,6 +4,7 @@ import { leagueConfig, ownerOrder, positions, type Owner } from "../config/leagu
 import { buildHistoricalCalibrationAudit } from "../src/modeling/calibrationAudit.js";
 import { runMockBatch } from "../src/modeling/mockBatch.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
+import { buildPricingConfigFromSources } from "../src/pricingConfig.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
@@ -260,6 +261,7 @@ describe("historical calibration audit", () => {
   it("keeps production-sized QB spend inside the historical calibration band", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
+    const pricingConfig = await buildPricingConfigFromSources();
     const batch = runMockBatch({
       projections,
       historicalRecords,
@@ -267,12 +269,17 @@ describe("historical calibration audit", () => {
       scenarioKeys: ["expected"],
       runsPerScenario: 50,
       seedPrefix: "tuning-baseline",
+      pricingConfig,
       diagnosticsMode: "summary",
     });
     const audit = buildHistoricalCalibrationAudit({ historicalRecords, batch });
 
     const qbSpendGate = audit.gates.items.find(gate => gate.key === "position-spend:QB");
     const qbCount = audit.positionCounts.find(position => position.position === "QB");
+    const premiumTopEndFloorGate = audit.gates.items.find(
+      gate => gate.key === "high-price-volume-floor:75-plus",
+    );
+    const eliteTopEndGate = audit.gates.items.find(gate => gate.key === "high-price-volume:80-plus");
 
     expect(qbSpendGate).toMatchObject({
       category: "position_spend",
@@ -281,5 +288,15 @@ describe("historical calibration audit", () => {
     });
     expect(qbCount?.mockAverageCount).toBeGreaterThanOrEqual(21);
     expect(qbCount?.mockAverageCount).toBeLessThanOrEqual(24);
+    expect(premiumTopEndFloorGate).toMatchObject({
+      category: "high_price_volume",
+      label: "$75+ player count floor",
+      status: "pass",
+    });
+    expect(eliteTopEndGate).toMatchObject({
+      category: "high_price_volume",
+      label: "$80+ player count",
+      status: "pass",
+    });
   }, 15000);
 });

@@ -103,6 +103,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderMockDraft = mockDraft =>");
     expect(liveDraftHtml).toContain("const renderDraftMode = state =>");
     expect(liveDraftHtml).toContain("const setDraftMode = async mode =>");
+    expect(liveDraftHtml).toContain("const practiceSessionForStrategy = strategyKey =>");
+    expect(liveDraftHtml).toContain("if (mode === 'real') currentDraftSession = 'live';");
+    expect(liveDraftHtml).toContain("currentDraftSession = practiceSessionForStrategy(currentStrategyKey);");
     expect(liveDraftHtml).toContain("const runMockBatch = async () =>");
     expect(liveDraftHtml).toContain("const mockBatchSeedPrefix = () =>");
     expect(liveDraftHtml).toContain("Date.now().toString(36)");
@@ -157,8 +160,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("syncDraftSession(state)");
     expect(liveDraftHtml).toContain("const draftNightLockFor = state =>");
     expect(liveDraftHtml).toContain("Live session locked");
-    expect(liveDraftHtml).toContain("startMock.disabled = locked");
     expect(liveDraftHtml).toContain("if (draftNightLockFor(currentState))");
+    expect(liveDraftHtml).not.toContain("startMock.disabled = locked");
     expect(liveDraftHtml).toContain("aria-label=\"Start real draft\">Real draft");
     expect(liveDraftHtml).toContain("aria-label=\"Start mock draft\">Mock draft");
     expect(liveDraftHtml).toContain("Run mocks");
@@ -262,6 +265,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("downloadText('mockd-' + safeFilePart(currentDraftSession) + '-' + currentDraftMode + '-bundle.json'");
     expect(liveDraftHtml).toContain("importDraftLogFile");
     expect(liveDraftHtml).toContain("postJson('/api/import'");
+    expect(liveDraftHtml).toContain("confirmLiveDraftMutation");
+    expect(liveDraftHtml).toContain("expectedCommandCount: currentCommandCount()");
+    expect(liveDraftHtml).toContain("confirmImport: true");
+    expect(liveDraftHtml).toContain("confirmReset: true");
   });
 
   it("returns keyboard focus to the quick-sale command entry after sales", () => {

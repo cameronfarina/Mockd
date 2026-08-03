@@ -545,7 +545,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   topEndSaleGuard: {
     threshold: 70,
     capBelowThresholdAt: 69,
-    premiumThreshold: 75,
+    premiumThreshold: 72,
     capBelowPremiumThresholdAt: 74,
     eliteThreshold: 80,
     capBelowEliteThresholdAt: 79,

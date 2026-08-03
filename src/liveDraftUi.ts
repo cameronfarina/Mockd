@@ -1818,6 +1818,8 @@ export const liveDraftHtml = `<!doctype html>
     const selectedTarget = () => currentState && currentState.availableTargets.find(target => target.name === selectedTargetName);
     const ownerByName = name => currentState.owners.find(owner => owner.owner === name) || currentState.watchOwner;
     const currentOwner = () => ownerByName(selectedRosterOwner);
+    const currentCommandCount = () => currentState && currentState.session ? currentState.session.commandCount : 0;
+    const isLiveRealDraftRoom = () => currentDraftSession === 'live' && currentDraftMode === 'real';
     const priceInputValue = () => Number(byId('add-price').value);
     const gapClassFor = gap => gap > 0 ? 'gap-positive' : gap < 0 ? 'gap-negative' : '';
     const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession);
@@ -1834,6 +1836,8 @@ export const liveDraftHtml = `<!doctype html>
       state && state.draftNightLock && state.draftNightLock.reason
         ? state.draftNightLock.reason
         : 'Live session locked. Switch to a practice session to run mocks.';
+    const practiceSessionForStrategy = strategyKey =>
+      strategyKey === 'wr-heavy' ? 'practice-wr-heavy' : 'practice-3rb';
     const realDraftHasStarted = state => currentDraftMode === 'real' && state.events.length > 0;
     const visibleBoardTargets = state => [
       ...(!realDraftHasStarted(state) ? (state.keeperTargets || []) : []),
@@ -2166,8 +2170,8 @@ export const liveDraftHtml = `<!doctype html>
       const startMock = byId('start-mock-draft-button');
       status.replaceChildren(textElement('strong', copy.label), textElement('span', copy.detail));
       byId('start-real-draft-button').setAttribute('aria-pressed', String(currentDraftMode === 'real'));
-      startMock.disabled = locked;
-      startMock.title = locked ? draftNightLockReasonFor(state) : '';
+      startMock.disabled = false;
+      startMock.title = locked ? 'Opens a practice session for mocks.' : '';
       startMock.setAttribute('aria-pressed', String(currentDraftMode === 'interactive-mock' && !locked));
       byId('draft-lock-status').textContent = locked
         ? 'Live session locked - practice rooms only for mocks.'
@@ -3185,12 +3189,9 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const setDraftMode = async mode => {
-      if (mode === 'interactive-mock') {
-        if (draftNightLockFor(currentState)) {
-          byId('draft-lock-status').textContent = draftNightLockReasonFor(currentState);
-          focusCommandInput();
-          return;
-        }
+      if (mode === 'real') currentDraftSession = 'live';
+      if (mode === 'interactive-mock' && draftNightLockFor(currentState)) {
+        currentDraftSession = practiceSessionForStrategy(currentStrategyKey);
       }
       currentDraftMode = draftModes.includes(mode) ? mode : 'real';
       selectedTargetName = null;
@@ -3380,6 +3381,11 @@ export const liveDraftHtml = `<!doctype html>
       return data;
     };
 
+    const confirmLiveDraftMutation = action => {
+      if (!isLiveRealDraftRoom()) return true;
+      return window.confirm('This will ' + action + ' the real live draft room. Export a bundle first if you are not sure.');
+    };
+
     const advanceMockDraft = async action => {
       if (draftNightLockFor(currentState)) {
         window.alert(draftNightLockReasonFor(currentState));
@@ -3458,10 +3464,31 @@ export const liveDraftHtml = `<!doctype html>
       if (!file) return;
       const format = file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'json';
       const content = await file.text();
-      await postJson('/api/import', { format, content });
+      if (!confirmLiveDraftMutation('import over')) {
+        byId('import-log-file').value = '';
+        focusCommandInput();
+        return;
+      }
+      const importGuard = isLiveRealDraftRoom()
+        ? { confirmImport: true, expectedCommandCount: currentCommandCount() }
+        : {};
+      const data = await postJson('/api/import', { format, content, ...importGuard });
+      alertCommandErrors(data);
       await refreshMockDraft();
       byId('import-log-file').value = '';
       focusCommandInput();
+    };
+
+    const resetDraftRoom = async () => {
+      if (!confirmLiveDraftMutation('reset')) {
+        focusCommandInput();
+        return;
+      }
+      const resetGuard = isLiveRealDraftRoom()
+        ? { confirmReset: true, expectedCommandCount: currentCommandCount() }
+        : {};
+      const data = await postJsonAndRefresh('/api/reset', resetGuard);
+      alertCommandErrors(data);
     };
 
     byId('board-search').addEventListener('input', () => {
@@ -3579,7 +3606,7 @@ export const liveDraftHtml = `<!doctype html>
     byId('run-mock-batch-button').addEventListener('click', () => runMockBatch());
     byId('see-mock-results-button').addEventListener('click', () => window.location.assign('/mock-results'));
     byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
-    byId('reset-button').addEventListener('click', () => postJsonAndRefresh('/api/reset'));
+    byId('reset-button').addEventListener('click', () => resetDraftRoom());
     byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
     byId('mock-nominate-button').addEventListener('click', () => advanceMockDraft('cam-nominate', selectedTargetName));
     byId('mock-cam-win-button').addEventListener('click', () => advanceMockDraft('cam-bid'));

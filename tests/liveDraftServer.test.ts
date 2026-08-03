@@ -244,6 +244,34 @@ describe("live draft server", () => {
     servers.length = 0;
   });
 
+  it("serves the draft board with the same default sourced evidence as prep commands", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const state = await fetch(`${baseUrl}/api/state?strategy=three-rb`).then(response => response.json());
+      const gibbs = state.availableTargets.find((target: { name: string }) => target.name === "Jahmyr Gibbs");
+      const london = state.availableTargets.find((target: { name: string }) => target.name === "Drake London");
+
+      expect(gibbs).toMatchObject({
+        expectedPrice: 72,
+        personalValue: 80,
+      });
+      expect(london).toMatchObject({
+        expectedPrice: 46,
+        personalValue: 57,
+      });
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it("serves strategy-aware state and advances interactive mock actions through persisted commands", async () => {
     const directory = await tempSessionDirectory();
     try {
@@ -297,13 +325,19 @@ describe("live draft server", () => {
       expect(sale.data.strategy.key).toBe("wr-heavy");
       expect(sale.data.session.commandCount).toBe(1);
 
-      const reset = await post(baseUrl, "/api/reset", { strategyKey: "balanced" });
+      const reset = await post(baseUrl, "/api/reset", {
+        strategyKey: "balanced",
+        confirmReset: true,
+        expectedCommandCount: 1,
+      });
       expect(reset.status).toBe(200);
       expect(reset.data.strategy.key).toBe("balanced");
       expect(reset.data.session.commandCount).toBe(0);
 
       const imported = await post(baseUrl, "/api/import", {
         strategyKey: "three-rb",
+        confirmImport: true,
+        expectedCommandCount: 0,
         commands: [mockSaleCommand],
       });
       expect(imported.status).toBe(200);
@@ -393,6 +427,123 @@ describe("live draft server", () => {
           draftedRate: 1,
         },
       });
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("protects the live room from unconfirmed or stale reset and import actions", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const sale = await post(baseUrl, "/api/events", {
+        draftSession: "live",
+        mode: "real",
+        strategyKey: "three-rb",
+        command: realSaleCommand,
+      });
+      expect(sale.status).toBe(200);
+      expect(sale.data.session.commandCount).toBe(1);
+
+      const unconfirmedReset = await post(baseUrl, "/api/reset", {
+        draftSession: "live",
+        mode: "real",
+        strategyKey: "three-rb",
+      });
+      expect(unconfirmedReset.status).toBe(409);
+      expect(unconfirmedReset.data.session.commandCount).toBe(1);
+      expect(unconfirmedReset.data.errors[0]?.message).toContain("requires confirmation");
+
+      const staleReset = await post(baseUrl, "/api/reset", {
+        draftSession: "live",
+        mode: "real",
+        strategyKey: "three-rb",
+        confirmReset: true,
+        expectedCommandCount: 0,
+      });
+      expect(staleReset.status).toBe(409);
+      expect(staleReset.data.session.commandCount).toBe(1);
+      expect(staleReset.data.errors[0]?.message).toContain("currently has 1");
+
+      const unconfirmedImport = await post(baseUrl, "/api/import", {
+        draftSession: "live",
+        mode: "real",
+        strategyKey: "three-rb",
+        expectedCommandCount: 1,
+        commands: [mockSaleCommand],
+      });
+      expect(unconfirmedImport.status).toBe(409);
+      expect(unconfirmedImport.data.session.commandCount).toBe(1);
+      expect(unconfirmedImport.data.events.map((event: { input: string }) => event.input)).toEqual([realSaleCommand]);
+
+      const staleImport = await post(baseUrl, "/api/import", {
+        draftSession: "live",
+        mode: "real",
+        strategyKey: "three-rb",
+        confirmImport: true,
+        expectedCommandCount: 0,
+        commands: [mockSaleCommand],
+      });
+      expect(staleImport.status).toBe(409);
+      expect(staleImport.data.session.commandCount).toBe(1);
+      expect(staleImport.data.events.map((event: { input: string }) => event.input)).toEqual([realSaleCommand]);
+
+      const confirmedImport = await post(baseUrl, "/api/import", {
+        draftSession: "live",
+        mode: "real",
+        strategyKey: "three-rb",
+        confirmImport: true,
+        expectedCommandCount: 1,
+        commands: [mockSaleCommand],
+      });
+      expect(confirmedImport.status).toBe(200);
+      expect(confirmedImport.data.session.commandCount).toBe(1);
+      expect(confirmedImport.data.events.map((event: { input: string }) => event.input)).toEqual([mockSaleCommand]);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("serializes live sale validation so duplicate concurrent purchases cannot both write", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const [firstSale, duplicateSale] = await Promise.all([
+        post(baseUrl, "/api/events", {
+          draftSession: "live",
+          mode: "real",
+          strategyKey: "three-rb",
+          command: realSaleCommand,
+        }),
+        post(baseUrl, "/api/events", {
+          draftSession: "live",
+          mode: "real",
+          strategyKey: "three-rb",
+          command: realSaleCommand,
+        }),
+      ]);
+      const statuses = [firstSale.status, duplicateSale.status].sort((left, right) => left - right);
+      const state = await fetch(`${baseUrl}/api/state?draftSession=live&mode=real&strategy=three-rb`)
+        .then(response => response.json());
+
+      expect(statuses).toEqual([200, 422]);
+      expect(state.session.commandCount).toBe(1);
+      expect(state.events.map((event: { input: string }) => event.input)).toEqual([realSaleCommand]);
+      expect(state.errors).toHaveLength(0);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -727,18 +878,13 @@ describe("live draft server", () => {
 
       const latest = await fetch(`${baseUrl}/api/mock-batch/latest`).then(response => response.json());
       expect(latest.jobId).toBe(started.data.jobId);
-      expect(latest.result.runs[1].label).toBe("Run 2: balanced");
-      expect(latest.result.runStrategyKeys).toEqual(["three-rb", "balanced"]);
+      expect(latest.result.runs[1].label).toBe("Run 2: 3rb");
+      expect(latest.result.runStrategyKeys).toEqual(["three-rb", "three-rb"]);
       expect(latest.result.analytics.strategyLeaderboard).toEqual([
         expect.objectContaining({
-          strategyKey: "balanced",
-          runCount: 1,
-          averageCamRank: completed.result.runs[1].camOutcome.rank,
-        }),
-        expect.objectContaining({
           strategyKey: "three-rb",
-          runCount: 1,
-          averageCamRank: completed.result.runs[0].camOutcome.rank,
+          runCount: 2,
+          averageCamRank: (completed.result.runs[0].camOutcome.rank + completed.result.runs[1].camOutcome.rank) / 2,
         }),
       ]);
       expect(latest.result.analytics.camScoreRange).toEqual(expect.objectContaining({

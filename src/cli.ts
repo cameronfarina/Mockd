@@ -1,13 +1,7 @@
 import { keepers } from "../config/keepers.js";
 import { leagueConfig, ownerOrder, type Owner } from "../config/league.js";
-import { customWeightsPlayerContextConfig } from "../config/playerContext.js";
 import { keeperSummary } from "./keeperModel.js";
 import { loadHistoricalAuctionRecords } from "./data/parseHistoricalBoards.js";
-import {
-  loadPlayerContextOverrides,
-  mergePlayerContextOverrides,
-} from "./data/playerContextImports.js";
-import { loadPlayerContextEvidenceOverrides } from "./data/playerContextEvidenceImports.js";
 import {
   loadPlayerEvidenceSourceRows,
   playerContextEvidenceCsv,
@@ -21,7 +15,6 @@ import {
 import { buildHistoricalCalibrationAudit } from "./modeling/calibrationAudit.js";
 import {
   buildBasePrices,
-  defaultPricingConfig,
   summarizePricePool,
   type PricingConfig,
 } from "./modeling/basePricing.js";
@@ -75,11 +68,11 @@ import {
   type StrategyLabTargetMaxBid,
 } from "./modeling/strategyLab.js";
 import { buildTopPlayerSanityReport } from "./modeling/topPlayerSanity.js";
+import { buildPricingConfigFromSources, playerEvidencePathFor } from "./pricingConfig.js";
 import { loadEspnWeeksOneToFour } from "./projections.js";
 
 const command = process.argv[2];
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
-const defaultPlayerEvidencePath = "data/raw/player-evidence-2026-initial.csv";
 const scenarioKeys = ["confirmedOnly", "expected", "highRetention"] as const;
 
 const playerContextSummary = (config: PricingConfig, importPath?: string, evidencePath?: string) => ({
@@ -111,30 +104,22 @@ const optionValues = (name: string): string[] =>
 
 const playerEvidencePathFromOptions = (): string | undefined => {
   const explicitEvidencePath = optionValue("--player-evidence");
-  if (explicitEvidencePath !== undefined) return explicitEvidencePath;
-  if (process.argv.includes("--no-default-evidence")) return undefined;
-
-  return defaultPlayerEvidencePath;
+  return playerEvidencePathFor({
+    ...(explicitEvidencePath === undefined ? {} : { playerEvidencePath: explicitEvidencePath }),
+    useDefaultEvidence: !process.argv.includes("--no-default-evidence"),
+  });
 };
 
 const pricingConfigFromOptions = async (): Promise<PricingConfig> => {
   const importPath = optionValue("--player-context");
   const evidencePath = playerEvidencePathFromOptions();
-  if (!process.argv.includes("--custom-weights") && !importPath && !evidencePath) return defaultPricingConfig;
 
-  const importedOverrides = importPath ? await loadPlayerContextOverrides(importPath) : [];
-  const evidenceOverrides = evidencePath ? await loadPlayerContextEvidenceOverrides(evidencePath) : [];
-
-  return {
-    ...defaultPricingConfig,
-    playerContext: {
-      ...customWeightsPlayerContextConfig,
-      overrides: mergePlayerContextOverrides(
-        customWeightsPlayerContextConfig.overrides,
-        [...importedOverrides, ...evidenceOverrides],
-      ),
-    },
-  };
+  return buildPricingConfigFromSources({
+    customWeights: process.argv.includes("--custom-weights"),
+    ...(importPath === undefined ? {} : { playerContextPath: importPath }),
+    ...(evidencePath === undefined ? {} : { playerEvidencePath: evidencePath }),
+    useDefaultEvidence: !process.argv.includes("--no-default-evidence"),
+  });
 };
 
 const numericOptionValue = (name: string, fallback: number): number => {

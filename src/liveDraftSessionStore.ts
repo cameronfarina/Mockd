@@ -41,6 +41,11 @@ export interface FileBackedLiveDraftSessionStoreOptions {
   directory?: string;
 }
 
+interface SnapshotReadResult {
+  found: boolean;
+  snapshot?: LiveDraftSessionSnapshot;
+}
+
 const defaultSessionDirectory = "data/live-draft";
 const snapshotVersion = 1;
 
@@ -82,6 +87,20 @@ const parseSnapshot = (content: string): LiveDraftSessionSnapshot => {
     commands: validateCommandList(snapshot.commands),
     lastMutation: snapshot.lastMutation ?? { type: "initialize" },
   };
+};
+
+const parseAuditLogSnapshot = (content: string): LiveDraftSessionSnapshot | undefined => {
+  const lines = content.trim().split("\n").filter(Boolean);
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    try {
+      return parseSnapshot(lines[index] ?? "");
+    } catch {
+      // A partially-written trailing line should not block recovery from older entries.
+    }
+  }
+
+  return undefined;
 };
 
 const auditLineCount = async (path: string): Promise<number> => {
@@ -199,6 +218,7 @@ export class FileBackedLiveDraftSessionStore {
 
   private commands: string[] = [];
   private loadedAt: string | undefined;
+  private mutationQueue: Promise<void> = Promise.resolve();
 
   constructor(options: FileBackedLiveDraftSessionStoreOptions = {}) {
     const directory = options.directory ?? defaultSessionDirectory;
@@ -238,43 +258,81 @@ export class FileBackedLiveDraftSessionStore {
   async appendCommand(command: string): Promise<string[]> {
     const trimmed = command.trim();
     if (!trimmed) throw new Error("Command is required.");
-    return this.persist({ type: "sale", command: trimmed }, [...this.commands, trimmed]);
-  }
-
-  async undo(): Promise<string[]> {
-    const nextCommands = this.commands.slice(0, -1);
-    const removedCommand = this.commands.at(-1);
-    return this.persist(
-      removedCommand === undefined ? { type: "undo" } : { type: "undo", removedCommand },
-      nextCommands,
+    return this.enqueueMutation(() =>
+      this.persist({ type: "sale", command: trimmed }, [...this.commands, trimmed]),
     );
   }
 
+  async undo(): Promise<string[]> {
+    return this.enqueueMutation(() => {
+      const nextCommands = this.commands.slice(0, -1);
+      const removedCommand = this.commands.at(-1);
+      return this.persist(
+        removedCommand === undefined ? { type: "undo" } : { type: "undo", removedCommand },
+        nextCommands,
+      );
+    });
+  }
+
   async reset(): Promise<string[]> {
-    return this.persist({ type: "reset", previousCommandCount: this.commands.length }, []);
+    return this.enqueueMutation(() =>
+      this.persist({ type: "reset", previousCommandCount: this.commands.length }, []),
+    );
   }
 
   async importCommands(commands: readonly string[]): Promise<string[]> {
     const nextCommands = validateCommandList([...commands]);
-    return this.persist(
-      { type: "import", importedCount: nextCommands.length, previousCommandCount: this.commands.length },
-      nextCommands,
+    return this.enqueueMutation(() =>
+      this.persist(
+        { type: "import", importedCount: nextCommands.length, previousCommandCount: this.commands.length },
+        nextCommands,
+      ),
     );
   }
 
+  private enqueueMutation<T>(mutation: () => Promise<T>): Promise<T> {
+    const queued = this.mutationQueue.then(mutation, mutation);
+    this.mutationQueue = queued.then(
+      () => undefined,
+      () => undefined,
+    );
+    return queued;
+  }
+
   private async readExistingSnapshot(): Promise<LiveDraftSessionSnapshot | undefined> {
-    try {
-      return parseSnapshot(await readFile(this.paths.currentPath, "utf8"));
-    } catch (error) {
-      if (!isMissingFileError(error)) throw error;
+    const current = await this.readSnapshotFile(this.paths.currentPath);
+    if (current.snapshot) return current.snapshot;
+
+    const backup = await this.readSnapshotFile(this.paths.backupPath);
+    if (backup.snapshot) return backup.snapshot;
+
+    const auditLog = await this.readAuditLogSnapshot();
+    if (auditLog.snapshot) return auditLog.snapshot;
+
+    if (current.found || backup.found || auditLog.found) {
+      throw new Error("Unable to recover live draft session from current, backup, or audit log files.");
     }
 
+    return undefined;
+  }
+
+  private async readSnapshotFile(path: string): Promise<SnapshotReadResult> {
+    const content = await readFileIfPresent(path);
+    if (content === undefined) return { found: false };
+
     try {
-      return parseSnapshot(await readFile(this.paths.backupPath, "utf8"));
-    } catch (error) {
-      if (isMissingFileError(error)) return undefined;
-      throw error;
+      return { found: true, snapshot: parseSnapshot(content) };
+    } catch {
+      return { found: true };
     }
+  }
+
+  private async readAuditLogSnapshot(): Promise<SnapshotReadResult> {
+    const content = await readFileIfPresent(this.paths.logPath);
+    if (content === undefined) return { found: false };
+
+    const snapshot = parseAuditLogSnapshot(content);
+    return snapshot ? { found: true, snapshot } : { found: true };
   }
 
   private async persist(

@@ -5,10 +5,10 @@ Mockd is currently optimized for Cam's draft-night workflow: one local league, o
 ## Current Local Architecture
 
 - Deterministic engine inputs: projections, keepers, historical boards, player context evidence, and raw sale commands.
-- File-backed live sessions: `live-draft-log.jsonl`, `live-draft-current.json`, and `live-draft-backup.json`.
-- Every live mutation writes through the session store before the server accepts it.
+- File-backed live sessions: `live-draft-log.jsonl`, `live-draft-current.json`, and `live-draft-backup.json`, with audit-log recovery if both snapshots are damaged.
+- Every live mutation is serialized per session and writes through the session store before the server accepts it.
 - Strategy selection changes Cam's personal value layer, not the underlying league market price.
-- Interactive mock actions use the same command log path as real live sales, so practice should run in a separate `--session-dir`.
+- Interactive mock actions use isolated practice-session files, and the live session is locked against mock advances.
 
 This does not need a database for the first real draft night. A database becomes useful when multiple users, multiple leagues, auth, hosted persistence, uploads, collaboration, and historical calibration jobs need to exist at the same time.
 
@@ -19,6 +19,7 @@ This does not need a database for the first real draft night. A database becomes
 3. Run `npm run draft:ready -- --owner=Cam --strategy=three-rb --scenario=expected --runs=50 --qa-runs=2 --strategy-mode=force`.
 4. Run `npm run smoke -- --scenario=expected --runs=2 --seed=smoke` and inspect the first two rounds for obviously unrealistic prices.
 5. Keep the ESPN projection input and checked-in player evidence unchanged during the draft unless a correction is intentional.
+6. Confirm every owner keeper decision in `config/keepers.ts`; partial coverage stays visible as a readiness warning.
 
 ## Completed Local Slices
 
@@ -31,6 +32,11 @@ This does not need a database for the first real draft night. A database becomes
 7. Strategy comparison rows so one player can show Balanced / 3RB / Hero RB / WR Heavy personal values side by side.
 8. Post-draft audit that compares actual sale prices to expected, live, personal, and mock ranges.
 9. Mock-results rankings that separate Week 1 lineup score from Season strength, where Season strength blends starter projection, bench depth, and consistency from the current projection horizon.
+10. Real-room reset/import protections that require confirmation plus the current command count.
+11. Room-wide target visibility after Cam hits a roster max, with Cam-ineligible targets excluded from Cam values and shortlist logic.
+12. Selected-strategy-only batch mocks so run results compare realistic variations of one chosen plan.
+13. Audit-log recovery when current and backup snapshots are corrupted.
+14. Keeper-coverage readiness warnings in both the CLI and live UI.
 
 ## Hosted Product Slices
 
