@@ -68,6 +68,7 @@ npm run scenarios:sensitivity -- --limit=60
 npm run mock
 npm run mocks
 npm run teams -- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --format=markdown
+npm run draft:ready -- --owner=Cam --strategy=three-rb --scenario=expected --runs=50 --qa-runs=2
 npm run smoke
 npm run qa
 npm run backtest
@@ -202,6 +203,7 @@ npm run mock -- --scenario=expected --player-evidence=data/raw/player-evidence.e
 npm run mock -- --scenario=expected --no-default-evidence
 npm run mocks -- --scenarios=expected --runs=50 --seed-prefix=prep
 npm run teams -- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --strategy-mode=force --format=markdown --seed-prefix=draft-prep
+npm run draft:ready -- --owner=Cam --strategy=three-rb --scenario=expected --runs=50 --qa-runs=2 --strategy-mode=force --seed-prefix=draft-ready
 npm run smoke -- --scenario=expected --runs=2 --seed=smoke
 npm run qa -- --scenarios=expected --runs=2 --seed-prefix=qa
 npm run backtest
@@ -225,7 +227,7 @@ Historical live-auction ceilings from the 2023-2025 boards are now explicit cali
 
 Starter-tier guards keep sub-$40 anchors from becoming extra `$40+` sales, which preserves the historical split between starter and strong tiers. Strong-tier guards also keep sub-$60 anchors from turning into extra `$60+` elite sales; high-$50 anchors can still draw a small premium, but they cannot jump an entire tier just because several full-budget owners are bidding.
 
-QB spend has its own controls because this league historically drafts only about 20-24 QBs and does not chase backup quarterbacks at starter prices. The engine dampens QB overbids and discounts backup-QB bids once an owner already has a starter.
+QB spend has its own controls because this league historically drafts only about 20-24 QBs and does not chase backup quarterbacks at starter prices. The engine dampens QB overbids and applies a moderate backup-QB discount once an owner already has a starter, which keeps QB count realistic without leaving league-wide QB spend too low.
 
 TE spend uses the same shape with lighter defaults: elite TE overbids are dampened, and backup-TE bids are discounted once an owner already has a starter. This keeps the model from drafting too many second tight ends at meaningful prices.
 
@@ -234,6 +236,8 @@ WR spend uses a very light position overbid damper so owner preferences can stil
 `mocks` runs many deterministic seeds and summarizes the draft-prep signal: player sale ranges, player draft rates, owner spend ranges, owner score ranges, invalid-roster counts, and owner-player exposure. Use comma-separated scenarios, such as `--scenarios=confirmedOnly,expected,highRetention`, when comparing keeper assumptions.
 
 `teams` mines complete rosters from real mock batches for an owner and strategy. With `--strategy-mode=force`, the selected strategy is pushed into the auction engine before filtering results; with `--strategy-mode=filter`, the command only finds naturally occurring matches. The Cam true-three-RB strategy targets three premium RB slots, caps expensive fourth-RB depth, reserves room for paid WR starters, and reports the actual mock sale price plus the batch sale range for every player.
+
+`draft:ready` runs the draft-day readiness checklist: data inputs, QA, draft-plan match count, roster validity, and top candidate shape. It exits nonzero only for hard failures, so a `warn` status means there is tuning context to read, not that the prep flow is unusable.
 
 `smoke` runs a small deterministic mock batch and prints the fastest audit surface for engine changes: invalid-roster counts, first-two-round nominations and prices, average early-round sale-versus-anchor, compact winner/runner-up bid diagnostics, and warnings such as owners leaving too much budget unused.
 

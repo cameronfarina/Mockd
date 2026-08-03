@@ -256,4 +256,30 @@ describe("historical calibration audit", () => {
       delta: -2.33,
     });
   }, 15000);
+
+  it("keeps production-sized QB spend inside the historical calibration band", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const batch = runMockBatch({
+      projections,
+      historicalRecords,
+      keepers,
+      scenarioKeys: ["expected"],
+      runsPerScenario: 50,
+      seedPrefix: "tuning-baseline",
+      diagnosticsMode: "summary",
+    });
+    const audit = buildHistoricalCalibrationAudit({ historicalRecords, batch });
+
+    const qbSpendGate = audit.gates.items.find(gate => gate.key === "position-spend:QB");
+    const qbCount = audit.positionCounts.find(position => position.position === "QB");
+
+    expect(qbSpendGate).toMatchObject({
+      category: "position_spend",
+      label: "QB spend",
+      status: "pass",
+    });
+    expect(qbCount?.mockAverageCount).toBeGreaterThanOrEqual(22);
+    expect(qbCount?.mockAverageCount).toBeLessThanOrEqual(23);
+  }, 15000);
 });

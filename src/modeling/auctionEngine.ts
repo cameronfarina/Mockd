@@ -454,7 +454,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     missingStarterMultiplier: 1.03,
     missingFlexMultiplier: 1.015,
     emptyPremiumPositionMultiplier: 1,
-    benchQuarterbackMultiplier: 0.55,
+    benchQuarterbackMultiplier: 0.75,
     benchTightEndMultiplier: 0.65,
     specialTeamsBenchMultiplier: 0.85,
     lastPositionSlotMultiplier: 0.97,
