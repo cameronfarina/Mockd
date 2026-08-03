@@ -28,6 +28,9 @@ export const liveDraftHtml = `<!doctype html>
       --danger: #ff716a;
       --purple: #a78bfa;
       --shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+      --nav-rail-width: 356px;
+      --global-menu-width: 260px;
+      --global-menu-height: 72px;
     }
 
     * {
@@ -38,8 +41,17 @@ export const liveDraftHtml = `<!doctype html>
       display: none !important;
     }
 
+    html {
+      min-width: 100vw;
+      min-height: 100%;
+      background: var(--bg);
+    }
+
     body {
       margin: 0;
+      min-width: 100vw;
+      min-height: 100vh;
+      overflow-x: hidden;
       background: radial-gradient(circle at top left, rgba(45, 140, 255, 0.12), transparent 34vw), var(--bg);
       color: var(--text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -152,8 +164,10 @@ export const liveDraftHtml = `<!doctype html>
 
     .app {
       display: grid;
-      grid-template-columns: 300px minmax(0, 1fr);
+      grid-template-columns: var(--nav-rail-width) minmax(0, 1fr);
+      height: 100vh;
       min-height: 100vh;
+      overflow: hidden;
       background: linear-gradient(180deg, rgba(8, 24, 38, 0.96), rgba(5, 11, 18, 0.98));
     }
 
@@ -165,39 +179,60 @@ export const liveDraftHtml = `<!doctype html>
       display: none;
     }
 
+    .global-app-menu {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 100;
+      display: grid;
+      gap: 0;
+      width: var(--global-menu-width);
+      height: var(--global-menu-height);
+      min-height: var(--global-menu-height);
+      min-width: 0;
+      padding: 16px 22px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #050b12;
+      box-shadow: none;
+    }
+
+    .global-brand-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .global-app-menu .brand {
+      padding: 0;
+    }
+
+    .global-app-menu .brand strong {
+      font-size: 18px;
+    }
+
+    .global-app-menu .brand span {
+      font-size: 11px;
+      line-height: 1.1;
+    }
+
+    body[data-active-route="draft-room"] .global-app-menu {
+      width: var(--nav-rail-width);
+    }
+
     .sidebar {
       display: flex;
       flex-direction: column;
       gap: 16px;
+      height: 100vh;
       min-width: 0;
-      padding: 18px 18px 20px;
+      overflow-y: auto;
+      padding: calc(var(--global-menu-height) + 18px) 22px 20px;
       border-right: 1px solid var(--line);
       background: linear-gradient(180deg, #07111d 0%, #050b12 100%);
-    }
-
-    .window-controls {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      height: 18px;
-    }
-
-    .window-dot {
-      width: 11px;
-      height: 11px;
-      border-radius: 50%;
-    }
-
-    .window-dot.red {
-      background: #ff5f57;
-    }
-
-    .window-dot.yellow {
-      background: #ffbd2e;
-    }
-
-    .window-dot.green {
-      background: #28c840;
     }
 
     .brand {
@@ -223,7 +258,8 @@ export const liveDraftHtml = `<!doctype html>
       display: grid;
       grid-template-rows: auto auto auto minmax(0, 1fr);
       min-width: 0;
-      min-height: 100vh;
+      height: 100vh;
+      min-height: 0;
       overflow: hidden;
     }
 
@@ -337,28 +373,84 @@ export const liveDraftHtml = `<!doctype html>
       white-space: nowrap;
     }
 
-    .mode-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 7px;
+    .app-menu-trigger {
+      display: inline-grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      color: #d9e7f5;
+      font-weight: 750;
     }
 
-    .mode-actions button {
-      min-height: 34px;
-      padding: 0 10px;
+    .app-menu-icon {
+      display: grid;
+      gap: 3px;
+      width: 17px;
+      flex: 0 0 auto;
+    }
+
+    .app-menu-icon span {
+      display: block;
+      height: 2px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .app-menu-list {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      z-index: 20;
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #07131f;
+      box-shadow: var(--shadow);
+    }
+
+    .app-menu-list[hidden] {
+      display: none;
+    }
+
+    .app-menu-item {
+      display: grid;
+      gap: 2px;
+      width: 100%;
+      min-height: 48px;
+      padding: 8px 9px;
       color: #b9cbe0;
-      font-size: 12px;
-      font-weight: 650;
-      line-height: 1.1;
+      text-align: left;
+    }
+
+    .app-menu-item strong,
+    .app-menu-item span {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
-    .mode-actions button[aria-pressed="true"] {
+    .app-menu-item strong {
+      color: #f4f8fc;
+      font-size: 13px;
+      line-height: 1.15;
+    }
+
+    .app-menu-item span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+      line-height: 1.2;
+    }
+
+    .app-menu-item[aria-current="page"] {
       border-color: rgba(99, 168, 255, 0.72);
       background: rgba(99, 168, 255, 0.18);
-      color: #e7f2ff;
     }
 
     .mock-batch-control {
@@ -400,7 +492,6 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     #see-mock-results-button {
-      grid-column: 2;
       min-height: 34px;
       border-color: rgba(31, 207, 143, 0.58);
       color: #7af0bd;
@@ -1343,7 +1434,10 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .results-view {
+      width: 100%;
+      min-width: 100vw;
       min-height: 100vh;
+      overflow-x: clip;
       background: linear-gradient(180deg, rgba(8, 24, 38, 0.96), rgba(5, 11, 18, 0.98));
       color: var(--text);
     }
@@ -1353,14 +1447,21 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .results-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 80;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 18px;
-      min-height: 72px;
-      padding: 0 24px;
+      height: var(--global-menu-height);
+      min-height: var(--global-menu-height);
+      padding: 0 24px 0 var(--global-menu-width);
       border-bottom: 1px solid var(--line);
-      background: rgba(5, 11, 18, 0.72);
+      background: #050b12;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
     }
 
     .results-title-block {
@@ -1385,8 +1486,17 @@ export const liveDraftHtml = `<!doctype html>
       display: grid;
       grid-template-columns: 1fr;
       gap: 14px;
+      width: 100%;
+      min-width: 0;
       min-height: auto;
-      padding: 18px 24px 28px;
+      padding: calc(var(--global-menu-height) + 18px) 24px 28px;
+    }
+
+    .player-news-view .results-main {
+      max-width: 1520px;
+      margin: 0 auto;
+      padding-right: 32px;
+      padding-left: 32px;
     }
 
     .results-toolbar {
@@ -1655,6 +1765,666 @@ export const liveDraftHtml = `<!doctype html>
       white-space: normal;
     }
 
+    .player-news-toolbar {
+      position: sticky;
+      top: 72px;
+      z-index: 70;
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 160px 150px 170px 112px;
+      gap: 9px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #081826;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+    }
+
+    .player-news-toolbar input,
+    .player-news-filter-button {
+      width: 100%;
+      height: 34px;
+    }
+
+    .player-news-toolbar button {
+      min-height: 34px;
+      padding: 0 12px;
+      font-weight: 750;
+    }
+
+    #player-news-status {
+      min-width: 112px;
+      overflow: hidden;
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .player-news-filter {
+      position: relative;
+      min-width: 0;
+    }
+
+    .player-news-filter-button {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+      padding: 0 34px 0 10px;
+      color: var(--text);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .player-news-filter-button span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .player-news-filter-button::after {
+      content: "";
+      position: absolute;
+      right: 12px;
+      width: 16px;
+      height: 16px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%237f9ab5' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 16px 16px;
+      pointer-events: none;
+    }
+
+    .player-news-filter-options {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      z-index: 120;
+      display: grid;
+      gap: 2px;
+      max-height: 240px;
+      overflow-y: auto;
+      padding: 5px;
+      border: 1px solid rgba(99, 168, 255, 0.42);
+      border-radius: 8px;
+      background: #07131f;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+    }
+
+    .player-news-filter-options[hidden] {
+      display: none;
+    }
+
+    .player-news-filter-option {
+      width: 100%;
+      min-height: 32px;
+      padding: 0 9px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: #d9e7f5;
+      font-size: 12px;
+      font-weight: 650;
+      text-align: left;
+    }
+
+    .player-news-filter-option:hover,
+    .player-news-filter-option:focus {
+      background: rgba(99, 168, 255, 0.12);
+    }
+
+    .player-news-filter-option[aria-selected="true"] {
+      background: rgba(99, 168, 255, 0.18);
+      color: #e7f2ff;
+    }
+
+    .player-news-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .player-news-feed {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .player-news-card {
+      display: grid;
+      gap: 9px;
+      min-width: 0;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(8, 24, 38, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .player-news-card-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      min-width: 0;
+    }
+
+    .player-news-player {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: baseline;
+      min-width: 0;
+      color: #f4f8fc;
+      font-size: 15px;
+      font-weight: 750;
+      line-height: 1.15;
+    }
+
+    .player-news-meta {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .player-news-headline {
+      color: #d9e7f5;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.28;
+      overflow-wrap: anywhere;
+    }
+
+    .player-news-impact {
+      color: #a9bfd5;
+      line-height: 1.42;
+    }
+
+    .player-news-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .player-news-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      max-width: 100%;
+      padding: 0 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: rgba(5, 11, 18, 0.34);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .player-news-action.move-up {
+      border-color: rgba(31, 207, 143, 0.62);
+      color: #7af0bd;
+      background: rgba(31, 207, 143, 0.08);
+    }
+
+    .player-news-action.fade {
+      border-color: rgba(255, 113, 106, 0.62);
+      color: #ff9a94;
+      background: rgba(255, 113, 106, 0.08);
+    }
+
+    .player-news-action.watch {
+      border-color: rgba(242, 169, 59, 0.62);
+      color: #ffd28a;
+      background: rgba(242, 169, 59, 0.08);
+    }
+
+    .player-news-date-chip {
+      border-color: rgba(99, 168, 255, 0.46);
+      color: #cfe5ff;
+      background: rgba(99, 168, 255, 0.1);
+    }
+
+    .player-news-source {
+      max-width: 100%;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+      text-decoration: none;
+      word-break: break-word;
+    }
+
+    .player-news-source:hover {
+      text-decoration: underline;
+    }
+
+    .player-news-source-stack {
+      display: grid;
+      gap: 4px;
+      justify-items: end;
+      min-width: 0;
+      text-align: right;
+    }
+
+    .player-news-date {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .player-news-side {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .player-news-summary,
+    .player-news-providers {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(8, 24, 38, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .player-news-provider {
+      display: grid;
+      gap: 3px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .player-news-provider:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .player-news-provider strong {
+      color: #f4f8fc;
+      font-size: 12px;
+      line-height: 1.15;
+    }
+
+    .player-news-provider span {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.28;
+    }
+
+    .player-news-stat {
+      display: grid;
+      gap: 3px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .player-news-stat:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .player-news-stat strong {
+      color: #f4f8fc;
+      font-size: 12px;
+      line-height: 1.15;
+    }
+
+    .player-news-stat b {
+      color: #d9e7f5;
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+
+    .player-news-stat span {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.28;
+    }
+
+    .my-expert-view .results-main {
+      max-width: 1520px;
+      margin: 0 auto;
+      padding-right: 32px;
+      padding-left: 32px;
+    }
+
+    .my-expert-context-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 1.25;
+    }
+
+    .my-expert-context-row strong {
+      color: #f4f8fc;
+      font-size: 12px;
+      line-height: 1.15;
+    }
+
+    .my-expert-context-row span {
+      white-space: nowrap;
+    }
+
+    .my-expert-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .my-expert-connect-panel {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+      margin-bottom: 14px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(8, 24, 38, 0.82);
+      box-shadow: var(--shadow);
+    }
+
+    .my-expert-connect-panel[hidden] {
+      display: none;
+    }
+
+    .my-expert-connect-header {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .my-expert-connect-title {
+      color: #f4f8fc;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .my-expert-connect-detail {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .my-expert-provider-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .my-expert-provider-card {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: rgba(5, 11, 18, 0.32);
+    }
+
+    .my-expert-provider-top {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 0;
+    }
+
+    .my-expert-provider-top strong {
+      min-width: 0;
+      overflow: hidden;
+      color: #f4f8fc;
+      line-height: 1.15;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .my-expert-provider-status {
+      flex: 0 0 auto;
+      padding: 2px 6px;
+      border: 1px solid var(--line-soft);
+      border-radius: 5px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .my-expert-provider-status-active,
+    .my-expert-provider-status-available {
+      border-color: rgba(31, 207, 143, 0.62);
+      color: #7af0bd;
+      background: rgba(31, 207, 143, 0.08);
+    }
+
+    .my-expert-provider-status-setup-required {
+      border-color: rgba(242, 169, 59, 0.62);
+      color: #ffd28a;
+      background: rgba(242, 169, 59, 0.08);
+    }
+
+    .my-expert-provider-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.34;
+    }
+
+    .my-expert-provider-meta {
+      color: #a9bfd5;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .my-expert-provider-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      justify-self: start;
+      min-height: 34px;
+      padding: 0 10px;
+      color: #d9e7f5;
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.2;
+    }
+
+    .my-expert-provider-action-connect {
+      width: 100%;
+      justify-self: stretch;
+    }
+
+    .my-expert-provider-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .my-expert-provider-form input {
+      height: 30px;
+      font-size: 12px;
+    }
+
+    .my-expert-provider-form button {
+      min-height: 30px;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .my-expert-provider-feedback {
+      min-height: 16px;
+      color: #a9bfd5;
+      font-size: 11px;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    .my-expert-provider-feedback[hidden] {
+      display: none;
+    }
+
+    .my-expert-provider-feedback-error {
+      color: #ffd28a;
+    }
+
+    .my-expert-provider-action-static {
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: rgba(12, 32, 51, 0.5);
+      color: var(--muted);
+    }
+
+    .my-expert-recommendations,
+    .my-expert-side {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .my-expert-card {
+      display: grid;
+      gap: 9px;
+      min-width: 0;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(8, 24, 38, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .my-expert-card-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: baseline;
+      justify-content: space-between;
+      min-width: 0;
+    }
+
+    .my-expert-card h2 {
+      color: #f4f8fc;
+      font-size: 15px;
+      text-transform: none;
+    }
+
+    .my-expert-detail {
+      color: #a9bfd5;
+      line-height: 1.42;
+    }
+
+    .my-expert-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .my-expert-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      max-width: 100%;
+      padding: 0 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: rgba(5, 11, 18, 0.34);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .my-expert-priority-high {
+      border-color: rgba(255, 113, 106, 0.62);
+      color: #ff9a94;
+      background: rgba(255, 113, 106, 0.08);
+    }
+
+    .my-expert-priority-medium {
+      border-color: rgba(242, 169, 59, 0.62);
+      color: #ffd28a;
+      background: rgba(242, 169, 59, 0.08);
+    }
+
+    .my-expert-priority-low {
+      border-color: rgba(31, 207, 143, 0.62);
+      color: #7af0bd;
+      background: rgba(31, 207, 143, 0.08);
+    }
+
+    .my-expert-panel {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(8, 24, 38, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .my-expert-panel h2 {
+      color: #b9cbe0;
+      font-size: 12px;
+    }
+
+    .my-expert-list {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .my-expert-list-item {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+      padding: 8px 9px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: rgba(5, 11, 18, 0.32);
+    }
+
+    .my-expert-list-item strong {
+      color: #f4f8fc;
+      line-height: 1.15;
+    }
+
+    .my-expert-list-item span {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.28;
+    }
+
     .delta-up {
       color: #ff9a94;
       font-weight: 700;
@@ -1665,14 +2435,40 @@ export const liveDraftHtml = `<!doctype html>
       font-weight: 700;
     }
 
+    @media (max-width: 1200px) {
+      .results-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .results-analytics, .results-intelligence {
+        grid-template-columns: 1fr;
+      }
+    }
+
     @media (max-width: 1160px) {
       .app {
         grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
       }
 
       .sidebar {
         border-right: 0;
         border-bottom: 1px solid var(--line);
+        height: auto;
+      }
+
+      .workspace {
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+      }
+
+      .workspace > header {
+        position: sticky;
+        top: var(--global-menu-height);
+        z-index: 60;
+        background: #050b12;
       }
 
       header {
@@ -1691,6 +2487,13 @@ export const liveDraftHtml = `<!doctype html>
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
+      .player-news-toolbar,
+      .player-news-layout,
+      .my-expert-provider-grid,
+      .my-expert-layout {
+        grid-template-columns: 1fr;
+      }
+
       main {
         grid-template-columns: 1fr;
       }
@@ -1701,6 +2504,43 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     @media (max-width: 760px) {
+      .global-app-menu {
+        width: 100%;
+      }
+
+      .results-header {
+        flex-direction: column;
+        align-items: flex-start;
+        height: auto;
+        min-height: auto;
+        padding: 106px 12px 14px;
+      }
+
+      .results-main {
+        padding-top: 232px;
+      }
+
+      .results-header-actions {
+        flex-wrap: wrap;
+      }
+
+      .results-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .player-news-card-header {
+        grid-template-columns: 1fr;
+      }
+
+      .player-news-source-stack {
+        justify-items: start;
+        text-align: left;
+      }
+
+      .player-news-side {
+        grid-template-columns: 1fr;
+      }
+
       .metrics {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -1723,37 +2563,59 @@ export const liveDraftHtml = `<!doctype html>
     }
   </style>
 </head>
-<body>
-  <div class="app" id="draft-room-view">
-    <nav class="sidebar" aria-label="Draft room controls">
-      <div class="window-controls" aria-hidden="true">
-        <span class="window-dot red"></span>
-        <span class="window-dot yellow"></span>
-        <span class="window-dot green"></span>
-      </div>
+<body data-active-route="draft-room">
+  <div class="global-app-menu" id="app-menu">
+    <div class="global-brand-row">
+      <button type="button" class="app-menu-trigger" id="app-menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu-list" aria-label="Open app menu">
+        <span class="app-menu-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
       <div class="brand">
         <strong>Mockd</strong>
-        <span>Draft Room</span>
+        <span id="app-menu-current-label">Real draft</span>
       </div>
+      <div class="app-menu-list" id="app-menu-list" role="menu" hidden>
+        <button type="button" class="app-menu-item" id="start-real-draft-button" role="menuitem" aria-current="page" data-menu-key="real-draft" data-menu-label="Real draft" aria-label="Start real draft">
+          <strong>Real draft</strong>
+          <span>Draft-night logger</span>
+        </button>
+        <button type="button" class="app-menu-item" id="start-mock-draft-button" role="menuitem" data-menu-key="mock-draft" data-menu-label="Mock draft" aria-label="Start mock draft">
+          <strong>Mock draft</strong>
+          <span>Interactive practice room</span>
+        </button>
+        <button type="button" class="app-menu-item" id="my-expert-button" role="menuitem" data-menu-key="my-expert" data-menu-label="My expert">
+          <strong>My expert</strong>
+          <span>Roster advice</span>
+        </button>
+        <button type="button" class="app-menu-item" id="player-news-button" role="menuitem" data-menu-key="player-news" data-menu-label="Player news">
+          <strong>Player news</strong>
+          <span>Fantasy updates feed</span>
+        </button>
+        <button type="button" class="app-menu-item" id="see-mock-results-button" role="menuitem" data-menu-key="mock-results" data-menu-label="Mock results" hidden>
+          <strong>Mock results</strong>
+          <span>Latest batch report</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="app" id="draft-room-view">
+    <nav class="sidebar" aria-label="Draft room controls">
       <input class="search" id="board-search" autocomplete="off" placeholder="Search player, position, or team">
       <div class="sidebar-section">
-        <div class="section-label">Draft Actions</div>
-        <div class="mode-actions">
-          <button type="button" id="start-real-draft-button" aria-pressed="true" aria-label="Start real draft">Real draft</button>
-          <button type="button" id="start-mock-draft-button" aria-pressed="false" aria-label="Start mock draft">Mock draft</button>
-        </div>
-        <div class="mock-batch-control">
-          <input id="mock-batch-runs" inputmode="numeric" pattern="[0-9]*" value="25" aria-label="Mock draft run count">
-          <button type="button" id="run-mock-batch-button">Run mocks</button>
-          <input id="mock-batch-script" autocomplete="off" placeholder="Script: target Jadarian Price max $20" aria-label="Mock draft script">
-          <button type="button" id="see-mock-results-button" hidden>See results</button>
-        </div>
+        <div class="section-label">Draft mode</div>
         <div class="mode-status" id="draft-mode-status">
           <strong>Real draft</strong>
           <span>Draft-night logger. Writes to the real sale log.</span>
         </div>
         <button class="primary start-draft-button" type="button" id="confirm-start-draft-button" aria-label="Confirm start draft" hidden>Start draft</button>
         <div class="draft-countdown" id="draft-countdown" hidden>5</div>
+      </div>
+      <div class="sidebar-section">
+        <div class="section-label">Mock results</div>
+        <div class="mock-batch-control">
+          <input id="mock-batch-runs" inputmode="numeric" pattern="[0-9]*" value="25" aria-label="Mock draft run count">
+          <button type="button" id="run-mock-batch-button">Run mocks</button>
+          <input id="mock-batch-script" autocomplete="off" placeholder="Script: target Jadarian Price max $20" aria-label="Mock draft script">
+        </div>
       </div>
       <div class="sidebar-section">
         <div class="section-label">Sale Command</div>
@@ -1992,6 +2854,107 @@ export const liveDraftHtml = `<!doctype html>
       <div class="results-grid" id="mock-results-grid"></div>
     </main>
   </div>
+  <div class="results-view my-expert-view" id="my-expert-view" hidden>
+    <header class="results-header">
+      <div class="results-title-block">
+        <h1>My Expert</h1>
+        <div class="subtle" id="my-expert-title">Loading roster advice.</div>
+      </div>
+      <div class="results-header-actions">
+        <button type="button" id="my-expert-refresh-button">Refresh</button>
+        <button type="button" id="my-expert-back-button">Draft room</button>
+      </div>
+    </header>
+    <main class="results-main">
+      <div class="my-expert-context-row" id="my-expert-context-row">
+        <strong id="my-expert-roster-title">Cam roster</strong>
+        <span id="my-expert-status">Read-only advice</span>
+        <span id="my-expert-source">Mockd draft</span>
+      </div>
+      <div class="my-expert-connect-panel" id="my-expert-connect-panel"></div>
+      <div class="my-expert-layout">
+        <div class="my-expert-recommendations" id="my-expert-recommendations"></div>
+        <aside class="my-expert-side">
+          <div class="my-expert-panel">
+            <h2>Lineup</h2>
+            <div class="my-expert-list" id="my-expert-lineup"></div>
+          </div>
+          <div class="my-expert-panel">
+            <h2>Roster</h2>
+            <div class="my-expert-list" id="my-expert-roster"></div>
+          </div>
+          <div class="my-expert-panel">
+            <h2>Sync Providers</h2>
+            <div class="my-expert-list" id="my-expert-integrations"></div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+  <div class="results-view player-news-view" id="player-news-view" hidden>
+    <header class="results-header">
+      <div class="results-title-block">
+        <h1>Player News</h1>
+        <div class="subtle" id="player-news-title">Loading player news.</div>
+      </div>
+      <div class="results-header-actions">
+        <button type="button" id="player-news-refresh-button">Refresh</button>
+        <button type="button" id="player-news-back-button">Draft room</button>
+      </div>
+    </header>
+    <main class="results-main">
+      <div class="player-news-toolbar">
+        <input id="player-news-search" autocomplete="off" placeholder="Search player, team, tag">
+        <div class="player-news-filter">
+          <button type="button" class="player-news-filter-button" id="player-news-source-filter" aria-label="News source: All sources" aria-haspopup="listbox" aria-expanded="false" aria-controls="player-news-source-options" data-player-news-filter-key="source">
+            <span id="player-news-source-label">All sources</span>
+          </button>
+          <div class="player-news-filter-options" id="player-news-source-options" role="listbox" aria-label="News source" hidden>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="source" data-player-news-value="local">Local evidence</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="source" data-player-news-value="rotowire-rss">RotoWire RSS</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="source" data-player-news-value="all">All sources</button>
+          </div>
+        </div>
+        <div class="player-news-filter">
+          <button type="button" class="player-news-filter-button" id="player-news-category-filter" aria-label="News category: All categories" aria-haspopup="listbox" aria-expanded="false" aria-controls="player-news-category-options" data-player-news-filter-key="category">
+            <span id="player-news-category-label">All categories</span>
+          </button>
+          <div class="player-news-filter-options" id="player-news-category-options" role="listbox" aria-label="News category" hidden>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="category" data-player-news-value="All">All categories</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="category" data-player-news-value="Injury">Injury</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="category" data-player-news-value="Practice">Practice</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="category" data-player-news-value="Transaction">Transaction</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="category" data-player-news-value="Depth chart">Depth chart</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="category" data-player-news-value="Role">Role</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="category" data-player-news-value="Matchup">Matchup</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="category" data-player-news-value="Team context">Team context</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="category" data-player-news-value="Market">Market</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="category" data-player-news-value="News">News</button>
+          </div>
+        </div>
+        <div class="player-news-filter">
+          <button type="button" class="player-news-filter-button" id="player-news-action-filter" aria-label="Draft action: All actions" aria-haspopup="listbox" aria-expanded="false" aria-controls="player-news-action-options" data-player-news-filter-key="action">
+            <span id="player-news-action-label">All actions</span>
+          </button>
+          <div class="player-news-filter-options" id="player-news-action-options" role="listbox" aria-label="Draft action" hidden>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="action" data-player-news-value="All">All actions</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="action" data-player-news-value="Move up">Move up</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="action" data-player-news-value="Watch">Watch</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="action" data-player-news-value="Fade">Fade</button>
+            <button type="button" class="player-news-filter-option" role="option" data-player-news-option-key="action" data-player-news-value="No model change">No model change</button>
+          </div>
+        </div>
+        <div class="subtle" id="player-news-status"></div>
+      </div>
+      <div class="player-news-layout">
+        <div class="player-news-feed" id="player-news-feed"></div>
+        <aside class="player-news-side">
+          <div class="player-news-summary" id="player-news-summary"></div>
+          <div class="player-news-providers" id="player-news-providers"></div>
+        </aside>
+      </div>
+    </main>
+  </div>
   <script>
     let currentState = null;
     let selectedTargetName = null;
@@ -2012,6 +2975,17 @@ export const liveDraftHtml = `<!doctype html>
     let latestMockBatchJob = null;
     let selectedMockResultsRunIndex = 0;
     let manualShortlistNames = [];
+    let latestMyExpertReport = null;
+    let myExpertWeek = 1;
+    let latestPlayerNewsFeed = null;
+    let playerNewsSource = 'all';
+    let playerNewsCategory = 'All';
+    let playerNewsAction = 'All';
+    let playerNewsQuery = '';
+    let playerNewsSearchTimer = null;
+    let playerNewsPollTimer = null;
+    let playerNewsRequestId = 0;
+    let playerNewsBackgroundRefreshInFlight = false;
 
     const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST'];
     const strategyKeys = ['balanced', 'three-rb', 'hero-rb', 'wr-heavy'];
@@ -2025,6 +2999,7 @@ export const liveDraftHtml = `<!doctype html>
       'wr-heavy': 'WR'
     };
     const draftModes = ['real', 'interactive-mock'];
+    const playerNewsSources = ['local', 'rotowire-rss', 'all'];
     const draftModeCopy = {
       real: {
         label: 'Real draft',
@@ -2149,6 +3124,62 @@ export const liveDraftHtml = `<!doctype html>
     };
     const isShortlisted = target => manualShortlistNames.includes(target.name);
 
+    const playerNewsQueryString = () => {
+      const params = new URLSearchParams();
+      params.set('strategy', currentStrategyKey);
+      params.set('mode', currentDraftMode);
+      params.set('draftSession', currentDraftSession);
+      params.set('source', playerNewsSource);
+      if (playerNewsQuery) params.set('q', playerNewsQuery);
+      if (playerNewsCategory !== 'All') params.set('category', playerNewsCategory);
+      if (playerNewsAction !== 'All') params.set('action', playerNewsAction);
+      return params.toString();
+    };
+    const playerNewsUrl = () => '/api/player-news?' + playerNewsQueryString();
+    const playerNewsRouteUrl = () => '/player-news?' + playerNewsQueryString();
+    const myExpertQueryString = () => {
+      const params = new URLSearchParams();
+      params.set('strategy', currentStrategyKey);
+      params.set('mode', currentDraftMode);
+      params.set('draftSession', currentDraftSession);
+      params.set('week', String(myExpertWeek));
+      return params.toString();
+    };
+    const myExpertUrl = () => '/api/my-expert?' + myExpertQueryString();
+    const myExpertRouteUrl = () => '/my-expert?' + myExpertQueryString();
+    const draftSessionForMode = mode =>
+      mode === 'interactive-mock' && currentDraftSession === 'live' ? practiceSessionForStrategy(currentStrategyKey) : currentDraftSession;
+    const draftRoomRouteUrl = mode => {
+      const nextMode = draftModes.includes(mode) ? mode : currentDraftMode;
+      const params = new URLSearchParams();
+      params.set('mode', nextMode);
+      params.set('strategy', currentStrategyKey);
+      params.set('draftSession', draftSessionForMode(nextMode));
+      return '/?' + params.toString();
+    };
+    const hydrateDraftRoomFromLocation = () => {
+      const params = new URLSearchParams(window.location.search);
+      const strategy = params.get('strategy');
+      const mode = params.get('mode');
+      const draftSession = params.get('draftSession');
+
+      if (strategyKeys.includes(strategy)) currentStrategyKey = strategy;
+      if (draftModes.includes(mode)) currentDraftMode = mode;
+      if (draftSession) currentDraftSession = draftSession;
+    };
+    const hydrateMyExpertFromLocation = () => {
+      const params = new URLSearchParams(window.location.search);
+      const strategy = params.get('strategy');
+      const mode = params.get('mode');
+      const draftSession = params.get('draftSession');
+      const week = Number(params.get('week') || 1);
+
+      if (strategyKeys.includes(strategy)) currentStrategyKey = strategy;
+      if (draftModes.includes(mode)) currentDraftMode = mode;
+      if (draftSession) currentDraftSession = draftSession;
+      myExpertWeek = Number.isInteger(week) && week > 0 ? week : 1;
+    };
+
     const textElement = (tagName, text, className) => {
       const element = document.createElement(tagName);
       element.textContent = cleanText(text);
@@ -2166,6 +3197,236 @@ export const liveDraftHtml = `<!doctype html>
       const headerSearch = byId('header-board-search').value.trim();
       const sidebarSearch = byId('board-search').value.trim();
       return (isActiveDraft() ? headerSearch : sidebarSearch).toLowerCase();
+    };
+
+    const setActiveRouteShell = route => {
+      document.body.dataset.activeRoute = route;
+    };
+
+    const setAppMenuOpen = isOpen => {
+      byId('app-menu-list').hidden = !isOpen;
+      byId('app-menu-button').setAttribute('aria-expanded', String(isOpen));
+    };
+
+    const closeAppMenu = () => setAppMenuOpen(false);
+
+    const setAppMenuCurrent = (key, label) => {
+      byId('app-menu-current-label').textContent = label;
+      for (const item of document.querySelectorAll('#app-menu-list [data-menu-key]')) {
+        if (item.dataset.menuKey === key) {
+          item.setAttribute('aria-current', 'page');
+        } else {
+          item.removeAttribute('aria-current');
+        }
+      }
+    };
+
+    const playerNewsFilterLabels = {
+      source: {
+        local: 'Local evidence',
+        'rotowire-rss': 'RotoWire RSS',
+        all: 'All sources'
+      },
+      category: {
+        All: 'All categories',
+        Injury: 'Injury',
+        Practice: 'Practice',
+        Transaction: 'Transaction',
+        'Depth chart': 'Depth chart',
+        Role: 'Role',
+        Matchup: 'Matchup',
+        'Team context': 'Team context',
+        Market: 'Market',
+        News: 'News'
+      },
+      action: {
+        All: 'All actions',
+        'Move up': 'Move up',
+        Watch: 'Watch',
+        Fade: 'Fade',
+        'No model change': 'No model change'
+      }
+    };
+
+    const playerNewsFilterControlLabels = {
+      source: 'News source',
+      category: 'News category',
+      action: 'Draft action'
+    };
+
+    const playerNewsFilterValue = (key, value, fallback) => {
+      const labels = playerNewsFilterLabels[key] || {};
+      return value && Object.prototype.hasOwnProperty.call(labels, value) ? value : fallback;
+    };
+
+    const playerNewsFilterOptionsFor = key =>
+      Array.from(document.querySelectorAll('[data-player-news-option-key="' + key + '"]'));
+
+    const syncPlayerNewsFilterControl = (key, value) => {
+      const labels = playerNewsFilterLabels[key] || {};
+      const safeValue = playerNewsFilterValue(key, value, Object.keys(labels)[0] || '');
+      const optionLabel = labels[safeValue] || safeValue;
+      const button = byId('player-news-' + key + '-filter');
+      byId('player-news-' + key + '-label').textContent = optionLabel;
+      button.dataset.playerNewsValue = safeValue;
+      button.setAttribute('aria-label', playerNewsFilterControlLabels[key] + ': ' + optionLabel);
+      for (const option of playerNewsFilterOptionsFor(key)) {
+        const isSelected = option.dataset.playerNewsValue === safeValue;
+        option.setAttribute('aria-selected', String(isSelected));
+      }
+    };
+
+    const closePlayerNewsFilters = () => {
+      for (const list of document.querySelectorAll('.player-news-filter-options')) {
+        list.hidden = true;
+      }
+      for (const button of document.querySelectorAll('.player-news-filter-button')) {
+        button.setAttribute('aria-expanded', 'false');
+      }
+    };
+
+    const setPlayerNewsFilterOpen = (key, isOpen) => {
+      closePlayerNewsFilters();
+      byId('player-news-' + key + '-options').hidden = !isOpen;
+      byId('player-news-' + key + '-filter').setAttribute('aria-expanded', String(isOpen));
+    };
+
+    const focusPlayerNewsFilterOption = (key, value, direction = 0) => {
+      const options = playerNewsFilterOptionsFor(key);
+      if (!options.length) return;
+      const selectedIndex = options.findIndex(option => option.dataset.playerNewsValue === value);
+      const baseIndex = selectedIndex >= 0 ? selectedIndex : 0;
+      const nextIndex = (baseIndex + direction + options.length) % options.length;
+      options[nextIndex].focus();
+    };
+
+    const focusPlayerNewsFilterBoundaryOption = (key, boundary) => {
+      const options = playerNewsFilterOptionsFor(key);
+      const option = boundary === 'last' ? options[options.length - 1] : options[0];
+      if (option) option.focus();
+    };
+
+    const focusPlayerNewsFilterTypeahead = (key, character, currentValue) => {
+      const options = playerNewsFilterOptionsFor(key);
+      const query = cleanText(character).toLowerCase();
+      if (!query || !options.length) return;
+      const currentIndex = options.findIndex(option => option.dataset.playerNewsValue === currentValue);
+      const startIndex = currentIndex >= 0 ? currentIndex + 1 : 0;
+      const orderedOptions = [...options.slice(startIndex), ...options.slice(0, startIndex)];
+      const match = orderedOptions.find(option => cleanText(option.textContent).trim().toLowerCase().startsWith(query));
+      if (match) match.focus();
+    };
+
+    const handlePlayerNewsFilterButtonKeydown = event => {
+      const key = event.currentTarget.dataset.playerNewsFilterKey;
+      if (!key) return;
+      const value = event.currentTarget.dataset.playerNewsValue;
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        const options = byId('player-news-' + key + '-options');
+        setPlayerNewsFilterOpen(key, options.hidden);
+        if (options.hidden === false) focusPlayerNewsFilterOption(key, value);
+        return;
+      }
+
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        setPlayerNewsFilterOpen(key, true);
+        focusPlayerNewsFilterOption(key, value, event.key === 'ArrowUp' ? -1 : 1);
+        return;
+      }
+
+      if (event.key.length === 1) {
+        setPlayerNewsFilterOpen(key, true);
+        focusPlayerNewsFilterTypeahead(key, event.key, value);
+      }
+    };
+
+    const setPlayerNewsFilterValue = async (key, value) => {
+      const fallback = key === 'source' ? 'local' : 'All';
+      const safeValue = playerNewsFilterValue(key, value, fallback);
+      if (key === 'source') playerNewsSource = safeValue;
+      if (key === 'category') playerNewsCategory = safeValue;
+      if (key === 'action') playerNewsAction = safeValue;
+      closePlayerNewsFilters();
+      syncPlayerNewsControls();
+      await refreshPlayerNewsIfCurrentRoute();
+    };
+
+    const handlePlayerNewsFilterOptionKeydown = event => {
+      const key = event.currentTarget.dataset.playerNewsOptionKey;
+      const value = event.currentTarget.dataset.playerNewsValue;
+      if (!key) return;
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        void setPlayerNewsFilterValue(key, value);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closePlayerNewsFilters();
+        byId('player-news-' + key + '-filter').focus();
+        return;
+      }
+
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        focusPlayerNewsFilterOption(key, value, event.key === 'ArrowUp' ? -1 : 1);
+        return;
+      }
+
+      if (event.key === 'Home' || event.key === 'End') {
+        event.preventDefault();
+        focusPlayerNewsFilterBoundaryOption(key, event.key === 'End' ? 'last' : 'first');
+        return;
+      }
+
+      if (event.key.length === 1) {
+        focusPlayerNewsFilterTypeahead(key, event.key, value);
+      }
+    };
+
+    const syncPlayerNewsControls = () => {
+      syncPlayerNewsFilterControl('source', playerNewsSource);
+      syncPlayerNewsFilterControl('category', playerNewsCategory);
+      syncPlayerNewsFilterControl('action', playerNewsAction);
+      byId('player-news-search').value = playerNewsQuery;
+    };
+
+    const hydratePlayerNewsFromLocation = () => {
+      const params = new URLSearchParams(window.location.search);
+      const strategy = params.get('strategy');
+      const mode = params.get('mode');
+      const draftSession = params.get('draftSession');
+
+      if (strategyKeys.includes(strategy)) currentStrategyKey = strategy;
+      if (draftModes.includes(mode)) currentDraftMode = mode;
+      if (draftSession) currentDraftSession = draftSession;
+
+      playerNewsSource = playerNewsFilterValue('source', params.get('source'), 'all');
+      playerNewsCategory = playerNewsFilterValue('category', params.get('category'), 'All');
+      playerNewsAction = playerNewsFilterValue('action', params.get('action'), 'All');
+      playerNewsQuery = params.get('q') || '';
+      syncPlayerNewsControls();
+    };
+
+    const replacePlayerNewsRoute = () => {
+      if (window.location.pathname === '/player-news') window.history.replaceState(null, '', playerNewsRouteUrl());
+    };
+
+    const safePlayerNewsSourceUrl = value => {
+      const raw = cleanText(value).trim();
+      if (!raw) return '';
+
+      try {
+        const url = new URL(raw);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : '';
+      } catch (error) {
+        return '';
+      }
     };
 
     const focusCommandInput = () => {
@@ -2543,10 +3804,9 @@ export const liveDraftHtml = `<!doctype html>
       renderDraftLifecycle(state);
       const lifecycleCopy = draftModeStatusDetailFor(copy);
       status.replaceChildren(textElement('strong', copy.label), textElement('span', lifecycleCopy));
-      byId('start-real-draft-button').setAttribute('aria-pressed', String(currentDraftMode === 'real'));
+      setAppMenuCurrent(currentDraftMode === 'interactive-mock' ? 'mock-draft' : 'real-draft', copy.label);
       startMock.disabled = false;
       startMock.title = locked ? 'Opens a practice session for mocks.' : '';
-      startMock.setAttribute('aria-pressed', String(currentDraftMode === 'interactive-mock' && !locked));
       byId('draft-lock-status').textContent = locked
         ? 'Live session locked - practice rooms only for mocks.'
         : 'Practice room unlocked for mocks.';
@@ -2626,6 +3886,631 @@ export const liveDraftHtml = `<!doctype html>
         textElement('span', details || '-')
       );
       return card;
+    };
+
+    const playerNewsActionClass = action =>
+      cleanText(action).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+    const playerNewsDateText = value => {
+      if (!value) return '';
+      const isDateOnly = /^\\d{4}-\\d{2}-\\d{2}$/.test(value);
+      const date = new Date(isDateOnly ? value + 'T00:00:00' : value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        ...(isDateOnly ? {} : { hour: 'numeric', minute: '2-digit' })
+      });
+    };
+
+    const playerNewsDateLabel = item => {
+      if (item && item.sourceDate) return 'Written ' + playerNewsDateText(item.sourceDate);
+      return 'No source date';
+    };
+
+    const playerNewsSourceLink = item => {
+      const safeUrl = safePlayerNewsSourceUrl(item.source && item.source.url);
+      if (!safeUrl) return textElement('span', item.source ? item.source.provider : 'Source', 'player-news-source');
+
+      const link = document.createElement('a');
+      link.className = 'player-news-source';
+      link.href = safeUrl;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.textContent = item.source.provider || 'Source';
+      return link;
+    };
+
+    const playerNewsSourceStack = item => {
+      const stack = document.createElement('div');
+      stack.className = 'player-news-source-stack';
+      stack.replaceChildren(
+        playerNewsSourceLink(item),
+        textElement('span', playerNewsDateLabel(item), 'player-news-date')
+      );
+      return stack;
+    };
+
+    const playerNewsChip = (text, className) => {
+      const chip = textElement('span', text, 'player-news-chip' + (className ? ' ' + className : ''));
+      return chip;
+    };
+
+    const playerNewsCard = item => {
+      const card = document.createElement('article');
+      card.className = 'player-news-card';
+
+      const header = document.createElement('div');
+      header.className = 'player-news-card-header';
+
+      const player = document.createElement('div');
+      player.className = 'player-news-player';
+      player.appendChild(textElement('span', item.player));
+      player.appendChild(textElement(
+        'span',
+        [item.position, item.teamAbbreviation].filter(Boolean).join(' / '),
+        'player-news-meta'
+      ));
+
+      header.replaceChildren(player, playerNewsSourceStack(item));
+
+      const tags = document.createElement('div');
+      tags.className = 'player-news-tags';
+      tags.replaceChildren(
+        playerNewsChip(item.category),
+        playerNewsChip(item.draftAction, 'player-news-action ' + playerNewsActionClass(item.draftAction)),
+        playerNewsChip(playerNewsDateLabel(item), 'player-news-date-chip'),
+        playerNewsChip(item.availability.detail)
+      );
+
+      const priceText = item.auction && item.auction.status === 'available'
+        ? 'Exp ' + money(item.auction.expectedPrice) + ' / Live ' + money(item.auction.liveExpectedPrice) + ' / Max ' + money(item.auction.recommendedMaxBid)
+        : item.auction.status;
+      const modelTags = item.auction && item.auction.tags && item.auction.tags.length
+        ? item.auction.tags.slice(0, 3).join(' / ')
+        : priceText;
+
+      card.replaceChildren(
+        header,
+        textElement('div', item.headline, 'player-news-headline'),
+        textElement('div', item.fantasyImpact || '-', 'player-news-impact'),
+        tags,
+        textElement('div', modelTags, 'player-news-meta')
+      );
+      return card;
+    };
+
+    const renderPlayerNewsSummary = feed => {
+      const rows = [
+        ['Shown', String(feed.summary.filteredCount), feed.summary.totalCount + ' total updates'],
+        ['Move up', String(feed.summary.moveUpCount), 'Positive draft-impact signals'],
+        ['Watch', String(feed.summary.watchCount), 'Needs attention before bidding'],
+        ['Fade', String(feed.summary.fadeCount), 'Risk-heavy updates']
+      ].map(([label, value, detail]) => {
+        const row = document.createElement('div');
+        row.className = 'player-news-stat';
+        row.replaceChildren(
+          textElement('strong', label),
+          textElement('b', value),
+          textElement('span', detail)
+        );
+        return row;
+      });
+      byId('player-news-summary').replaceChildren(...rows);
+    };
+
+    const renderPlayerNewsProviders = feed => {
+      const providers = (feed.providers || []).map(provider => {
+        const row = document.createElement('div');
+        row.className = 'player-news-provider';
+        row.replaceChildren(
+          textElement('strong', provider.label + ' - ' + provider.status),
+          textElement('span', provider.detail)
+        );
+        return row;
+      });
+      byId('player-news-providers').replaceChildren(...providers);
+    };
+
+    const playerNewsSourceModeLabel = sourceMode => {
+      if (sourceMode === 'local') return 'Local evidence';
+      if (sourceMode === 'rotowire-rss') return 'RotoWire RSS';
+      return 'All sources';
+    };
+
+    const playerNewsUpdatedTime = value => {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    };
+
+    const playerNewsUpdatedLabel = feed => {
+      const updatedTime = feed ? playerNewsUpdatedTime(feed.generatedAt) : '';
+      return updatedTime ? 'Updated ' + updatedTime : playerNewsSourceModeLabel(playerNewsSource);
+    };
+
+    const myExpertReadOnlyLabel = report =>
+      report && report.readOnly ? 'Read-only advice' : 'Review advice before acting';
+
+    const myExpertPriorityClass = priority => {
+      if (priority === 'high') return 'my-expert-priority-high';
+      if (priority === 'medium') return 'my-expert-priority-medium';
+      return 'my-expert-priority-low';
+    };
+
+    const myExpertChip = (text, className) =>
+      textElement('span', text, 'my-expert-chip' + (className ? ' ' + className : ''));
+
+    const myExpertPlayerText = player => {
+      if (!player) return '';
+      if (typeof player === 'string') return player;
+      return [player.name, player.position, player.teamAbbreviation, player.byeWeek ? 'bye ' + player.byeWeek : '']
+        .filter(Boolean)
+        .join(' / ');
+    };
+
+    const myExpertListItem = (label, detail) => {
+      const row = document.createElement('div');
+      row.className = 'my-expert-list-item';
+      row.replaceChildren(textElement('strong', label), textElement('span', detail));
+      return row;
+    };
+
+    const myExpertProviderStatusLabel = status => {
+      if (status === 'setup-required') return 'Setup';
+      if (status === 'available') return 'Ready';
+      if (status === 'active') return 'Active';
+      return status || 'Provider';
+    };
+
+    const myExpertProviderAuthLabel = provider => {
+      const type = provider && provider.auth && provider.auth.type;
+      if (type === 'oauth2') return 'OAuth2';
+      if (type === 'manual-cookie') return 'Local credentials';
+      return 'No OAuth';
+    };
+
+    const myExpertProviderActionLabel = provider => {
+      if (provider && provider.key === 'sleeper') return 'Find leagues';
+      if (provider && provider.key === 'yahoo') return provider.auth && provider.auth.configured ? 'Connect Yahoo' : 'Setup Yahoo';
+      if (provider && provider.key === 'espn') return provider.auth && provider.auth.configured ? 'Use ESPN config' : 'Show setup';
+      if (provider && provider.connectUrl) return 'Connect';
+      if (provider && provider.status === 'setup-required') return 'Setup required';
+      if (provider && provider.status === 'active') return 'Active';
+      return 'Read-only';
+    };
+
+    const myExpertProviderSetupText = provider => {
+      const steps = provider && Array.isArray(provider.setupSteps) ? provider.setupSteps : [];
+      return steps.length ? steps[0] : provider.detail || '';
+    };
+
+    const setMyExpertProviderFeedback = (card, message, className) => {
+      const feedback = card ? card.querySelector('.my-expert-provider-feedback') : null;
+      if (!feedback) return;
+      feedback.className = 'my-expert-provider-feedback' + (className ? ' ' + className : '');
+      feedback.hidden = !message;
+      feedback.textContent = message || '';
+    };
+
+    const myExpertProviderSetupStepsText = provider => {
+      const steps = provider && Array.isArray(provider.setupSteps) ? provider.setupSteps : [];
+      return steps.length ? steps.join(' ') : provider.detail || 'No setup details loaded yet.';
+    };
+
+    const submitMyExpertSleeperConnect = async (provider, card) => {
+      const input = card ? card.querySelector('#my-expert-sleeper-identifier') : null;
+      const action = card ? card.querySelector('#my-expert-sleeper-connect-button') : null;
+      const identifier = input && typeof input.value === 'string' ? input.value.trim() : '';
+      if (!identifier) {
+        setMyExpertProviderFeedback(card, 'Enter a Sleeper username or league ID first.', 'my-expert-provider-feedback-error');
+        return;
+      }
+
+      const season = String(new Date().getFullYear());
+      const search = new URLSearchParams({ identifier, season });
+      const previousLabel = action ? action.textContent : '';
+      if (action) {
+        action.disabled = true;
+        action.textContent = 'Checking';
+      }
+      setMyExpertProviderFeedback(card, 'Checking Sleeper read-only league access...');
+      try {
+        const response = await fetch('/api/sync/sleeper/preview?' + search.toString());
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not preview Sleeper sync.');
+        const leagues = Array.isArray(data.leagues) ? data.leagues : [];
+        const leagueNames = leagues
+          .slice(0, 3)
+          .map(league => league.name || league.leagueId)
+          .filter(Boolean)
+          .join(', ');
+        setMyExpertProviderFeedback(
+          card,
+          (data.message || 'Sleeper preview loaded.') + (leagueNames ? ' ' + leagueNames : '')
+        );
+      } catch (error) {
+        setMyExpertProviderFeedback(
+          card,
+          error instanceof Error ? error.message : 'Could not preview Sleeper sync.',
+          'my-expert-provider-feedback-error'
+        );
+      } finally {
+        if (action) {
+          action.disabled = false;
+          action.textContent = previousLabel || myExpertProviderActionLabel(provider);
+        }
+      }
+    };
+
+    const handleMyExpertProviderAction = async (provider, card) => {
+      if (!provider) return;
+      if (provider.key === 'espn') {
+        setMyExpertProviderFeedback(card, myExpertProviderSetupStepsText(provider));
+        return;
+      }
+      if (!provider.connectUrl) {
+        setMyExpertProviderFeedback(card, myExpertProviderSetupStepsText(provider));
+        return;
+      }
+
+      setMyExpertProviderFeedback(card, 'Starting read-only sync setup...');
+      try {
+        const response = await fetch(provider.connectUrl);
+        const data = await response.json();
+        if (data.authorizationUrl) {
+          window.location.assign(data.authorizationUrl);
+          return;
+        }
+        const message = data.error || data.nextStep || data.message || myExpertProviderSetupStepsText(provider);
+        setMyExpertProviderFeedback(
+          card,
+          message + (Array.isArray(data.setupSteps) ? ' ' + data.setupSteps.join(' ') : ''),
+          response.ok ? '' : 'my-expert-provider-feedback-error'
+        );
+      } catch (error) {
+        setMyExpertProviderFeedback(
+          card,
+          error instanceof Error ? error.message : 'Could not start provider sync.',
+          'my-expert-provider-feedback-error'
+        );
+      }
+    };
+
+    const myExpertSleeperConnectForm = (provider, card) => {
+      const form = document.createElement('form');
+      form.className = 'my-expert-provider-form';
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        submitMyExpertSleeperConnect(provider, card);
+      });
+
+      const input = document.createElement('input');
+      input.id = 'my-expert-sleeper-identifier';
+      input.name = 'sleeper-identifier';
+      input.type = 'search';
+      input.placeholder = 'Username or league ID';
+      input.autocomplete = 'off';
+
+      const action = document.createElement('button');
+      action.id = 'my-expert-sleeper-connect-button';
+      action.type = 'submit';
+      action.textContent = myExpertProviderActionLabel(provider);
+
+      form.replaceChildren(input, action);
+      return form;
+    };
+
+    const myExpertProviderCard = provider => {
+      const row = document.createElement('div');
+      row.className = 'my-expert-provider-card';
+      row.setAttribute('data-sync-provider-key', provider.key || 'provider');
+
+      const top = document.createElement('div');
+      top.className = 'my-expert-provider-top';
+      top.replaceChildren(
+        textElement('strong', provider.label || 'Provider'),
+        textElement(
+          'span',
+          myExpertProviderStatusLabel(provider.status),
+          'my-expert-provider-status my-expert-provider-status-' + (provider.status || 'unknown')
+        )
+      );
+
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'my-expert-provider-action my-expert-provider-action-connect';
+      action.textContent = myExpertProviderActionLabel(provider);
+      action.setAttribute('data-sync-provider-key', provider.key || 'provider');
+      action.addEventListener('click', () => handleMyExpertProviderAction(provider, row));
+
+      const feedback = textElement('div', '', 'my-expert-provider-feedback');
+      feedback.hidden = true;
+
+      row.replaceChildren(
+        top,
+        textElement('div', myExpertProviderAuthLabel(provider), 'my-expert-provider-meta'),
+        textElement('p', myExpertProviderSetupText(provider)),
+        provider.key === 'sleeper' ? myExpertSleeperConnectForm(provider, row) : action,
+        feedback
+      );
+      return row;
+    };
+
+    const myExpertLineupScoreText = selection =>
+      selection && Number.isFinite(selection.adjustedScore) ? ' - ' + selection.adjustedScore.toFixed(1) + ' adj' : '';
+
+    const myExpertLineupSelectionText = selection =>
+      selection ? myExpertPlayerText(selection) + myExpertLineupScoreText(selection) : 'No player loaded';
+
+    const renderMyExpertLineup = report => {
+      const recommendations = report && Array.isArray(report.recommendations) ? report.recommendations : [];
+      const lineupRecommendation = recommendations.find(recommendation => recommendation.type === 'lineup' && recommendation.lineup);
+      const lineup = lineupRecommendation ? lineupRecommendation.lineup : null;
+      const flexChoice = lineup && lineup.flexChoice;
+      const starters = lineup && Array.isArray(lineup.starters) ? lineup.starters : [];
+      const alternatives = lineup && Array.isArray(lineup.flexCandidates)
+        ? lineup.flexCandidates.filter(candidate => !flexChoice || candidate.playerId !== flexChoice.playerId).slice(0, 3)
+        : [];
+      byId('my-expert-lineup').replaceChildren(
+        ...(lineup
+          ? [
+              myExpertListItem('Start FLEX', myExpertLineupSelectionText(flexChoice)),
+              ...(flexChoice && flexChoice.risk ? [myExpertListItem('Risk', flexChoice.risk)] : []),
+              ...starters.map(selection => myExpertListItem(selection.slot || 'Starter', myExpertLineupSelectionText(selection))),
+              ...(alternatives.length
+                ? [myExpertListItem('Flex alternatives', alternatives.map(myExpertLineupSelectionText).join(', '))]
+                : [])
+            ]
+          : [myExpertListItem('No lineup advice', 'Sync or draft a complete roster with multiple flex options.')]
+        )
+      );
+    };
+
+    const myExpertAdviceCard = recommendation => {
+      const card = document.createElement('article');
+      card.className = 'my-expert-card';
+
+      const header = document.createElement('div');
+      header.className = 'my-expert-card-header';
+      header.replaceChildren(
+        textElement('h2', recommendation.title || 'Roster advice'),
+        myExpertChip(recommendation.priority || 'low', myExpertPriorityClass(recommendation.priority))
+      );
+
+      const chips = document.createElement('div');
+      chips.className = 'my-expert-chip-row';
+      chips.replaceChildren(
+        myExpertChip(recommendation.type || 'advice'),
+        myExpertChip(recommendation.readOnly ? 'Advice only' : 'Review'),
+        ...((recommendation.players || []).slice(0, 4).map(player => myExpertChip(myExpertPlayerText(player))))
+      );
+
+      const adds = (recommendation.suggestedAdds || [])
+        .slice(0, 3)
+        .map(player => myExpertPlayerText(player));
+      const drops = (recommendation.suggestedDrops || [])
+        .slice(0, 3)
+        .map(player => myExpertPlayerText(player));
+      const actions = document.createElement('div');
+      actions.className = 'my-expert-list';
+      actions.replaceChildren(
+        ...(adds.length ? [myExpertListItem('Consider adding', adds.join(', '))] : []),
+        ...(drops.length ? [myExpertListItem('Drop candidates', drops.join(', '))] : []),
+        ...((recommendation.reasons || []).slice(0, 2).map(reason => myExpertListItem('Why', reason)))
+      );
+
+      card.replaceChildren(
+        header,
+        textElement('div', recommendation.detail || '-', 'my-expert-detail'),
+        chips,
+        actions
+      );
+      return card;
+    };
+
+    const renderMyExpertRoster = report => {
+      const players = report && report.team && Array.isArray(report.team.players) ? report.team.players : [];
+      byId('my-expert-roster').replaceChildren(
+        ...(players.length
+          ? players.map(player => myExpertListItem(player.name, myExpertPlayerText(player)))
+          : [myExpertListItem('No roster loaded', 'Draft through Mockd or sync a platform roster.')]
+        )
+      );
+    };
+
+    const renderMyExpertIntegrations = report => {
+      const integrations = report && Array.isArray(report.integrations) ? report.integrations : [];
+      byId('my-expert-integrations').replaceChildren(
+        ...(integrations.length
+          ? integrations.map(provider => myExpertListItem(
+              provider.label + ' - ' + myExpertProviderStatusLabel(provider.status),
+              myExpertProviderAuthLabel(provider) + ' / ' + (provider.detail || myExpertProviderSetupText(provider))
+            ))
+          : [myExpertListItem('No providers loaded', 'Provider contracts are ready for sync integrations.')]
+        )
+      );
+    };
+
+    const renderMyExpertConnectPanel = report => {
+      const integrations = report && Array.isArray(report.integrations) ? report.integrations : [];
+      const externalProviders = integrations.filter(provider => provider.key !== 'mockd-draft');
+      const panel = byId('my-expert-connect-panel');
+      if (!externalProviders.length) {
+        panel.hidden = true;
+        panel.replaceChildren();
+        return;
+      }
+
+      panel.hidden = false;
+      const header = document.createElement('div');
+      header.className = 'my-expert-connect-header';
+      header.replaceChildren(
+        textElement('strong', 'Connect a league', 'my-expert-connect-title'),
+        textElement('span', 'Read-only provider connections for roster, matchup, waiver, and transaction context.', 'my-expert-connect-detail')
+      );
+      const providerGrid = document.createElement('div');
+      providerGrid.className = 'my-expert-provider-grid';
+      providerGrid.replaceChildren(...externalProviders.map(myExpertProviderCard));
+      panel.replaceChildren(
+        header,
+        providerGrid
+      );
+    };
+
+    const renderMyExpertRoute = report => {
+      latestMyExpertReport = report || latestMyExpertReport;
+      byId('draft-room-view').hidden = true;
+      byId('mock-results-view').hidden = true;
+      byId('my-expert-view').hidden = false;
+      byId('player-news-view').hidden = true;
+
+      if (!latestMyExpertReport) {
+        byId('my-expert-title').textContent = 'No roster advice loaded.';
+        byId('my-expert-status').textContent = '';
+        byId('my-expert-recommendations').replaceChildren(mockDraftItem('No advice loaded', 'Refresh My Expert.'));
+        byId('my-expert-connect-panel').hidden = true;
+        byId('my-expert-connect-panel').replaceChildren();
+        byId('my-expert-lineup').replaceChildren();
+        byId('my-expert-roster').replaceChildren();
+        byId('my-expert-integrations').replaceChildren();
+        return;
+      }
+
+      const reportTeam = latestMyExpertReport.team || {};
+      const summary = latestMyExpertReport.summary || {};
+      byId('my-expert-title').textContent =
+        (summary.recommendationCount || 0) + ' recommendations / Week ' + (summary.currentWeek || myExpertWeek);
+      byId('my-expert-roster-title').textContent =
+        (reportTeam.owner || 'Cam') + ' roster - ' + (reportTeam.rosteredCount || 0) + ' players';
+      byId('my-expert-status').textContent = myExpertReadOnlyLabel(latestMyExpertReport);
+      byId('my-expert-source').textContent =
+        latestMyExpertReport.source ? latestMyExpertReport.source.label : 'Mockd draft';
+
+      const cards = (latestMyExpertReport.recommendations || []).map(myExpertAdviceCard);
+      const rosteredCount = Number(reportTeam.rosteredCount || 0);
+      const emptyAdvice = rosteredCount < 9
+        ? mockDraftItem('Connect a league or finish a roster', 'My Expert needs a complete roster before it can rank lineup, bye, waiver, and trade advice.')
+        : mockDraftItem('No urgent moves', 'Your roster has no high-priority advice right now.');
+      byId('my-expert-recommendations').replaceChildren(
+        ...(cards.length ? cards : [emptyAdvice])
+      );
+      renderMyExpertConnectPanel(latestMyExpertReport);
+      renderMyExpertLineup(latestMyExpertReport);
+      renderMyExpertRoster(latestMyExpertReport);
+      renderMyExpertIntegrations(latestMyExpertReport);
+    };
+
+    const renderMyExpertError = message => {
+      byId('draft-room-view').hidden = true;
+      byId('mock-results-view').hidden = true;
+      byId('my-expert-view').hidden = false;
+      byId('player-news-view').hidden = true;
+      byId('my-expert-title').textContent = 'My Expert unavailable.';
+      byId('my-expert-status').textContent = message;
+      byId('my-expert-recommendations').replaceChildren(mockDraftItem('Could not load My Expert', message));
+      byId('my-expert-connect-panel').hidden = true;
+      byId('my-expert-connect-panel').replaceChildren();
+      byId('my-expert-lineup').replaceChildren();
+      byId('my-expert-roster').replaceChildren();
+      byId('my-expert-integrations').replaceChildren();
+    };
+
+    const loadMyExpertReport = async () => {
+      try {
+        const response = await fetch(myExpertUrl());
+        const report = await response.json();
+        if (!response.ok) throw new Error(report.error || 'Could not load My Expert.');
+        renderMyExpertRoute(report);
+      } catch (error) {
+        renderMyExpertError(error instanceof Error ? error.message : 'Could not load My Expert.');
+      }
+    };
+
+    const renderPlayerNewsRoute = feed => {
+      latestPlayerNewsFeed = feed || latestPlayerNewsFeed;
+      byId('draft-room-view').hidden = true;
+      byId('mock-results-view').hidden = true;
+      byId('my-expert-view').hidden = true;
+      byId('player-news-view').hidden = false;
+
+      if (!latestPlayerNewsFeed) {
+        byId('player-news-title').textContent = 'No player news loaded.';
+        byId('player-news-status').textContent = '';
+        byId('player-news-feed').replaceChildren(mockDraftItem('No updates', 'Refresh player news.'));
+        byId('player-news-summary').replaceChildren();
+        byId('player-news-providers').replaceChildren();
+        return;
+      }
+
+      byId('player-news-title').textContent =
+        latestPlayerNewsFeed.summary.filteredCount + ' shown / ' + latestPlayerNewsFeed.summary.totalCount + ' updates';
+      byId('player-news-status').textContent = playerNewsUpdatedLabel(latestPlayerNewsFeed);
+
+      const cards = (latestPlayerNewsFeed.items || []).map(playerNewsCard);
+      byId('player-news-feed').replaceChildren(
+        ...(cards.length ? cards : [mockDraftItem('No matching updates', 'Adjust filters or refresh.')])
+      );
+      renderPlayerNewsSummary(latestPlayerNewsFeed);
+      renderPlayerNewsProviders(latestPlayerNewsFeed);
+    };
+
+    const renderPlayerNewsError = message => {
+      byId('draft-room-view').hidden = true;
+      byId('mock-results-view').hidden = true;
+      byId('my-expert-view').hidden = true;
+      byId('player-news-view').hidden = false;
+      byId('player-news-title').textContent = 'Player news unavailable.';
+      byId('player-news-status').textContent = message;
+      byId('player-news-feed').replaceChildren(mockDraftItem('Could not load player news', message));
+      byId('player-news-summary').replaceChildren();
+      byId('player-news-providers').replaceChildren();
+    };
+
+    const playerNewsPollIntervalMs = () =>
+      currentDraftMode === 'real' ? 5 * 60 * 1000 : 10 * 60 * 1000;
+
+    const stopPlayerNewsPolling = () => {
+      if (playerNewsPollTimer) window.clearTimeout(playerNewsPollTimer);
+      playerNewsPollTimer = null;
+    };
+
+    const schedulePlayerNewsPolling = () => {
+      stopPlayerNewsPolling();
+      if (window.location.pathname !== '/player-news') return;
+      if (document.visibilityState === 'hidden') return;
+      playerNewsPollTimer = window.setTimeout(() => {
+        void refreshPlayerNewsIfCurrentRoute({ background: true });
+      }, playerNewsPollIntervalMs());
+    };
+
+    const loadPlayerNewsFeed = async ({ background = false } = {}) => {
+      if (background && playerNewsBackgroundRefreshInFlight) return;
+
+      const requestId = ++playerNewsRequestId;
+      const hadFeed = Boolean(latestPlayerNewsFeed);
+      if (background) {
+        playerNewsBackgroundRefreshInFlight = true;
+        if (hadFeed) byId('player-news-status').textContent = 'Refreshing...';
+      }
+
+      try {
+        const response = await fetch(playerNewsUrl());
+        const feed = await response.json();
+        if (!response.ok) throw new Error(feed.error || 'Could not load player news.');
+        if (requestId === playerNewsRequestId) renderPlayerNewsRoute(feed);
+      } catch (error) {
+        if (requestId === playerNewsRequestId) {
+          const message = error instanceof Error ? error.message : 'Could not load player news.';
+          if (background && hadFeed) byId('player-news-status').textContent = playerNewsUpdatedLabel(latestPlayerNewsFeed);
+          else renderPlayerNewsError(message);
+        }
+      } finally {
+        if (background) playerNewsBackgroundRefreshInFlight = false;
+        schedulePlayerNewsPolling();
+      }
     };
 
     const mockResultsIntelligencePanel = run => {
@@ -3848,18 +5733,32 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const setDraftMode = async (mode, options = {}) => {
-      if (mode === 'real') currentDraftSession = 'live';
-      if (mode === 'interactive-mock' && draftNightLockFor(currentState)) {
+      const nextMode = draftModes.includes(mode) ? mode : 'real';
+      if (nextMode === 'real') currentDraftSession = 'live';
+      if (nextMode === 'interactive-mock' && (currentDraftSession === 'live' || draftNightLockFor(currentState))) {
         currentDraftSession = practiceSessionForStrategy(currentStrategyKey);
       }
-      currentDraftMode = draftModes.includes(mode) ? mode : 'real';
+      currentDraftMode = nextMode;
       if (options.prepareStart) draftLifecycle = 'ready';
       else if (!isActiveDraft()) draftLifecycle = 'setup';
       selectedTargetName = null;
       pendingCamNominationName = null;
       persistDraftLifecycle();
       await refreshDraftRoom();
+      if (window.location.pathname === '/') {
+        window.history.replaceState(null, '', draftRoomRouteUrl(currentDraftMode));
+      }
       focusCommandInput();
+    };
+
+    const openDraftRoomMode = async mode => {
+      closeAppMenu();
+      if (window.location.pathname !== '/') {
+        window.location.assign(draftRoomRouteUrl(mode));
+        return;
+      }
+
+      await setDraftMode(mode, { prepareStart: true });
     };
 
     const setDraftSession = async draftSession => {
@@ -3882,16 +5781,22 @@ export const liveDraftHtml = `<!doctype html>
       await setDraftSession('scratch:' + scratchName);
     };
 
+    const syncMockResultsMenuItem = (job, forceVisible = false) => {
+      const button = byId('see-mock-results-button');
+      const isReady = job && job.status === 'complete' && job.result;
+      const isVisible = forceVisible || isReady;
+      button.hidden = !isVisible;
+      button.disabled = !isVisible;
+    };
+
     const renderMockBatchButtonState = job => {
       const button = byId('run-mock-batch-button');
-      const seeResultsButton = byId('see-mock-results-button');
       const resultsRunNewButton = byId('mock-results-run-new-button');
       const input = byId('mock-batch-runs');
       const scriptInput = byId('mock-batch-script');
       const status = job ? job.status : '';
       const percent = Math.max(0, Math.min(100, Number(job && job.percent ? job.percent : 0)));
       const isRunning = status === 'queued' || status === 'running';
-      const isReady = status === 'complete' && job && job.result;
 
       button.style.setProperty('--mock-progress', isRunning ? percent + '%' : '0%');
       button.classList.toggle('mock-batch-running', isRunning);
@@ -3899,8 +5804,7 @@ export const liveDraftHtml = `<!doctype html>
       button.disabled = isRunning;
       input.disabled = isRunning;
       scriptInput.disabled = isRunning;
-      seeResultsButton.hidden = !isReady;
-      seeResultsButton.disabled = !isReady || isRunning;
+      syncMockResultsMenuItem(job, window.location.pathname === '/mock-results');
       resultsRunNewButton.disabled = isRunning;
 
       if (isRunning) {
@@ -3951,6 +5855,18 @@ export const liveDraftHtml = `<!doctype html>
       return job;
     };
 
+    const syncLatestMockBatchJob = async (forceVisible = false) => {
+      const job = await loadLatestMockBatchJob();
+      latestMockBatchJob = job;
+      if (job && job.result) {
+        latestMockBatchReport = job.result;
+        renderMockBatchResults(job.result);
+      }
+      renderMockBatchButtonState(job);
+      syncMockResultsMenuItem(job, forceVisible);
+      return job;
+    };
+
     const mockBatchSeedPrefix = () =>
       'live-ui-' + currentStrategyKey + '-' + Date.now().toString(36);
 
@@ -3990,20 +5906,33 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const renderDraftRoomRoute = async () => {
+      stopPlayerNewsPolling();
+      setActiveRouteShell('draft-room');
+      hydrateDraftRoomFromLocation();
       byId('draft-room-view').hidden = false;
       byId('mock-results-view').hidden = true;
+      byId('my-expert-view').hidden = true;
+      byId('player-news-view').hidden = true;
       await refreshDraftRoom();
-      renderMockBatchButtonState(latestMockBatchJob);
+      try {
+        await syncLatestMockBatchJob();
+      } catch (error) {
+        renderMockBatchButtonState(latestMockBatchJob);
+      }
       focusCommandInput();
     };
 
     const renderMockResultsPage = async () => {
+      stopPlayerNewsPolling();
+      setActiveRouteShell('results');
+      setAppMenuCurrent('mock-results', 'Mock results');
       byId('draft-room-view').hidden = true;
       byId('mock-results-view').hidden = false;
+      byId('my-expert-view').hidden = true;
+      byId('player-news-view').hidden = true;
 
       try {
-        const job = await loadLatestMockBatchJob();
-        latestMockBatchJob = job;
+        const job = await syncLatestMockBatchJob(true);
         if (!job) {
           renderMockResultsRoute(null);
           return;
@@ -4018,17 +5947,91 @@ export const liveDraftHtml = `<!doctype html>
         renderMockResultsLoading(job);
         await pollMockBatchJob(job.jobId);
       } catch (error) {
+        syncMockResultsMenuItem(latestMockBatchJob, true);
         renderMockResultsError(error instanceof Error ? error.message : 'Could not load mock results.');
       }
     };
 
+    const renderMyExpertPage = async () => {
+      stopPlayerNewsPolling();
+      setActiveRouteShell('results');
+      hydrateMyExpertFromLocation();
+      setAppMenuCurrent('my-expert', 'My expert');
+      byId('draft-room-view').hidden = true;
+      byId('mock-results-view').hidden = true;
+      byId('my-expert-view').hidden = false;
+      byId('player-news-view').hidden = true;
+      if (!latestMyExpertReport) byId('my-expert-title').textContent = 'Loading roster advice.';
+      byId('my-expert-status').textContent = myExpertReadOnlyLabel(latestMyExpertReport);
+
+      try {
+        await syncLatestMockBatchJob();
+      } catch (error) {
+        syncMockResultsMenuItem(latestMockBatchJob);
+      }
+
+      await loadMyExpertReport();
+    };
+
+    const renderPlayerNewsPage = async () => {
+      setActiveRouteShell('results');
+      hydratePlayerNewsFromLocation();
+      setAppMenuCurrent('player-news', 'Player news');
+      byId('draft-room-view').hidden = true;
+      byId('mock-results-view').hidden = true;
+      byId('my-expert-view').hidden = true;
+      byId('player-news-view').hidden = false;
+      if (!latestPlayerNewsFeed) byId('player-news-title').textContent = 'Loading player news.';
+      byId('player-news-status').textContent = playerNewsUpdatedLabel(latestPlayerNewsFeed);
+
+      try {
+        await syncLatestMockBatchJob();
+      } catch (error) {
+        syncMockResultsMenuItem(latestMockBatchJob);
+      }
+
+      await loadPlayerNewsFeed();
+    };
+
     const renderCurrentRoute = async () => {
+      if (window.location.pathname === '/player-news') {
+        await renderPlayerNewsPage();
+        return;
+      }
+
+      if (window.location.pathname === '/my-expert') {
+        await renderMyExpertPage();
+        return;
+      }
+
       if (window.location.pathname === '/mock-results') {
         await renderMockResultsPage();
         return;
       }
 
       await renderDraftRoomRoute();
+    };
+
+    const refreshPlayerNewsIfCurrentRoute = async ({ background = false } = {}) => {
+      if (window.location.pathname === '/player-news') {
+        replacePlayerNewsRoute();
+        if (background) await loadPlayerNewsFeed({ background: true });
+        else await renderPlayerNewsPage();
+      }
+    };
+
+    const refreshMyExpertIfCurrentRoute = async () => {
+      if (window.location.pathname === '/my-expert') {
+        window.history.replaceState(null, '', myExpertRouteUrl());
+        await renderMyExpertPage();
+      }
+    };
+
+    const schedulePlayerNewsRefresh = () => {
+      if (playerNewsSearchTimer) window.clearTimeout(playerNewsSearchTimer);
+      playerNewsSearchTimer = window.setTimeout(() => {
+        void refreshPlayerNewsIfCurrentRoute();
+      }, 160);
     };
 
     const postJsonAndRefresh = async (url, body) => {
@@ -4306,12 +6309,28 @@ export const liveDraftHtml = `<!doctype html>
         openScratchSession();
       }
     });
-    byId('start-real-draft-button').addEventListener('click', () => setDraftMode('real', { prepareStart: true }));
-    byId('start-mock-draft-button').addEventListener('click', () => setDraftMode('interactive-mock', { prepareStart: true }));
+    byId('app-menu-button').addEventListener('click', event => {
+      event.stopPropagation();
+      setAppMenuOpen(byId('app-menu-list').hidden);
+    });
+    byId('app-menu-list').addEventListener('click', event => event.stopPropagation());
+    byId('start-real-draft-button').addEventListener('click', () => openDraftRoomMode('real'));
+    byId('start-mock-draft-button').addEventListener('click', () => openDraftRoomMode('interactive-mock'));
     byId('confirm-start-draft-button').addEventListener('click', () => beginDraftCountdown());
     byId('end-draft-button').addEventListener('click', () => endActiveDraft());
     byId('run-mock-batch-button').addEventListener('click', () => runMockBatch());
-    byId('see-mock-results-button').addEventListener('click', () => window.location.assign('/mock-results'));
+    byId('see-mock-results-button').addEventListener('click', () => {
+      closeAppMenu();
+      window.location.assign('/mock-results');
+    });
+    byId('my-expert-button').addEventListener('click', () => {
+      closeAppMenu();
+      window.location.assign(myExpertRouteUrl());
+    });
+    byId('player-news-button').addEventListener('click', () => {
+      closeAppMenu();
+      window.location.assign(playerNewsRouteUrl());
+    });
     byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
     byId('reset-button').addEventListener('click', () => resetDraftRoom());
     byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
@@ -4322,6 +6341,33 @@ export const liveDraftHtml = `<!doctype html>
     byId('mock-next-round-button').addEventListener('click', () => advanceMockDraft('next-round'));
     byId('mock-complete-button').addEventListener('click', () => advanceMockDraft('complete-mock'));
     byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign('/'));
+    byId('my-expert-back-button').addEventListener('click', () => window.location.assign('/'));
+    byId('my-expert-refresh-button').addEventListener('click', () => refreshMyExpertIfCurrentRoute());
+    byId('player-news-back-button').addEventListener('click', () => window.location.assign('/'));
+    byId('player-news-refresh-button').addEventListener('click', () => refreshPlayerNewsIfCurrentRoute({ background: true }));
+    for (const button of document.querySelectorAll('.player-news-filter-button')) {
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        const key = event.currentTarget.dataset.playerNewsFilterKey;
+        const options = byId('player-news-' + key + '-options');
+        setPlayerNewsFilterOpen(key, options.hidden);
+      });
+      button.addEventListener('keydown', handlePlayerNewsFilterButtonKeydown);
+    }
+    for (const option of document.querySelectorAll('.player-news-filter-option')) {
+      option.addEventListener('click', event => {
+        event.stopPropagation();
+        void setPlayerNewsFilterValue(
+          event.currentTarget.dataset.playerNewsOptionKey,
+          event.currentTarget.dataset.playerNewsValue
+        );
+      });
+      option.addEventListener('keydown', handlePlayerNewsFilterOptionKeydown);
+    }
+    byId('player-news-search').addEventListener('input', event => {
+      playerNewsQuery = event.target.value.trim();
+      schedulePlayerNewsRefresh();
+    });
     byId('mock-results-run-button').addEventListener('click', () => {
       const list = byId('mock-results-run-list');
       list.hidden = !list.hidden;
@@ -4329,6 +6375,18 @@ export const liveDraftHtml = `<!doctype html>
     byId('mock-results-run-new-button').addEventListener('click', () => runMockBatch());
     document.addEventListener('click', event => {
       if (!event.target.closest || !event.target.closest('.run-selector')) byId('mock-results-run-list').hidden = true;
+      if (!event.target.closest || !event.target.closest('#app-menu')) closeAppMenu();
+      if (!event.target.closest || !event.target.closest('.player-news-filter')) closePlayerNewsFilters();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        closeAppMenu();
+        closePlayerNewsFilters();
+      }
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') stopPlayerNewsPolling();
+      else schedulePlayerNewsPolling();
     });
 
     loadDraftLifecycle();

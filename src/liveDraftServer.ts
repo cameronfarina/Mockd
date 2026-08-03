@@ -1,14 +1,20 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { keepers } from "../config/keepers.js";
-import { ownerOrder } from "../config/league.js";
+import { leagueConfig, ownerOrder, type Position } from "../config/league.js";
 import { normalizePlayerName } from "./data/normalizePlayerName.js";
 import {
   loadHistoricalAuctionRecords,
   type HistoricalAuctionRecord,
 } from "./data/parseHistoricalBoards.js";
+import { loadPlayerEvidenceSourceRows } from "./data/playerEvidenceSourceAdapters.js";
+import {
+  fetchRotowireRssNews,
+  type RawPlayerNewsItem,
+} from "./data/playerNewsProviderAdapters.js";
 import {
   FileBackedLiveDraftSessionStore,
   liveDraftCommandsCsv,
@@ -20,11 +26,13 @@ import {
 import { liveDraftHtml } from "./liveDraftUi.js";
 import {
   buildLiveDraftState,
+  type LiveDraftRosterPlayer,
   type LiveDraftReadiness,
   type LiveDraftReadinessCheck,
   type LiveDraftReadinessStatus,
   type LiveDraftSaleMockRange,
   type LiveDraftState,
+  type LiveDraftTarget,
 } from "./modeling/liveDraft.js";
 import { strategyAuctionOverridesFor } from "./modeling/interactiveMockDraft.js";
 import {
@@ -32,6 +40,19 @@ import {
   parseLiveDraftStrategyKey,
   type LiveDraftStrategyKey,
 } from "./modeling/liveDraftStrategies.js";
+import {
+  buildMyExpertAdvice,
+  type MyExpertAdviceCard,
+  type MyExpertPlayer,
+} from "./modeling/myExpert.js";
+import {
+  leagueSyncProviderStatuses,
+  leagueSyncReadOnlyPolicy,
+  yahooFantasyReadScope,
+  yahooOAuthAuthorizeUrl,
+  yahooTokenEndpoint,
+  type LeagueSyncProviderStatusReport,
+} from "./modeling/leagueSync.js";
 import {
   runMockBatchProgressively,
   type MockBatch,
@@ -45,10 +66,17 @@ import {
   type MockDraftScript,
 } from "./modeling/mockScript.js";
 import { buildPricingConfigFromSources } from "./pricingConfig.js";
+import {
+  buildPlayerNewsFeed,
+  type PlayerNewsFeed,
+  type PlayerNewsFilters,
+  type PlayerNewsSourceMode,
+} from "./modeling/playerNews.js";
 import { loadEspnWeeksOneToFour, type ProjectionRecord } from "./projections.js";
 import type { PricingConfig } from "./modeling/basePricing.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+const playerNewsEvidencePath = "data/raw/player-evidence-2026-initial.csv";
 const defaultPort = 4317;
 const liveTargetLimit = 500;
 const defaultLiveDraftSessionMode = "real";
@@ -175,6 +203,230 @@ const sendHtml = (response: ServerResponse): void => {
   response.end(liveDraftHtml);
 };
 
+interface YahooOAuthState {
+  provider: "yahoo";
+  createdAt: string;
+  redirectUri: string;
+}
+
+const yahooOAuthStates = new Map<string, YahooOAuthState>();
+
+const requestOriginFor = (request: IncomingMessage): string => {
+  const forwardedProto = Array.isArray(request.headers["x-forwarded-proto"])
+    ? request.headers["x-forwarded-proto"][0]
+    : request.headers["x-forwarded-proto"];
+  const protocol = forwardedProto || "http";
+  return `${protocol}://${request.headers.host ?? `127.0.0.1:${defaultPort}`}`;
+};
+
+const yahooRedirectUriFor = (request: IncomingMessage): string =>
+  process.env.MOCKD_YAHOO_REDIRECT_URI?.trim() ||
+  `${requestOriginFor(request)}/api/sync/oauth/yahoo/callback`;
+
+const missingEnvFor = (keys: readonly string[]): string[] =>
+  keys.filter(key => !process.env[key]?.trim());
+
+const yahooProviderStatus = (): LeagueSyncProviderStatusReport => {
+  const provider = leagueSyncProviderStatuses().find(item => item.key === "yahoo");
+  if (!provider) throw new Error("Yahoo sync provider is not configured.");
+  return provider;
+};
+
+const yahooOAuthStartResponse = (request: IncomingMessage): unknown => {
+  const provider = yahooProviderStatus();
+  const requiredEnv = provider.auth.requiredEnv;
+  const missingEnv = missingEnvFor(requiredEnv);
+  if (missingEnv.length > 0) {
+    return {
+      provider: "yahoo",
+      readOnly: true,
+      error: `Missing ${missingEnv.join(", ")} for Yahoo OAuth.`,
+      requiredEnv,
+      setupSteps: provider.setupSteps,
+    };
+  }
+
+  const redirectUri = yahooRedirectUriFor(request);
+  const state = randomUUID();
+  yahooOAuthStates.set(state, {
+    provider: "yahoo",
+    createdAt: new Date().toISOString(),
+    redirectUri,
+  });
+
+  return {
+    provider: "yahoo",
+    readOnly: true,
+    authorizationUrl: yahooOAuthAuthorizeUrl({
+      clientId: process.env.MOCKD_YAHOO_CLIENT_ID?.trim() ?? "",
+      redirectUri,
+      state,
+    }),
+    redirectUri,
+    state,
+    scope: yahooFantasyReadScope,
+  };
+};
+
+const yahooOAuthCallbackResponse = (url: URL): { statusCode: number; body: unknown } => {
+  const providerError = url.searchParams.get("error");
+  if (providerError) {
+    return {
+      statusCode: 400,
+      body: {
+        provider: "yahoo",
+        readOnly: true,
+        error: providerError,
+        detail: url.searchParams.get("error_description") ?? "Yahoo did not authorize access.",
+      },
+    };
+  }
+
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  if (!code || !state) {
+    return {
+      statusCode: 400,
+      body: {
+        provider: "yahoo",
+        readOnly: true,
+        error: "Yahoo OAuth callback requires code and state.",
+      },
+    };
+  }
+
+  const savedState = yahooOAuthStates.get(state);
+  if (!savedState) {
+    return {
+      statusCode: 400,
+      body: {
+        provider: "yahoo",
+        readOnly: true,
+        error: "Yahoo OAuth state was not recognized. Start the connect flow again.",
+      },
+    };
+  }
+  yahooOAuthStates.delete(state);
+
+  return {
+    statusCode: 200,
+    body: {
+      provider: "yahoo",
+      readOnly: true,
+      status: "authorization-code-received",
+      redirectUri: savedState.redirectUri,
+      tokenEndpoint: yahooTokenEndpoint,
+      nextStep: "Exchange this code server-side, encrypt refresh/access tokens at rest, then enable read-only Yahoo league sync.",
+    },
+  };
+};
+
+const sleeperApiBaseUrl = "https://api.sleeper.app/v1";
+
+const sleeperStringField = (value: unknown, key: string): string | undefined => {
+  if (!value || typeof value !== "object") return undefined;
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "string" && field.trim() ? field.trim() : undefined;
+};
+
+const sleeperNumberField = (value: unknown, key: string): number | undefined => {
+  if (!value || typeof value !== "object") return undefined;
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "number" && Number.isFinite(field) ? field : undefined;
+};
+
+const sleeperFetchJson = async (path: string): Promise<unknown> => {
+  const response = await fetch(`${sleeperApiBaseUrl}${path}`, {
+    headers: {
+      accept: "application/json",
+    },
+  });
+  if (response.status === 404) throw new Error("Sleeper could not find that username or league.");
+  if (!response.ok) throw new Error(`Sleeper request failed with ${response.status}.`);
+  return response.json();
+};
+
+const sleeperPreviewLeagueFor = (value: unknown): SleeperSyncPreviewLeague | undefined => {
+  const leagueId = sleeperStringField(value, "league_id");
+  if (!leagueId) return undefined;
+
+  const name = sleeperStringField(value, "name") ?? leagueId;
+  const status = sleeperStringField(value, "status");
+  const season = sleeperStringField(value, "season");
+  const totalRosters = sleeperNumberField(value, "total_rosters");
+
+  return {
+    leagueId,
+    name,
+    ...(status ? { status } : {}),
+    ...(season ? { season } : {}),
+    ...(totalRosters === undefined ? {} : { totalRosters }),
+  };
+};
+
+const sleeperUserPreviewFor = (value: unknown): SleeperSyncPreviewResponse["user"] | undefined => {
+  const userId = sleeperStringField(value, "user_id");
+  if (!userId) return undefined;
+
+  const username = sleeperStringField(value, "username");
+  const displayName = sleeperStringField(value, "display_name");
+  return {
+    userId,
+    ...(username ? { username } : {}),
+    ...(displayName ? { displayName } : {}),
+  };
+};
+
+const sleeperFoundMessage = (leagueCount: number): string =>
+  leagueCount === 1 ? "Found 1 Sleeper league." : `Found ${leagueCount} Sleeper leagues.`;
+
+const defaultSleeperSyncPreviewProvider: SleeperSyncPreviewProvider = async ({
+  identifier,
+  season,
+}) => {
+  const cleanIdentifier = identifier.trim();
+  if (!cleanIdentifier) throw new Error("Sleeper username or league ID is required.");
+
+  if (/^\d{6,}$/.test(cleanIdentifier)) {
+    const rawLeague = await sleeperFetchJson(`/league/${encodeURIComponent(cleanIdentifier)}`);
+    const league = sleeperPreviewLeagueFor(rawLeague);
+    if (!league) throw new Error("Sleeper league response did not include a league ID.");
+    return {
+      provider: "sleeper",
+      readOnly: true,
+      identifier: cleanIdentifier,
+      season,
+      resolvedAs: "league",
+      message: `Found ${league.name}.`,
+      leagues: [league],
+    };
+  }
+
+  const rawUser = await sleeperFetchJson(`/user/${encodeURIComponent(cleanIdentifier)}`);
+  const user = sleeperUserPreviewFor(rawUser);
+  if (!user) throw new Error("Sleeper user response did not include a user ID.");
+
+  const rawLeagues = await sleeperFetchJson(
+    `/user/${encodeURIComponent(user.userId)}/leagues/nfl/${encodeURIComponent(season)}`,
+  );
+  const leagues = Array.isArray(rawLeagues)
+    ? rawLeagues
+        .map(sleeperPreviewLeagueFor)
+        .filter((league): league is SleeperSyncPreviewLeague => Boolean(league))
+    : [];
+
+  return {
+    provider: "sleeper",
+    readOnly: true,
+    identifier: cleanIdentifier,
+    season,
+    resolvedAs: "user",
+    user,
+    message: leagues.length ? sleeperFoundMessage(leagues.length) : "No Sleeper leagues found for that season.",
+    leagues,
+  };
+};
+
 const readinessStatusFor = (checks: readonly LiveDraftReadinessCheck[]): LiveDraftReadinessStatus => {
   if (checks.some(check => check.status === "fail")) return "fail";
   if (checks.some(check => check.status === "warn")) return "warn";
@@ -265,6 +517,53 @@ interface LiveDraftSessionExportBundle {
   commandsCsv: string;
 }
 
+interface MyExpertSourceStatus {
+  key: string;
+  label: string;
+  readOnly: true;
+  detail: string;
+}
+
+interface MyExpertRecommendation {
+  id: string;
+  type: MyExpertAdviceCard["type"];
+  priority: MyExpertAdviceCard["priority"];
+  title: string;
+  detail: string;
+  players: MyExpertPlayer[];
+  suggestedAdds: MyExpertPlayer[];
+  suggestedDrops: MyExpertPlayer[];
+  reasons: string[];
+  actionLabel: string;
+  readOnly: true;
+  lineup?: MyExpertAdviceCard["lineup"];
+}
+
+interface MyExpertTeamSummary {
+  owner: "Cam";
+  rosteredCount: number;
+  rosteredValue: number;
+  players: MyExpertPlayer[];
+}
+
+interface MyExpertSummary {
+  currentWeek: number;
+  recommendationCount: number;
+  highPriorityCount: number;
+}
+
+interface MyExpertResponse {
+  mode: "advice-only";
+  readOnly: true;
+  generatedAt: string;
+  source: MyExpertSourceStatus;
+  team: MyExpertTeamSummary;
+  summary: MyExpertSummary;
+  recommendations: MyExpertRecommendation[];
+  integrations: LeagueSyncProviderStatusReport[];
+  policy: ReturnType<typeof buildMyExpertAdvice>["policy"];
+}
+
 type LiveDraftImportConflictType = "ambiguous-player" | "invalid-command" | "invalid-import";
 
 interface LiveDraftImportConflictIssue {
@@ -303,6 +602,39 @@ interface InteractiveMockDraftModule {
 }
 
 type MockBatchRunner = (options: RunMockBatchOptions) => MockBatch;
+type PlayerNewsProvider = () => Promise<readonly RawPlayerNewsItem[]>;
+
+export interface SleeperSyncPreviewRequest {
+  identifier: string;
+  season: string;
+}
+
+export interface SleeperSyncPreviewLeague {
+  leagueId: string;
+  name: string;
+  status?: string;
+  season?: string;
+  totalRosters?: number;
+}
+
+export interface SleeperSyncPreviewResponse {
+  provider: "sleeper";
+  readOnly: true;
+  identifier: string;
+  season: string;
+  resolvedAs: "league" | "user";
+  message: string;
+  leagues: SleeperSyncPreviewLeague[];
+  user?: {
+    userId: string;
+    username?: string;
+    displayName?: string;
+  };
+}
+
+type SleeperSyncPreviewProvider = (
+  request: SleeperSyncPreviewRequest,
+) => Promise<SleeperSyncPreviewResponse>;
 
 type MockBatchJobStatus = "queued" | "running" | "complete" | "failed";
 
@@ -328,6 +660,8 @@ export interface CreateLiveDraftServerOptions {
   pricingConfig?: PricingConfig;
   interactiveMockDraft?: InteractiveMockDraftModule;
   mockBatchRunner?: MockBatchRunner;
+  playerNewsProvider?: PlayerNewsProvider;
+  sleeperSyncPreviewProvider?: SleeperSyncPreviewProvider;
 }
 
 export interface LiveDraftServerApp {
@@ -362,6 +696,15 @@ const strategyKeyFromQuery = (url: URL): LiveDraftStrategyKey =>
 
 const strategyKeyFromBody = (body: Record<string, unknown>): LiveDraftStrategyKey =>
   parseLiveDraftStrategyKey(body.strategyKey);
+
+const currentWeekFromQuery = (url: URL): number => {
+  const value = url.searchParams.get("week");
+  if (!value) return 1;
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) throw new Error("Week must be a positive integer.");
+  return parsed;
+};
 
 const sessionModeFromValue = (
   value: unknown,
@@ -425,6 +768,110 @@ const draftSessionKeyFromBody = (
 ): string =>
   draftSessionKeyFromValue(body.draftSession ?? body.sessionKey ?? body.session, fallback);
 
+const myExpertIdFor = (name: string): string =>
+  normalizePlayerName(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "player";
+
+const projectedPointsFromWeeks = (weeks1To4: number | undefined, fallback: number): number =>
+  Math.max(1, Math.round(((weeks1To4 ?? fallback * 4) / 4 + Number.EPSILON) * 10) / 10);
+
+const projectedPointsFromProjection = (
+  projection: ProjectionRecord | undefined,
+  currentWeek: number,
+  fallback: number,
+): number => {
+  const weeklyProjection = projection?.weeks[currentWeek] ?? (projection && projection.weeks1To4 > 0 ? projection.weeks1To4 / 4 : undefined);
+  return Math.max(1, Math.round(((weeklyProjection ?? fallback) + Number.EPSILON) * 10) / 10);
+};
+
+const projectionLookupKeyFor = (name: string, position: Position): string =>
+  `${normalizePlayerName(name)}:${position}`;
+
+const projectionLookupFor = (
+  projections: readonly ProjectionRecord[],
+): ReadonlyMap<string, ProjectionRecord> =>
+  new Map(projections.map(projection => [projectionLookupKeyFor(projection.name, projection.position), projection]));
+
+const rosterRoleByPlayerId = (
+  slots: LiveDraftState["watchOwner"]["slots"],
+): Map<string, MyExpertPlayer["rosteredRole"]> => {
+  const roles = new Map<string, MyExpertPlayer["rosteredRole"]>();
+  for (const slot of slots) {
+    if (!slot.player) continue;
+    roles.set(myExpertIdFor(slot.player.name), slot.slot.startsWith("BENCH") ? "bench" : "starter");
+  }
+  return roles;
+};
+
+const optionalPlayerMetadata = (
+  player: Pick<LiveDraftRosterPlayer | LiveDraftTarget, "teamAbbreviation" | "byeWeek">,
+): Pick<MyExpertPlayer, "teamAbbreviation" | "byeWeek"> => ({
+  ...(player.teamAbbreviation === undefined ? {} : { teamAbbreviation: player.teamAbbreviation }),
+  ...(player.byeWeek === undefined ? {} : { byeWeek: player.byeWeek }),
+});
+
+const myExpertRosterPlayerFrom = (
+  player: LiveDraftRosterPlayer,
+  role: MyExpertPlayer["rosteredRole"],
+  projection: ProjectionRecord | undefined,
+  currentWeek: number,
+): MyExpertPlayer => ({
+  id: myExpertIdFor(player.name),
+  name: player.name,
+  position: player.position,
+  projectedPoints: projectedPointsFromProjection(projection, currentWeek, player.expectedPrice || player.price),
+  rosteredRole: role,
+  ...optionalPlayerMetadata(player),
+});
+
+const myExpertAvailablePlayerFrom = (target: LiveDraftTarget): MyExpertPlayer => ({
+  id: myExpertIdFor(target.name),
+  name: target.name,
+  position: target.position,
+  projectedPoints: projectedPointsFromWeeks(target.weeks1To4, target.liveExpectedPrice),
+  signals: {
+    opportunityScore: Math.max(0, target.personalValue - target.liveExpectedPrice) / 5,
+    trendScore: Math.max(0, target.valueScore) / 10,
+  },
+  ...optionalPlayerMetadata(target),
+});
+
+const myExpertPlayerLookup = (
+  roster: readonly MyExpertPlayer[],
+  availablePlayers: readonly MyExpertPlayer[],
+): Map<string, MyExpertPlayer> =>
+  new Map([...roster, ...availablePlayers].map(player => [player.id, player]));
+
+const myExpertRecommendationFrom = ({
+  card,
+  playersById,
+  rosterIds,
+}: {
+  card: MyExpertAdviceCard;
+  playersById: ReadonlyMap<string, MyExpertPlayer>;
+  rosterIds: ReadonlySet<string>;
+}): MyExpertRecommendation => {
+  const players = card.playerIds
+    .map(playerId => playersById.get(playerId))
+    .filter((player): player is MyExpertPlayer => Boolean(player));
+  return {
+    id: card.id,
+    type: card.type,
+    priority: card.priority,
+    title: card.title,
+    detail: card.summary,
+    players,
+    suggestedAdds: players.filter(player => !rosterIds.has(player.id)),
+    suggestedDrops: card.type === "add-drop" ? players.filter(player => rosterIds.has(player.id)) : [],
+    reasons: card.reasons,
+    actionLabel: card.action.label,
+    readOnly: card.action.readOnly,
+    ...(card.lineup ? { lineup: card.lineup } : {}),
+  };
+};
+
 const draftSessionDirectoryFor = (baseDirectory: string, draftSessionKey: string): string => {
   if (draftSessionKey === defaultLiveDraftSessionKey) return baseDirectory;
   if (draftSessionKey.startsWith(scratchSessionPrefix)) {
@@ -469,6 +916,24 @@ const seedFromValue = (value: unknown): string | undefined => {
 
   const seed = value.trim();
   return seed ? seed : undefined;
+};
+
+const playerNewsSourceModeFromValue = (value: unknown): PlayerNewsSourceMode => {
+  if (value === "local" || value === "rotowire-rss" || value === "all") return value;
+  return "all";
+};
+
+const playerNewsFiltersFromQuery = (url: URL): PlayerNewsFilters => {
+  const query = url.searchParams.get("q")?.trim();
+  const category = url.searchParams.get("category")?.trim();
+  const draftAction = url.searchParams.get("action")?.trim();
+
+  return {
+    source: playerNewsSourceModeFromValue(url.searchParams.get("source")),
+    ...(query ? { query } : {}),
+    ...(category ? { category } : {}),
+    ...(draftAction ? { draftAction } : {}),
+  };
 };
 
 const nominatedPlayerFromValue = (value: unknown): string | undefined => {
@@ -689,6 +1154,14 @@ export const createLiveDraftServer = async (
   const mockBatchJobs = new Map<string, MockBatchJob>();
   const sessionMutationQueues = new Map<string, Promise<void>>();
   let latestMockBatchJobId: string | undefined;
+  let playerNewsEvidenceRowsPromise: ReturnType<typeof loadPlayerEvidenceSourceRows> | undefined;
+  const sleeperSyncPreviewProvider =
+    options.sleeperSyncPreviewProvider ?? defaultSleeperSyncPreviewProvider;
+
+  const playerNewsEvidenceRows = (): ReturnType<typeof loadPlayerEvidenceSourceRows> => {
+    playerNewsEvidenceRowsPromise ??= loadPlayerEvidenceSourceRows({ path: playerNewsEvidencePath });
+    return playerNewsEvidenceRowsPromise;
+  };
 
   const sessionMutationQueueKey = (
     draftSessionKey: string,
@@ -775,6 +1248,99 @@ export const createLiveDraftServer = async (
       session,
       readiness: readinessWithSession(state.readiness, session),
     };
+  };
+  const myExpertFor = async (url: URL): Promise<MyExpertResponse> => {
+    const currentWeek = currentWeekFromQuery(url);
+    const draftState = await stateFor({
+      draftSessionKey: draftSessionKeyFromQuery(url),
+      mode: sessionModeFromQuery(url),
+      strategyKey: strategyKeyFromQuery(url),
+    });
+    const projectionsByPlayer = projectionLookupFor(projections);
+    const roles = rosterRoleByPlayerId(draftState.watchOwner.slots);
+    const roster = draftState.watchOwner.roster.map(player =>
+      myExpertRosterPlayerFrom(
+        player,
+        roles.get(myExpertIdFor(player.name)) ?? "bench",
+        projectionsByPlayer.get(projectionLookupKeyFor(player.name, player.position)),
+        currentWeek,
+      )
+    );
+    const rosterIds = new Set(roster.map(player => player.id));
+    const availablePlayers = draftState.availableTargets
+      .filter(target => !rosterIds.has(myExpertIdFor(target.name)))
+      .slice(0, 120)
+      .map(myExpertAvailablePlayerFrom);
+    const advice = buildMyExpertAdvice({
+      currentWeek,
+      leagueSettings: {
+        lineup: leagueConfig.lineup,
+        rosterMaximums: leagueConfig.rosterMaximums,
+      },
+      roster,
+      availablePlayers,
+      matchups: [],
+      news: [],
+      tradeCandidates: [],
+    });
+    const playersById = myExpertPlayerLookup(roster, availablePlayers);
+    const recommendations = advice.cards.map(card => myExpertRecommendationFrom({
+      card,
+      playersById,
+      rosterIds,
+    }));
+
+    return {
+      mode: "advice-only",
+      readOnly: true,
+      generatedAt: new Date().toISOString(),
+      source: {
+        key: "mockd-draft",
+        label: "Mockd draft",
+        readOnly: true,
+        detail: "Current Mockd draft room state.",
+      },
+      team: {
+        owner: "Cam",
+        rosteredCount: roster.length,
+        rosteredValue: draftState.watchOwner.spent,
+        players: roster,
+      },
+      summary: {
+        currentWeek,
+        recommendationCount: recommendations.length,
+        highPriorityCount: recommendations.filter(recommendation => recommendation.priority === "high").length,
+      },
+      recommendations,
+      integrations: leagueSyncProviderStatuses(),
+      policy: advice.policy,
+    };
+  };
+  const playerNewsFor = async (url: URL): Promise<PlayerNewsFeed> => {
+    const filters = playerNewsFiltersFromQuery(url);
+    const sourceMode = filters.source ?? "all";
+    const evidenceRows = sourceMode === "rotowire-rss" ? [] : await playerNewsEvidenceRows();
+    let rawNewsItems: readonly RawPlayerNewsItem[] = [];
+
+    if (sourceMode !== "local") {
+      try {
+        rawNewsItems = await (options.playerNewsProvider ?? fetchRotowireRssNews)();
+      } catch (error) {
+        if (sourceMode === "rotowire-rss") throw error;
+      }
+    }
+
+    return buildPlayerNewsFeed({
+      evidenceRows,
+      rawNewsItems,
+      draftState: await stateFor({
+        draftSessionKey: draftSessionKeyFromQuery(url),
+        mode: sessionModeFromQuery(url),
+        strategyKey: strategyKeyFromQuery(url),
+      }),
+      filters,
+      localEvidencePath: playerNewsEvidencePath,
+    });
   };
   const mockDraftFor = async ({
     draftSessionKey = defaultLiveDraftSessionKey,
@@ -1147,6 +1713,16 @@ export const createLiveDraftServer = async (
         return;
       }
 
+      if (request.method === "GET" && url.pathname === "/my-expert") {
+        sendHtml(response);
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/player-news") {
+        sendHtml(response);
+        return;
+      }
+
       if (request.method === "GET" && url.pathname === "/favicon.ico") {
         response.writeHead(204, { "cache-control": "no-store" });
         response.end();
@@ -1170,6 +1746,63 @@ export const createLiveDraftServer = async (
           ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer),
           draftSessionKey: draftSessionKeyFromQuery(url),
         }));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/player-news") {
+        sendJson(response, 200, await playerNewsFor(url));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/my-expert") {
+        sendJson(response, 200, await myExpertFor(url));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/sync/providers") {
+        sendJson(response, 200, {
+          policy: leagueSyncReadOnlyPolicy,
+          providers: leagueSyncProviderStatuses(),
+        });
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/sync/oauth/yahoo/start") {
+        const body = yahooOAuthStartResponse(request);
+        const statusCode = "error" in (body as { error?: string }) ? 501 : 200;
+        sendJson(response, statusCode, body);
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/sync/oauth/yahoo/callback") {
+        const result = yahooOAuthCallbackResponse(url);
+        sendJson(response, result.statusCode, result.body);
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/sync/sleeper/preview") {
+        const identifier = url.searchParams.get("identifier")?.trim() ?? "";
+        const season = url.searchParams.get("season")?.trim() || "2026";
+        if (!identifier) {
+          sendJson(response, 400, {
+            provider: "sleeper",
+            readOnly: true,
+            error: "Sleeper username or league ID is required.",
+          });
+          return;
+        }
+
+        try {
+          sendJson(response, 200, await sleeperSyncPreviewProvider({ identifier, season }));
+        } catch (error) {
+          sendJson(response, 502, {
+            provider: "sleeper",
+            readOnly: true,
+            identifier,
+            season,
+            error: error instanceof Error ? error.message : "Could not preview Sleeper sync.",
+          });
+        }
         return;
       }
 
@@ -1363,7 +1996,7 @@ export const createLiveDraftServer = async (
       if (request.method === "GET" && url.pathname === "/api/mock-batch/latest") {
         const job = latestMockBatchJobId === undefined ? undefined : mockBatchJobs.get(latestMockBatchJobId);
         if (!job) {
-          sendJson(response, 404, { error: "No mock batch job has run yet." });
+          sendJson(response, 200, null);
           return;
         }
 

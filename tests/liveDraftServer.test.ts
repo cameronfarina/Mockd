@@ -274,6 +274,29 @@ const waitForMockBatchJob = async (baseUrl: string, jobId: string) => {
   throw new Error(`Mock batch job ${jobId} did not complete in test.`);
 };
 
+const syncEnvKeys = [
+  "MOCKD_YAHOO_CLIENT_ID",
+  "MOCKD_YAHOO_CLIENT_SECRET",
+  "MOCKD_YAHOO_REDIRECT_URI",
+  "MOCKD_ESPN_LEAGUE_ID",
+  "MOCKD_ESPN_SWID",
+  "MOCKD_ESPN_S2",
+] as const;
+
+const snapshotSyncEnv = (): Partial<Record<(typeof syncEnvKeys)[number], string>> =>
+  Object.fromEntries(syncEnvKeys.flatMap(key => {
+    const value = process.env[key];
+    return value === undefined ? [] : [[key, value]];
+  }));
+
+const restoreSyncEnv = (snapshot: Partial<Record<(typeof syncEnvKeys)[number], string>>): void => {
+  for (const key of syncEnvKeys) {
+    const value = snapshot[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+};
+
 describe("live draft server", () => {
   const servers: TestServer[] = [];
 
@@ -715,6 +738,25 @@ describe("live draft server", () => {
     }
   });
 
+  it("returns an empty latest mock batch response before a batch has run", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const response = await fetch(`${baseUrl}/api/mock-batch/latest`);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toBeNull();
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it("locks live draft-night sessions against interactive mock advances", async () => {
     const directory = await tempSessionDirectory();
     try {
@@ -1081,6 +1123,298 @@ describe("live draft server", () => {
             runCount: 2,
           }),
         ],
+      });
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("serves the player news page and local evidence-backed player news API", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const page = await fetch(`${baseUrl}/player-news`);
+      expect(page.status).toBe(200);
+      expect(await page.text()).toContain("id=\"player-news-view\"");
+
+      const response = await fetch(`${baseUrl}/api/player-news?strategy=three-rb&category=Injury`);
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.summary.totalCount).toBeGreaterThan(0);
+      expect(data.items.length).toBeGreaterThan(0);
+      expect(data.items.every((item: { category: string }) => item.category === "Injury")).toBe(true);
+      expect(data.items[0]).toEqual(expect.objectContaining({
+        player: expect.any(String),
+        headline: expect.any(String),
+        fantasyImpact: expect.any(String),
+        draftAction: expect.stringMatching(/Fade|Move up|Watch|No model change/),
+        source: expect.objectContaining({ provider: expect.any(String) }),
+      }));
+      expect(data.providers).toEqual(expect.arrayContaining([
+        expect.objectContaining({ key: "local-evidence", status: "active" }),
+        expect.objectContaining({ key: "sportsdataio", status: "candidate" }),
+      ]));
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("serves read-only My Expert advice from the active Mockd roster", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const page = await fetch(`${baseUrl}/my-expert`);
+      expect(page.status).toBe(200);
+      expect(await page.text()).toContain("id=\"my-expert-view\"");
+
+      const camLineupCommands = [
+        "Cam drafted Josh Allen for 1",
+        "Cam drafted Jahmyr Gibbs for 1",
+        "Cam drafted Ja'Marr Chase for 1",
+        "Cam drafted Amon-Ra St. Brown for 1",
+        "Cam drafted Sam LaPorta for 1",
+        "Cam drafted Jake Bates for 1",
+        "Cam drafted Steelers D/ST for 1",
+        "Cam drafted Kenneth Walker III for 1",
+        "Cam drafted Mike Evans for 1",
+        "Cam drafted Zay Flowers for 1",
+        "Cam drafted DeVonta Smith for 1",
+      ];
+      for (const command of camLineupCommands) {
+        const sale = await post(baseUrl, "/api/events", {
+          draftSession: "practice-3rb",
+          mode: "interactive-mock",
+          strategyKey: "three-rb",
+          command,
+        });
+        expect(sale.status, `${command}: ${JSON.stringify(sale.data)}`).toBe(200);
+        expect(sale.data.errors).toEqual([]);
+      }
+
+      const response = await fetch(
+        `${baseUrl}/api/my-expert?strategy=three-rb&mode=interactive-mock&draftSession=practice-3rb&week=5`,
+      );
+      expect(response.status).toBe(200);
+      const data = await response.json();
+
+      expect(data.mode).toBe("advice-only");
+      expect(data.readOnly).toBe(true);
+      expect(data.source).toEqual(expect.objectContaining({
+        key: "mockd-draft",
+        label: "Mockd draft",
+        readOnly: true,
+      }));
+      expect(data.team).toEqual(expect.objectContaining({
+        owner: "Cam",
+        rosteredCount: expect.any(Number),
+        rosteredValue: expect.any(Number),
+      }));
+      expect(data.team.players.map((player: { name: string }) => player.name)).toEqual(
+        expect.arrayContaining(["De'Von Achane", "Jahmyr Gibbs"]),
+      );
+      expect(data.summary).toEqual(expect.objectContaining({
+        currentWeek: 5,
+        recommendationCount: expect.any(Number),
+      }));
+      expect(data.recommendations).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: "lineup",
+          priority: expect.stringMatching(/high|medium|low/),
+          readOnly: true,
+          title: expect.stringContaining("Start"),
+          lineup: expect.objectContaining({
+            starters: expect.any(Array),
+            flexChoice: expect.any(Object),
+            flexCandidates: expect.any(Array),
+          }),
+          reasons: expect.arrayContaining([
+            expect.stringMatching(/adjusted|projection|score|matchup|opportunity|trend|risk/i),
+          ]),
+        }),
+        expect.objectContaining({
+          type: "bye-coverage",
+          priority: "high",
+          readOnly: true,
+          title: expect.stringContaining("Week 6"),
+          suggestedAdds: expect.any(Array),
+          suggestedDrops: expect.any(Array),
+        }),
+      ]));
+      expect(data.integrations).toEqual(expect.arrayContaining([
+        expect.objectContaining({ key: "espn", status: "setup-required", readOnly: true }),
+        expect.objectContaining({ key: "sleeper", status: "available", readOnly: true }),
+        expect.objectContaining({ key: "yahoo", status: "setup-required", readOnly: true }),
+      ]));
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("serves read-only league sync provider readiness and setup-gated Yahoo OAuth", async () => {
+    const directory = await tempSessionDirectory();
+    let sleeperDirectory: string | undefined;
+    const envSnapshot = snapshotSyncEnv();
+    try {
+      for (const key of syncEnvKeys) delete process.env[key];
+
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const providersResponse = await fetch(`${baseUrl}/api/sync/providers`);
+      expect(providersResponse.status).toBe(200);
+      const providersData = await providersResponse.json();
+      expect(providersData.policy).toEqual(expect.objectContaining({
+        mode: "read-only",
+        blockedActions: expect.arrayContaining(["add", "drop", "trade", "set-lineup"]),
+      }));
+      expect(providersData.providers).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          key: "sleeper",
+          status: "available",
+          auth: expect.objectContaining({ type: "none", configured: true }),
+        }),
+        expect.objectContaining({
+          key: "yahoo",
+          status: "setup-required",
+          auth: expect.objectContaining({ type: "oauth2", configured: false }),
+        }),
+      ]));
+
+      const yahooStartResponse = await fetch(`${baseUrl}/api/sync/oauth/yahoo/start`);
+      expect(yahooStartResponse.status).toBe(501);
+      const yahooStartData = await yahooStartResponse.json();
+      expect(yahooStartData).toEqual(expect.objectContaining({
+        provider: "yahoo",
+        error: expect.stringMatching(/MOCKD_YAHOO_CLIENT_ID/i),
+        requiredEnv: expect.arrayContaining(["MOCKD_YAHOO_CLIENT_ID", "MOCKD_YAHOO_CLIENT_SECRET"]),
+      }));
+      expect(yahooStartData.setupSteps).toEqual(expect.arrayContaining([expect.stringMatching(/Yahoo Developer/i)]));
+
+      process.env.MOCKD_YAHOO_CLIENT_ID = "test-client-id";
+      process.env.MOCKD_YAHOO_CLIENT_SECRET = "test-client-secret";
+      const readyYahooStartResponse = await fetch(`${baseUrl}/api/sync/oauth/yahoo/start`);
+      expect(readyYahooStartResponse.status).toBe(200);
+      const readyYahooStartData = await readyYahooStartResponse.json();
+      expect(readyYahooStartData).toEqual(expect.objectContaining({
+        provider: "yahoo",
+        readOnly: true,
+        redirectUri: `${baseUrl}/api/sync/oauth/yahoo/callback`,
+        scope: "fspt-r",
+        state: expect.any(String),
+      }));
+      expect(readyYahooStartData.authorizationUrl).toContain("https://api.login.yahoo.com/oauth2/request_auth");
+      expect(readyYahooStartData.authorizationUrl).toContain("client_id=test-client-id");
+      expect(readyYahooStartData.authorizationUrl).toContain("response_type=code");
+
+      const callbackResponse = await fetch(
+        `${baseUrl}/api/sync/oauth/yahoo/callback?code=test-code&state=${readyYahooStartData.state}`,
+      );
+      expect(callbackResponse.status).toBe(200);
+      const callbackData = await callbackResponse.json();
+      expect(callbackData).toEqual(expect.objectContaining({
+        provider: "yahoo",
+        readOnly: true,
+        status: "authorization-code-received",
+        tokenEndpoint: "https://api.login.yahoo.com/oauth2/get_token",
+      }));
+
+      sleeperDirectory = await tempSessionDirectory();
+      const sleeperApp = await createLiveDraftServer({
+        sessionDirectory: sleeperDirectory,
+        interactiveMockDraft,
+        mockBatchRunner,
+        sleeperSyncPreviewProvider: async ({ identifier, season }) => ({
+          provider: "sleeper",
+          readOnly: true,
+          identifier,
+          season,
+          resolvedAs: "user",
+          message: "Found 1 Sleeper league.",
+          leagues: [{
+            leagueId: "123",
+            name: "Cam Sleeper League",
+            status: "in_season",
+            season,
+            totalRosters: 12,
+          }],
+        }),
+      });
+      servers.push(sleeperApp.server);
+      const sleeperBaseUrl = await listen(sleeperApp.server);
+      const sleeperResponse = await fetch(`${sleeperBaseUrl}/api/sync/sleeper/preview?identifier=cam&season=2026`);
+      expect(sleeperResponse.status).toBe(200);
+      await expect(sleeperResponse.json()).resolves.toEqual(expect.objectContaining({
+        provider: "sleeper",
+        readOnly: true,
+        identifier: "cam",
+        season: "2026",
+        message: "Found 1 Sleeper league.",
+        leagues: [expect.objectContaining({ leagueId: "123", name: "Cam Sleeper League" })],
+      }));
+    } finally {
+      restoreSyncEnv(envSnapshot);
+      await rm(directory, { force: true, recursive: true });
+      if (sleeperDirectory) await rm(sleeperDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps all-source player news useful when the optional remote provider fails", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+        playerNewsProvider: async () => {
+          throw new Error("provider down");
+        },
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const defaultSources = await fetch(`${baseUrl}/api/player-news`);
+      expect(defaultSources.status).toBe(200);
+      const defaultSourcesData = await defaultSources.json();
+      expect(defaultSourcesData.sourceMode).toBe("all");
+      expect(defaultSourcesData.summary.totalCount).toBeGreaterThan(0);
+      expect(defaultSourcesData.items.length).toBeGreaterThan(0);
+
+      const allSources = await fetch(`${baseUrl}/api/player-news?source=all`);
+      expect(allSources.status).toBe(200);
+      const allSourcesData = await allSources.json();
+      expect(allSourcesData.sourceMode).toBe("all");
+      expect(allSourcesData.summary.totalCount).toBeGreaterThan(0);
+      expect(allSourcesData.items.length).toBeGreaterThan(0);
+
+      const localOnly = await fetch(`${baseUrl}/api/player-news?source=local`);
+      expect(localOnly.status).toBe(200);
+      const localOnlyData = await localOnly.json();
+      expect(localOnlyData.sourceMode).toBe("local");
+      expect(localOnlyData.summary.totalCount).toBeGreaterThan(0);
+
+      const remoteOnly = await fetch(`${baseUrl}/api/player-news?source=rotowire-rss`);
+      expect(remoteOnly.status).toBe(500);
+      await expect(remoteOnly.json()).resolves.toEqual({
+        error: "provider down",
       });
     } finally {
       await rm(directory, { force: true, recursive: true });
