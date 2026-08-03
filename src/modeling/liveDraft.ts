@@ -1141,7 +1141,8 @@ const buildTargets = ({
     .sort(
       (left, right) =>
         Number(!right.tags.includes("not affordable")) - Number(!left.tags.includes("not affordable")) ||
-        right.valueScore - left.valueScore ||
+        right.liveExpectedPrice - left.liveExpectedPrice ||
+        right.seasonProjection - left.seasonProjection ||
         right.expectedPrice - left.expectedPrice ||
         left.name.localeCompare(right.name),
     )
@@ -1161,9 +1162,16 @@ const shortlistReasonsFor = (target: LiveDraftTarget): string[] => {
 };
 
 const buildShortlist = (targets: readonly LiveDraftTarget[]): LiveDraftShortlistTarget[] =>
-  targets
+  [...targets]
     .filter(target => !target.tags.includes("not affordable"))
     .filter(target => shortlistReasonsFor(target).length > 0)
+    .sort(
+      (left, right) =>
+        right.valueScore - left.valueScore ||
+        right.liveExpectedPrice - left.liveExpectedPrice ||
+        right.seasonProjection - left.seasonProjection ||
+        left.name.localeCompare(right.name),
+    )
     .slice(0, 10)
     .map(target => ({
       name: target.name,

@@ -124,6 +124,30 @@ describe("live draft room", () => {
     expect(discountedGibbs?.valueScore).toBeGreaterThan(initialGibbs?.valueScore ?? 0);
   });
 
+  it("orders the draft board by expected draft price with season points as the tiebreaker", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+    });
+
+    const topTargets = state.availableTargets.slice(0, 20);
+
+    for (let index = 1; index < topTargets.length; index += 1) {
+      const previous = topTargets[index - 1]!;
+      const current = topTargets[index]!;
+      if (previous.liveExpectedPrice === current.liveExpectedPrice) {
+        expect(previous.seasonProjection).toBeGreaterThanOrEqual(current.seasonProjection);
+      } else {
+        expect(previous.liveExpectedPrice).toBeGreaterThan(current.liveExpectedPrice);
+      }
+    }
+  });
+
   it("uses a full-season fallback when projection imports only have Weeks 1-4 totals", async () => {
     const projections = (await loadEspnWeeksOneToFour(projectionPath)).map(projection => {
       if (projection.name !== "Jahmyr Gibbs") return projection;

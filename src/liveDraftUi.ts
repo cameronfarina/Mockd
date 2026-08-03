@@ -1591,15 +1591,14 @@ export const liveDraftHtml = `<!doctype html>
             <option value="wr-heavy">WR Heavy</option>
           </select>
           <select id="sort-select" aria-label="Board sort">
-            <option value="valueScore:desc">Draft priority</option>
+            <option value="liveExpectedPrice:desc">Expected draft price</option>
+            <option value="seasonProjection:desc">Season points</option>
+            <option value="week1Projection:desc">Week 1 points</option>
             <option value="valueGap:desc">Best value gap</option>
             <option value="tierDrop:desc">Biggest tier drop</option>
             <option value="personalValue:desc">Our value</option>
             <option value="recommendedMaxBid:desc">Max bid</option>
-            <option value="liveExpectedPrice:desc">Live price</option>
-            <option value="expectedPrice:desc">Expected price</option>
-            <option value="week1Projection:desc">Week 1 projection</option>
-            <option value="seasonProjection:desc">Season projection</option>
+            <option value="expectedPrice:desc">Base price</option>
             <option value="byeWeek:asc">Bye week</option>
             <option value="position:asc">Position</option>
             <option value="teamAbbreviation:asc">NFL team</option>
@@ -1622,7 +1621,6 @@ export const liveDraftHtml = `<!doctype html>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="personalValue">Our</button></th>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="valueGap">Gap</button></th>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="recommendedMaxBid">Max</button></th>
-                <th class="money" style="width:86px">Priority</th>
               </tr>
             </thead>
             <tbody id="board"></tbody>
@@ -1755,7 +1753,7 @@ export const liveDraftHtml = `<!doctype html>
     let selectedTargetName = null;
     let selectedRosterOwner = 'Cam';
     let boardPositionFilter = 'ALL';
-    let boardSortKey = 'valueScore';
+    let boardSortKey = 'liveExpectedPrice';
     let boardSortDirection = 'desc';
     let currentStrategyKey = 'three-rb';
     let currentDraftMode = 'real';
@@ -1799,8 +1797,7 @@ export const liveDraftHtml = `<!doctype html>
       liveExpectedPrice: 'Live',
       personalValue: 'Our',
       valueGap: 'Gap',
-      recommendedMaxBid: 'Max',
-      valueScore: 'Priority'
+      recommendedMaxBid: 'Max'
     };
 
     const byId = id => document.getElementById(id);
@@ -1819,7 +1816,6 @@ export const liveDraftHtml = `<!doctype html>
       return Number.isFinite(price) && price > 0 ? price : target.recommendedMaxBid;
     };
     const valueGapAtPriceFor = (target, price) => target.personalValue - price;
-    const priorityAtPriceFor = (target, price) => target.valueScore + (target.liveExpectedPrice - price) * 0.35;
     const isFlexPosition = position => flexPositions.includes(position);
     const selectedTarget = () => currentState && currentState.availableTargets.find(target => target.name === selectedTargetName);
     const ownerByName = name => currentState.owners.find(owner => owner.owner === name) || currentState.watchOwner;
@@ -2574,13 +2570,17 @@ export const liveDraftHtml = `<!doctype html>
       const leftValue = sortValueFor(left, tierDrops);
       const rightValue = sortValueFor(right, tierDrops);
       const direction = boardSortDirection === 'asc' ? 1 : -1;
+      const defaultTieBreak =
+        right.liveExpectedPrice - left.liveExpectedPrice ||
+        right.seasonProjection - left.seasonProjection ||
+        left.name.localeCompare(right.name);
       if ((left.draftable === false) !== (right.draftable === false)) {
         return left.draftable === false ? 1 : -1;
       }
       if (typeof leftValue === 'string' || typeof rightValue === 'string') {
-        return direction * cleanText(leftValue).localeCompare(cleanText(rightValue)) || right.valueScore - left.valueScore;
+        return direction * cleanText(leftValue).localeCompare(cleanText(rightValue)) || defaultTieBreak;
       }
-      return direction * (leftValue - rightValue) || right.valueScore - left.valueScore || left.name.localeCompare(right.name);
+      return direction * (leftValue - rightValue) || defaultTieBreak;
     });
 
     const renderMetrics = state => {
@@ -2949,7 +2949,6 @@ export const liveDraftHtml = `<!doctype html>
         tableCell(row, money(target.personalValue), 'money');
         tableCell(row, deltaMoney(valueGapFor(target)), 'money ' + gapClassFor(valueGapFor(target)));
         tableCell(row, money(target.recommendedMaxBid), 'money');
-        tableCell(row, target.valueScore.toFixed(1), 'money');
         return row;
       });
 
@@ -3038,7 +3037,7 @@ export const liveDraftHtml = `<!doctype html>
         ['Bid', money(bidPrice), ''],
         ['Our', money(target.personalValue), ''],
         ['Bid gap', deltaMoney(valueGapAtPriceFor(target, bidPrice)), gapClassFor(valueGapAtPriceFor(target, bidPrice))],
-        ['Priority', scoreText(priorityAtPriceFor(target, bidPrice)), '']
+        ['Season', scoreText(target.seasonProjection), '']
       ]) {
         const cell = document.createElement('div');
         cell.className = 'selected-value ' + className;
@@ -3557,7 +3556,7 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     byId('add-price').addEventListener('input', () => {
-      if (currentState) renderSaleControls(currentState);
+      if (currentState) renderSelected(currentState);
     });
 
     byId('add-owner').addEventListener('change', event => {
