@@ -11,6 +11,9 @@ describe("projection rank anchors", () => {
 
     expect(rankings.find(player => player.name === "Puka Nacua")).toMatchObject({
       position: "WR",
+      weeks: expect.objectContaining({ 1: expect.any(Number) }),
+      weeks1To4: expect.any(Number),
+      seasonProjection: expect.closeTo(295.00612938, 5),
       projectionRank: 1,
       espnRank: 3,
       espnAuctionValue: 56,

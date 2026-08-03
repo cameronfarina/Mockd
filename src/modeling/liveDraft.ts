@@ -150,7 +150,9 @@ export interface LiveDraftTarget {
   strategyValues: Record<LiveDraftStrategyKey, number>;
   recommendedMaxBid: number;
   valueScore: number;
+  week1Projection: number;
   weeks1To4: number;
+  seasonProjection: number;
   projectionRank?: number;
   espnRank?: number;
   source: LiveDraftPlayerSource;
@@ -269,6 +271,7 @@ interface LiveDraftPlayerRecord {
   expectedPrice: number;
   week1: number;
   weeks1To4: number;
+  seasonProjection: number;
   source: LiveDraftPlayerSource;
   teamAbbreviation?: string;
   byeWeek?: number;
@@ -391,6 +394,7 @@ const liveRecordFromPrice = (price: ScenarioAdjustedPrice): LiveDraftPlayerRecor
   expectedPrice: price.scenarioPrice,
   week1: price.weeks[1] ?? 0,
   weeks1To4: price.weeks1To4,
+  seasonProjection: price.seasonProjection ?? price.weeks1To4,
   source: "pricedPool",
   ...teamMetadataFor(price.proTeamId),
   projectionRank: price.projectionRank,
@@ -407,6 +411,7 @@ const liveRecordFromProjection = (
   expectedPrice: projectionPriceFor(projection, scenario),
   week1: projection.weeks[1] ?? 0,
   weeks1To4: projection.weeks1To4,
+  seasonProjection: projection.seasonProjection ?? projection.weeks1To4,
   source: "projectionFallback",
   ...teamMetadataFor(projection.proTeamId),
   projectionRank: projection.projectionRank,
@@ -990,7 +995,9 @@ const buildTargets = ({
         strategyValues,
         recommendedMaxBid,
         valueScore,
+        week1Projection: roundToTwo(player.week1),
         weeks1To4: roundToTwo(player.weeks1To4),
+        seasonProjection: roundToTwo(player.seasonProjection),
         ...(player.projectionRank === undefined ? {} : { projectionRank: player.projectionRank }),
         ...(player.espnRank === undefined ? {} : { espnRank: player.espnRank }),
         source: player.source,

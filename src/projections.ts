@@ -17,6 +17,7 @@ export interface ProjectionRecord {
   proTeamId?: number;
   weeks: Record<number, number>;
   weeks1To4: number;
+  seasonProjection?: number;
   espnRank?: number;
   espnAuctionValue?: number;
 }
@@ -39,6 +40,12 @@ export const loadEspnWeeksOneToFour = async (path: string): Promise<ProjectionRe
         candidate.statSourceId === 1 &&
         candidate.statSplitTypeId === 1,
       );
+      const seasonProjectionStat = (player.stats ?? []).find((candidate: any) =>
+        candidate.seasonId === 2026 &&
+        candidate.scoringPeriodId === 0 &&
+        candidate.statSourceId === 1 &&
+        candidate.statSplitTypeId === 0,
+      );
 
       const existing: ProjectionRecord = records.get(id) ?? {
         id,
@@ -51,6 +58,9 @@ export const loadEspnWeeksOneToFour = async (path: string): Promise<ProjectionRe
 
       existing.weeks[week] = Number(stat?.appliedTotal ?? 0);
       existing.weeks1To4 = Object.values(existing.weeks).reduce((sum, points) => sum + points, 0);
+      if (typeof seasonProjectionStat?.appliedTotal === "number") {
+        existing.seasonProjection = seasonProjectionStat.appliedTotal;
+      }
       const ppr = player.draftRanksByRankType?.PPR;
       if (typeof ppr?.rank === "number") existing.espnRank = ppr.rank;
       if (typeof ppr?.auctionValue === "number") existing.espnAuctionValue = ppr.auctionValue;

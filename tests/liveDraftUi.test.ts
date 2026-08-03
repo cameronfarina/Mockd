@@ -67,6 +67,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("data-sort-key=\"personalValue\">Our");
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\">Gap");
     expect(liveDraftHtml).toContain("data-sort-key=\"byeWeek\">Bye");
+    expect(liveDraftHtml).toContain("data-sort-key=\"week1Projection\">W1");
+    expect(liveDraftHtml).toContain("data-sort-key=\"seasonProjection\">Season");
     expect(liveDraftHtml).toContain("<th class=\"money\" style=\"width:70px\">Score</th>");
     expect(liveDraftHtml).not.toContain("id=\"hide-deep-filter\"");
     expect(liveDraftHtml).not.toContain("Hide $1/fallback");
@@ -79,6 +81,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const strategyValueLabels =");
     expect(liveDraftHtml).toContain("const renderStrategyValues = target =>");
     expect(liveDraftHtml).toContain("target.strategyValues");
+    expect(liveDraftHtml).toContain("scoreText(target.week1Projection)");
+    expect(liveDraftHtml).toContain("scoreText(target.seasonProjection)");
     expect(liveDraftHtml).toContain("const tierDropsFor = targets =>");
     expect(liveDraftHtml).toContain("'next ' + target.position + ' -' + money(tierDrop)");
     expect(liveDraftHtml).toContain("const saleWarningsFor = (target, owner, price) =>");
@@ -206,7 +210,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain(".board-panel {");
     expect(liveDraftHtml).toContain(".decision-panel {");
     expect(liveDraftHtml).toContain(".board-table {");
-    expect(liveDraftHtml).toContain("min-width: 920px;");
+    expect(liveDraftHtml).toContain("min-width: 1060px;");
     expect(liveDraftHtml).toContain("overflow-wrap: normal;");
     expect(liveDraftHtml).toContain("white-space: nowrap;");
   });

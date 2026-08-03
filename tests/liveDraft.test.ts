@@ -163,6 +163,8 @@ describe("live draft room", () => {
       expectedPrice: 70,
       teamAbbreviation: "DET",
       byeWeek: 6,
+      week1Projection: 20.03,
+      seasonProjection: 331.2,
     });
     expect(gibbs?.personalValue).toBeGreaterThanOrEqual(gibbs?.liveExpectedPrice ?? 0);
     expect(gibbs?.personalValue).toBeLessThanOrEqual(80);

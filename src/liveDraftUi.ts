@@ -592,7 +592,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .target-card-values {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 6px;
       margin-top: 8px;
     }
@@ -627,7 +627,7 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .board-table {
-      min-width: 920px;
+      min-width: 1060px;
     }
 
     th, td {
@@ -775,7 +775,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .selected-values {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 6px;
       margin-top: 7px;
     }
@@ -1461,6 +1461,8 @@ export const liveDraftHtml = `<!doctype html>
             <option value="recommendedMaxBid:desc">Max bid</option>
             <option value="liveExpectedPrice:desc">Live price</option>
             <option value="expectedPrice:desc">Expected price</option>
+            <option value="week1Projection:desc">Week 1 projection</option>
+            <option value="seasonProjection:desc">Season projection</option>
             <option value="byeWeek:asc">Bye week</option>
             <option value="position:asc">Position</option>
             <option value="teamAbbreviation:asc">NFL team</option>
@@ -1476,6 +1478,8 @@ export const liveDraftHtml = `<!doctype html>
                 <th style="width:52px"><button class="sort-heading" type="button" data-sort-key="position">Pos</button></th>
                 <th style="width:62px"><button class="sort-heading" type="button" data-sort-key="teamAbbreviation">Team</button></th>
                 <th class="center" style="width:54px"><button class="sort-heading" type="button" data-sort-key="byeWeek">Bye</button></th>
+                <th class="money" style="width:64px"><button class="sort-heading" type="button" data-sort-key="week1Projection">W1</button></th>
+                <th class="money" style="width:78px"><button class="sort-heading" type="button" data-sort-key="seasonProjection">Season</button></th>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="expectedPrice">Exp</button></th>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="liveExpectedPrice">Live</button></th>
                 <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="personalValue">Our</button></th>
@@ -1634,6 +1638,8 @@ export const liveDraftHtml = `<!doctype html>
       position: 'Pos',
       teamAbbreviation: 'Team',
       byeWeek: 'Bye',
+      week1Projection: 'W1',
+      seasonProjection: 'Season',
       expectedPrice: 'Exp',
       liveExpectedPrice: 'Live',
       personalValue: 'Our',
@@ -2652,6 +2658,8 @@ export const liveDraftHtml = `<!doctype html>
         tableCell(row, target.position);
         tableCell(row, target.teamAbbreviation || '-');
         tableCell(row, target.byeWeek || '-', 'center');
+        tableCell(row, scoreText(target.week1Projection), 'money');
+        tableCell(row, scoreText(target.seasonProjection), 'money');
         tableCell(row, money(target.expectedPrice), 'money');
         tableCell(row, money(target.liveExpectedPrice), 'money');
         tableCell(row, money(target.personalValue), 'money');
@@ -2683,7 +2691,9 @@ export const liveDraftHtml = `<!doctype html>
           ['Exp', money(target.expectedPrice), ''],
           ['Live', money(target.liveExpectedPrice), ''],
           ['Our', money(target.personalValue), ''],
-          ['Gap', deltaMoney(valueGapFor(target)), gapClassFor(valueGapFor(target))]
+          ['Gap', deltaMoney(valueGapFor(target)), gapClassFor(valueGapFor(target))],
+          ['W1', scoreText(target.week1Projection), ''],
+          ['Season', scoreText(target.seasonProjection), '']
         ]) {
           const cell = document.createElement('div');
           cell.className = 'target-card-value ' + className;
@@ -2735,7 +2745,9 @@ export const liveDraftHtml = `<!doctype html>
         ['Exp', money(target.expectedPrice), ''],
         ['Live', money(target.liveExpectedPrice), ''],
         ['Our', money(target.personalValue), ''],
-        ['Gap', deltaMoney(valueGapFor(target)), gapClassFor(valueGapFor(target))]
+        ['Gap', deltaMoney(valueGapFor(target)), gapClassFor(valueGapFor(target))],
+        ['W1', scoreText(target.week1Projection), ''],
+        ['Season', scoreText(target.seasonProjection), '']
       ]) {
         const cell = document.createElement('div');
         cell.className = 'selected-value ' + className;
