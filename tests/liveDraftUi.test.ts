@@ -33,6 +33,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"mock-advance-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-cam-win-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-pass-button\"");
+    expect(liveDraftHtml).toContain("class=\"sidebar\"");
+    expect(liveDraftHtml).toContain("class=\"workspace\"");
+    expect(liveDraftHtml).toContain("class=\"sidebar-section\"");
     expect(liveDraftHtml).toContain("data-sort-key=\"personalValue\">Our");
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\">Gap");
     expect(liveDraftHtml).toContain("data-sort-key=\"byeWeek\">Bye");
@@ -66,6 +69,21 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderPositionContext = state =>");
     expect(liveDraftHtml).toContain("const renderReadiness = state =>");
     expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\"");
+  });
+
+  it("uses a dark dashboard shell with command rail and panel grouping", () => {
+    expect(liveDraftHtml).toContain("color-scheme: dark;");
+    expect(liveDraftHtml).toContain("--bg: #050b12;");
+    expect(liveDraftHtml).toContain("grid-template-columns: 300px minmax(0, 1fr);");
+    expect(liveDraftHtml).toContain(".sidebar {");
+    expect(liveDraftHtml).toContain(".workspace {");
+    expect(liveDraftHtml).toContain(".sidebar-section {");
+    expect(liveDraftHtml).toContain(".window-controls {");
+    expect(liveDraftHtml).toContain(".board-panel {");
+    expect(liveDraftHtml).toContain(".decision-panel {");
+    expect(liveDraftHtml).toContain(".board-table {");
+    expect(liveDraftHtml).toContain("min-width: 920px;");
+    expect(liveDraftHtml).toContain("overflow-wrap: normal;");
   });
 
   it("renders raw sale history and import/export draft-log actions", () => {

@@ -6,20 +6,24 @@ export const liveDraftHtml = `<!doctype html>
   <title>Mockd Draft Room</title>
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f6f7f4;
-      --surface: #ffffff;
-      --surface-2: #f0f3f5;
-      --text: #111817;
-      --muted: #69746f;
-      --line: #d5ddd8;
-      --line-soft: #edf1ee;
-      --accent: #0f766e;
-      --accent-strong: #0b4f4a;
-      --blue: #1d4ed8;
-      --amber: #9a6700;
-      --danger: #b33b31;
-      --shadow: 0 1px 2px rgba(17, 24, 23, 0.06);
+      color-scheme: dark;
+      --bg: #050b12;
+      --sidebar: #07111d;
+      --workspace: #07131f;
+      --surface: #081826;
+      --surface-2: #0c2033;
+      --surface-3: #0f2b45;
+      --text: #d9e7f5;
+      --muted: #7f9ab5;
+      --line: #15324d;
+      --line-soft: #10283f;
+      --accent: #63a8ff;
+      --accent-strong: #2d8cff;
+      --green: #1fcf8f;
+      --amber: #f2a93b;
+      --danger: #ff716a;
+      --purple: #a78bfa;
+      --shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
     }
 
     * {
@@ -28,7 +32,7 @@ export const liveDraftHtml = `<!doctype html>
 
     body {
       margin: 0;
-      background: var(--bg);
+      background: radial-gradient(circle at top left, rgba(45, 140, 255, 0.12), transparent 34vw), var(--bg);
       color: var(--text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 14px;
@@ -41,9 +45,15 @@ export const liveDraftHtml = `<!doctype html>
     button {
       border: 1px solid var(--line);
       border-radius: 6px;
-      background: var(--surface);
+      background: rgba(12, 32, 51, 0.9);
       color: var(--text);
       cursor: pointer;
+      transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: rgba(99, 168, 255, 0.58);
+      background: rgba(15, 43, 69, 0.98);
     }
 
     button:disabled {
@@ -52,9 +62,10 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     button.primary {
-      border-color: var(--accent);
-      background: var(--accent);
-      color: #fff;
+      border-color: rgba(99, 168, 255, 0.72);
+      background: #63a8ff;
+      color: #06101a;
+      font-weight: 750;
     }
 
     button.icon {
@@ -63,8 +74,9 @@ export const liveDraftHtml = `<!doctype html>
       width: 28px;
       height: 28px;
       padding: 0;
-      border-color: var(--accent);
-      color: var(--accent-strong);
+      border-color: rgba(31, 207, 143, 0.74);
+      color: var(--green);
+      background: rgba(31, 207, 143, 0.08);
       font-weight: 750;
       line-height: 1;
     }
@@ -75,15 +87,25 @@ export const liveDraftHtml = `<!doctype html>
       border: 1px solid var(--line);
       border-radius: 6px;
       padding: 0 9px;
-      background: #fff;
+      background-color: rgba(5, 11, 18, 0.7);
       color: var(--text);
+      outline: 0;
+    }
+
+    input::placeholder {
+      color: #62809e;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(99, 168, 255, 0.92);
+      box-shadow: 0 0 0 3px rgba(99, 168, 255, 0.12);
     }
 
     select {
       appearance: none;
       -webkit-appearance: none;
       padding-right: 34px;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%2369746f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%237f9ab5' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: right 12px center;
       background-size: 16px 16px;
@@ -91,35 +113,101 @@ export const liveDraftHtml = `<!doctype html>
 
     .app {
       display: grid;
-      grid-template-rows: auto auto 1fr;
+      grid-template-columns: 300px minmax(0, 1fr);
       min-height: 100vh;
+      background: linear-gradient(180deg, rgba(8, 24, 38, 0.96), rgba(5, 11, 18, 0.98));
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+      padding: 18px 18px 20px;
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, #07111d 0%, #050b12 100%);
+    }
+
+    .window-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      height: 18px;
+    }
+
+    .window-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+
+    .window-dot.red {
+      background: #ff5f57;
+    }
+
+    .window-dot.yellow {
+      background: #ffbd2e;
+    }
+
+    .window-dot.green {
+      background: #28c840;
+    }
+
+    .brand {
+      display: grid;
+      gap: 2px;
+      padding: 2px 0 4px;
+    }
+
+    .brand strong {
+      color: #f4f8fc;
+      font-size: 20px;
+      line-height: 1.1;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      min-width: 0;
+      min-height: 100vh;
+      overflow: hidden;
     }
 
     header {
-      display: grid;
-      grid-template-columns: minmax(160px, 220px) minmax(320px, 1fr) minmax(280px, 420px) auto;
-      gap: 12px;
+      display: flex;
       align-items: center;
-      padding: 12px 16px;
+      justify-content: space-between;
+      min-width: 0;
+      min-height: 64px;
+      padding: 0 24px;
       border-bottom: 1px solid var(--line);
-      background: var(--surface);
+      background: rgba(5, 11, 18, 0.54);
     }
 
     h1 {
       margin: 0;
-      font-size: 19px;
+      color: #f4f8fc;
+      font-size: 20px;
       line-height: 1.1;
       letter-spacing: 0;
     }
 
     .search {
       width: 100%;
-      height: 38px;
+      height: 36px;
+      background-color: rgba(8, 24, 38, 0.84);
     }
 
     .quick-sale {
       display: grid;
-      grid-template-columns: minmax(180px, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
       min-width: 0;
     }
@@ -134,33 +222,53 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .top-actions {
-      display: flex;
-      gap: 8px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
       align-items: center;
-      justify-content: flex-end;
     }
 
     .top-actions button {
       height: 34px;
       padding: 0 11px;
+      color: #b9cbe0;
     }
 
     .file-input {
       display: none;
     }
 
+    .sidebar-section {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid rgba(21, 50, 77, 0.82);
+      border-radius: 8px;
+      background: rgba(8, 24, 38, 0.68);
+    }
+
+    .sidebar-section .section-label {
+      padding: 0;
+    }
+
     .metrics {
       display: grid;
       grid-template-columns: repeat(5, minmax(120px, 1fr));
-      gap: 1px;
+      gap: 12px;
+      min-width: 0;
+      padding: 16px 24px;
       border-bottom: 1px solid var(--line);
-      background: var(--line);
+      background: rgba(7, 19, 31, 0.76);
     }
 
     .metric {
       min-width: 0;
-      padding: 10px 12px;
-      background: var(--surface-2);
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(8, 24, 38, 0.92);
+      box-shadow: var(--shadow);
     }
 
     .metric span {
@@ -173,7 +281,8 @@ export const liveDraftHtml = `<!doctype html>
     .metric strong {
       display: block;
       margin-top: 3px;
-      font-size: 18px;
+      color: #f4f8fc;
+      font-size: 19px;
       line-height: 1.15;
       letter-spacing: 0;
       white-space: nowrap;
@@ -181,19 +290,28 @@ export const liveDraftHtml = `<!doctype html>
 
     main {
       display: grid;
-      grid-template-columns: minmax(680px, 1fr) 390px;
-      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
+      gap: 16px;
+      min-width: 0;
       min-height: 0;
-      padding: 12px 16px 16px;
+      padding: 16px 24px 22px;
     }
 
     section, aside {
       min-width: 0;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: var(--surface);
+      background: rgba(8, 24, 38, 0.92);
       box-shadow: var(--shadow);
       overflow: hidden;
+    }
+
+    .board-panel {
+      background: rgba(8, 24, 38, 0.92);
+    }
+
+    .decision-panel {
+      background: rgba(8, 24, 38, 0.92);
     }
 
     .panel-header {
@@ -201,10 +319,10 @@ export const liveDraftHtml = `<!doctype html>
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      min-height: 42px;
-      padding: 8px 10px;
+      min-height: 48px;
+      padding: 12px 14px;
       border-bottom: 1px solid var(--line);
-      background: #fbfcfa;
+      background: rgba(5, 11, 18, 0.34);
     }
 
     h2 {
@@ -213,7 +331,7 @@ export const liveDraftHtml = `<!doctype html>
       line-height: 1.2;
       letter-spacing: 0;
       text-transform: uppercase;
-      color: var(--muted);
+      color: #b9cbe0;
     }
 
     .board-count {
@@ -227,9 +345,10 @@ export const liveDraftHtml = `<!doctype html>
       grid-template-columns: minmax(320px, 1fr) auto minmax(130px, 160px) minmax(112px, 130px) minmax(132px, 160px) minmax(160px, 190px);
       gap: 8px;
       align-items: center;
-      padding: 8px 10px;
+      overflow-x: auto;
+      padding: 12px 14px;
       border-bottom: 1px solid var(--line);
-      background: #fff;
+      background: rgba(7, 19, 31, 0.82);
     }
 
     .segmented {
@@ -245,14 +364,15 @@ export const liveDraftHtml = `<!doctype html>
       padding: 0 9px;
       border-color: var(--line);
       color: var(--muted);
+      background: rgba(5, 11, 18, 0.45);
       font-size: 12px;
       font-weight: 650;
     }
 
     .filter-chip[aria-pressed="true"] {
       border-color: var(--accent);
-      background: #e7f0ec;
-      color: var(--accent-strong);
+      background: rgba(99, 168, 255, 0.18);
+      color: #e7f2ff;
     }
 
     .toggle {
@@ -283,33 +403,33 @@ export const liveDraftHtml = `<!doctype html>
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      padding: 7px 10px;
+      padding: 10px 14px;
       border-bottom: 1px solid var(--line);
-      background: #fbfcfa;
+      background: rgba(5, 11, 18, 0.26);
     }
 
     .market-pill {
       display: inline-flex;
       gap: 5px;
       align-items: baseline;
-      padding: 3px 7px;
-      border: 1px solid var(--line-soft);
+      padding: 4px 8px;
+      border: 1px solid rgba(21, 50, 77, 0.86);
       border-radius: 6px;
-      background: #fff;
+      background: rgba(12, 32, 51, 0.64);
       color: var(--muted);
       font-size: 11px;
       white-space: nowrap;
     }
 
     .market-pill strong {
-      color: var(--text);
+      color: #f4f8fc;
       font-size: 12px;
       font-variant-numeric: tabular-nums;
     }
 
     .scroll {
       overflow: auto;
-      max-height: calc(100vh - 178px);
+      max-height: calc(100vh - 236px);
     }
 
     .board-cards {
@@ -359,7 +479,7 @@ export const liveDraftHtml = `<!doctype html>
       padding: 6px 7px;
       border: 1px solid var(--line-soft);
       border-radius: 6px;
-      background: #fbfcfa;
+      background: rgba(5, 11, 18, 0.38);
     }
 
     .target-card-value span {
@@ -383,23 +503,31 @@ export const liveDraftHtml = `<!doctype html>
       table-layout: fixed;
     }
 
+    .board-table {
+      min-width: 920px;
+    }
+
     th, td {
-      padding: 7px 8px;
+      padding: 8px 10px;
       border-bottom: 1px solid var(--line-soft);
       text-align: left;
       vertical-align: middle;
-      overflow-wrap: anywhere;
+      overflow-wrap: normal;
     }
 
     th {
       position: sticky;
       top: 0;
       z-index: 1;
-      background: #fbfcfa;
+      background: #07131f;
       color: var(--muted);
       font-size: 12px;
       font-weight: 650;
       white-space: nowrap;
+    }
+
+    tbody tr:hover {
+      background: rgba(99, 168, 255, 0.055);
     }
 
     .sort-heading {
@@ -427,8 +555,10 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .player-name {
+      color: #f4f8fc;
       font-weight: 700;
       line-height: 1.18;
+      overflow-wrap: normal;
     }
 
     .subtle {
@@ -442,24 +572,24 @@ export const liveDraftHtml = `<!doctype html>
       margin: 3px 4px 0 0;
       padding: 2px 5px;
       border-radius: 4px;
-      background: #e7f0ec;
-      color: var(--accent-strong);
+      background: rgba(99, 168, 255, 0.14);
+      color: #a9d3ff;
       font-size: 11px;
       line-height: 1.2;
     }
 
     .tag.value {
-      background: #edf7ed;
-      color: #146c2e;
+      background: rgba(31, 207, 143, 0.13);
+      color: #7af0bd;
     }
 
     .tag.warning {
-      background: #fff5d8;
+      background: rgba(242, 169, 59, 0.16);
       color: var(--amber);
     }
 
     .gap-positive {
-      color: #146c2e;
+      color: #7af0bd;
       font-weight: 750;
     }
 
@@ -478,18 +608,18 @@ export const liveDraftHtml = `<!doctype html>
       display: grid;
       grid-template-columns: minmax(0, 1fr) 90px;
       gap: 8px;
-      padding: 10px;
+      padding: 12px;
       border-bottom: 1px solid var(--line);
-      background: #fff;
+      background: rgba(7, 19, 31, 0.82);
     }
 
     .selected-player {
       grid-column: 1 / -1;
       min-height: 38px;
-      padding: 8px 9px;
+      padding: 10px;
       border: 1px solid var(--line-soft);
       border-radius: 6px;
-      background: #fafbf9;
+      background: rgba(5, 11, 18, 0.42);
     }
 
     .selected-player strong {
@@ -509,7 +639,7 @@ export const liveDraftHtml = `<!doctype html>
       padding: 5px 6px;
       border: 1px solid var(--line-soft);
       border-radius: 5px;
-      background: #fff;
+      background: rgba(12, 32, 51, 0.62);
       font-variant-numeric: tabular-nums;
     }
 
@@ -547,9 +677,9 @@ export const liveDraftHtml = `<!doctype html>
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-      padding: 10px;
+      padding: 12px;
       border-bottom: 1px solid var(--line);
-      background: var(--surface-2);
+      background: rgba(5, 11, 18, 0.34);
     }
 
     .roster-summary {
@@ -561,10 +691,10 @@ export const liveDraftHtml = `<!doctype html>
 
     .mini-metric {
       min-width: 0;
-      padding: 7px 8px;
+      padding: 8px 9px;
       border: 1px solid var(--line);
       border-radius: 6px;
-      background: #fff;
+      background: rgba(12, 32, 51, 0.7);
     }
 
     .mini-metric span {
@@ -576,6 +706,7 @@ export const liveDraftHtml = `<!doctype html>
     .mini-metric strong {
       display: block;
       margin-top: 2px;
+      color: #f4f8fc;
       font-size: 14px;
       font-variant-numeric: tabular-nums;
     }
@@ -592,7 +723,7 @@ export const liveDraftHtml = `<!doctype html>
       padding: 3px 6px;
       border: 1px solid var(--line);
       border-radius: 5px;
-      background: #fff;
+      background: rgba(12, 32, 51, 0.7);
       color: var(--muted);
       font-size: 11px;
       font-weight: 650;
@@ -610,10 +741,10 @@ export const liveDraftHtml = `<!doctype html>
       display: grid;
       gap: 2px;
       min-width: 0;
-      padding: 7px 8px;
+      padding: 8px 9px;
       border: 1px solid var(--line-soft);
       border-radius: 6px;
-      background: #fbfcfa;
+      background: rgba(5, 11, 18, 0.32);
     }
 
     .summary-item strong {
@@ -621,13 +752,13 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .summary-item.warn {
-      border-color: #f1dba0;
-      background: #fffaf0;
+      border-color: rgba(242, 169, 59, 0.48);
+      background: rgba(242, 169, 59, 0.08);
     }
 
     .summary-item.fail {
-      border-color: #f0d4cf;
-      background: #fff5f3;
+      border-color: rgba(255, 113, 106, 0.46);
+      background: rgba(255, 113, 106, 0.08);
     }
 
     .mock-draft-panel {
@@ -660,8 +791,8 @@ export const liveDraftHtml = `<!doctype html>
       margin-top: 4px;
       padding: 3px 5px;
       border-radius: 4px;
-      background: #f0f3f5;
-      color: #42514b;
+      background: rgba(2, 7, 12, 0.58);
+      color: #b9cbe0;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: 11px;
       line-height: 1.25;
@@ -670,7 +801,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .side-scroll {
       overflow: auto;
-      max-height: calc(100vh - 332px);
+      max-height: calc(100vh - 382px);
     }
 
     .slot {
@@ -681,38 +812,47 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .empty {
-      color: #9aa39f;
+      color: #5e778f;
     }
 
     .section-label {
-      padding: 10px 10px 6px;
+      padding: 12px 12px 7px;
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 650;
       text-transform: uppercase;
     }
 
     .error {
       padding: 8px 10px;
-      border-bottom: 1px solid #f0d4cf;
-      background: #fff5f3;
+      border-bottom: 1px solid rgba(255, 113, 106, 0.46);
+      background: rgba(255, 113, 106, 0.08);
       color: var(--danger);
       font-size: 13px;
     }
 
     .delta-up {
-      color: var(--danger);
+      color: #ff9a94;
       font-weight: 700;
     }
 
     .delta-down {
-      color: var(--accent-strong);
+      color: #7af0bd;
       font-weight: 700;
     }
 
     @media (max-width: 1160px) {
-      header {
+      .app {
         grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      header {
+        min-height: 56px;
       }
 
       .board-toolbar {
@@ -724,7 +864,7 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       .top-actions {
-        justify-content: flex-start;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
       main {
@@ -761,25 +901,43 @@ export const liveDraftHtml = `<!doctype html>
 </head>
 <body>
   <div class="app">
-    <header>
-      <h1>Mockd Draft Room</h1>
-      <input class="search" id="board-search" autocomplete="off" placeholder="Search player, position, or team">
-      <form class="quick-sale" id="quick-sale-form">
-        <input id="quick-sale-command" autocomplete="off" placeholder="Quick sale: jakub kittle 28">
-        <button class="primary" type="submit">Log</button>
-      </form>
-      <div class="top-actions">
-        <button type="button" id="export-json-button">Export JSON</button>
-        <button type="button" id="export-csv-button">CSV</button>
-        <button type="button" id="import-log-button">Import</button>
-        <input class="file-input" id="import-log-file" type="file" accept=".json,.csv,application/json,text/csv">
-        <button type="button" id="undo-button">Undo</button>
-        <button type="button" id="reset-button">Reset</button>
+    <nav class="sidebar" aria-label="Draft room controls">
+      <div class="window-controls" aria-hidden="true">
+        <span class="window-dot red"></span>
+        <span class="window-dot yellow"></span>
+        <span class="window-dot green"></span>
       </div>
-    </header>
-    <div class="metrics" id="metrics"></div>
-    <main>
-      <section>
+      <div class="brand">
+        <strong>Mockd</strong>
+        <span>Draft Room</span>
+      </div>
+      <input class="search" id="board-search" autocomplete="off" placeholder="Search player, position, or team">
+      <div class="sidebar-section">
+        <div class="section-label">Sale Command</div>
+        <form class="quick-sale" id="quick-sale-form">
+          <input id="quick-sale-command" autocomplete="off" placeholder="Quick sale: jakub kittle 28">
+          <button class="primary" type="submit">Log</button>
+        </form>
+      </div>
+      <div class="sidebar-section">
+        <div class="section-label">Session</div>
+        <div class="top-actions">
+          <button type="button" id="export-json-button">Export JSON</button>
+          <button type="button" id="export-csv-button">CSV</button>
+          <button type="button" id="import-log-button">Import</button>
+          <input class="file-input" id="import-log-file" type="file" accept=".json,.csv,application/json,text/csv">
+          <button type="button" id="undo-button">Undo</button>
+          <button type="button" id="reset-button">Reset</button>
+        </div>
+      </div>
+    </nav>
+    <div class="workspace">
+      <header>
+        <h1>Dashboard</h1>
+      </header>
+      <div class="metrics" id="metrics"></div>
+      <main>
+      <section class="board-panel">
         <div class="panel-header">
           <h2>Board</h2>
           <div class="board-count" id="board-count"></div>
@@ -840,7 +998,7 @@ export const liveDraftHtml = `<!doctype html>
         </div>
         <div class="board-cards" id="board-cards"></div>
       </section>
-      <aside class="side">
+      <aside class="side decision-panel">
         <div class="panel-header">
           <h2>Team</h2>
           <span class="subtle" id="sale-count"></span>
@@ -901,7 +1059,8 @@ export const liveDraftHtml = `<!doctype html>
           </table>
         </div>
       </aside>
-    </main>
+      </main>
+    </div>
   </div>
   <script>
     let currentState = null;
