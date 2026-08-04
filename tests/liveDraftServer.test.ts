@@ -1155,15 +1155,18 @@ describe("live draft server", () => {
 
       const latest = await fetch(`${baseUrl}/api/mock-batch/latest`).then(response => response.json());
       expect(latest.jobId).toBe(started.data.jobId);
-      expect(latest.result.runs[1].label).toBe("Run 2: 3rb");
-      expect(latest.result.runStrategyKeys).toEqual(["three-rb", "three-rb"]);
-      expect(latest.result.analytics.strategyLeaderboard).toEqual([
+      expect(latest.result.runs[1].label).toBe("Run 2: balanced");
+      expect(latest.result.runStrategyKeys).toEqual(["three-rb", "balanced"]);
+      expect(latest.result.analytics.strategyLeaderboard).toEqual(expect.arrayContaining([
         expect.objectContaining({
           strategyKey: "three-rb",
-          runCount: 2,
-          averageCamRank: (completed.result.runs[0].camOutcome.rank + completed.result.runs[1].camOutcome.rank) / 2,
+          runCount: 1,
         }),
-      ]);
+        expect.objectContaining({
+          strategyKey: "balanced",
+          runCount: 1,
+        }),
+      ]));
       expect(latest.result.analytics.camScoreRange).toEqual(expect.objectContaining({
         minimumWeek1Score: completed.result.runs[0].camOutcome.week1Score,
         maximumWeek1Score: completed.result.runs[1].camOutcome.week1Score,
@@ -1212,6 +1215,7 @@ describe("live draft server", () => {
       const completed = await waitForMockBatchJob(baseUrl, started.data.jobId);
 
       expect(capturedOptions?.runsPerScenario).toBe(2);
+      expect(started.data.runStrategyKeys).toEqual(["three-rb", "balanced"]);
       expect(capturedOptions?.auctionConfigOverrides?.ownerPlayerTargetMaxBids?.Cam?.["Jadarian Price"]).toBe(20);
       expect(completed.result.script).toMatchObject({
         label: "Target Jadarian Price up to $20",
@@ -1253,6 +1257,14 @@ describe("live draft server", () => {
       const completed = await waitForMockBatchJob(baseUrl, started.data.jobId);
 
       expect(started.data.totalRuns).toBe(6);
+      expect(started.data.runStrategyKeys).toEqual([
+        "three-rb",
+        "balanced",
+        "three-rb",
+        "balanced",
+        "three-rb",
+        "balanced",
+      ]);
       expect(completed.status).toBe("complete");
       expect(completed.result.summary.runCount).toBe(6);
       expect(completed.result.script).toMatchObject({

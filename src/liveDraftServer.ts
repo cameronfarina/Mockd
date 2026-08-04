@@ -1189,8 +1189,19 @@ const mockDraftRequestFor = (
 const mockBatchStrategySequence = (
   preferredStrategyKey: LiveDraftStrategyKey,
   runCount: number,
+  segmentSize = runCount,
 ): LiveDraftStrategyKey[] =>
-  Array.from({ length: runCount }, () => preferredStrategyKey);
+  Array.from({ length: runCount }, (_, index) => {
+    const cycle: readonly LiveDraftStrategyKey[] = preferredStrategyKey === "three-rb"
+      ? ["three-rb", "balanced", "three-rb", "hero-rb", "three-rb", "wr-heavy", "balanced", "three-rb"]
+      : preferredStrategyKey === "balanced"
+        ? ["balanced", "three-rb", "balanced", "hero-rb", "balanced", "wr-heavy"]
+        : preferredStrategyKey === "hero-rb"
+          ? ["hero-rb", "balanced", "hero-rb", "wr-heavy", "balanced", "three-rb"]
+          : ["wr-heavy", "balanced", "wr-heavy", "hero-rb", "balanced", "three-rb"];
+    const segmentIndex = Math.max(0, index % Math.max(1, segmentSize));
+    return cycle[segmentIndex % cycle.length] ?? preferredStrategyKey;
+  });
 
 const mockSpeedActions = new Set(["next-ai-sale", "next-cam-decision", "next-round", "complete-mock"]);
 
@@ -1963,7 +1974,7 @@ export const createLiveDraftServer = async (
       jobId: `mock-batch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       status: "queued",
       strategyKey,
-      runStrategyKeys: mockBatchStrategySequence(strategyKey, totalRuns),
+      runStrategyKeys: mockBatchStrategySequence(strategyKey, totalRuns, runsPerScenario),
       ...(script === undefined ? {} : { script }),
       totalRuns,
       completedRuns: 0,
