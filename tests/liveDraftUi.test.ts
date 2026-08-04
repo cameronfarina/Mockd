@@ -150,7 +150,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("return (rightValue - leftValue) || defaultTieBreak;");
     expect(liveDraftHtml).toContain("margin: -8px -10px;");
     expect(liveDraftHtml).toContain("border: 0;");
-    expect(liveDraftHtml).toContain("box-shadow: inset 0 -2px 0 rgba(99, 168, 255, 0.72);");
+    expect(liveDraftHtml).toContain("box-shadow: inset 0 -2px 0 rgba(91, 168, 255, 0.86);");
     expect(liveDraftHtml).toContain(".sort-heading:hover,");
     expect(liveDraftHtml).toContain(".sort-heading[data-active-sort=\"true\"]");
     expect(liveDraftHtml).not.toContain("let boardSortDirection");
@@ -294,23 +294,27 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain(".board-table tbody tr.target-action-row-open");
     expect(liveDraftHtml).toContain("Add to shortlist");
     expect(liveDraftHtml).toContain("Nominate");
-    expect(liveDraftHtml).toContain("advanceMockDraft('cam-nominate', target.name)");
+    expect(liveDraftHtml).toContain("advanceMockDraft('cam-nominate', target.name, nominationPriceValue())");
+    expect(liveDraftHtml).toContain("id=\"mock-nomination-price\"");
+    expect(liveDraftHtml).toContain("let pendingCamNominationPrice = 1");
+    expect(liveDraftHtml).toContain("const nominationPriceValue = () =>");
     expect(liveDraftHtml).toContain("const mockNominationIdeaEvents = mockDraft =>");
     expect(liveDraftHtml).toContain("mockDraft.phase === 'human-nomination' || Boolean(mockDraft.auction)");
     expect(liveDraftHtml).toContain("textElement('strong', 'Cam is nominating')");
-    expect(liveDraftHtml).toContain("target ? 'Ready to nominate ' + target.name : 'Select a player from the board'");
+    expect(liveDraftHtml).toContain("target ? 'Ready to nominate ' + target.name + ' at ' + money(nominationPriceValue()) : 'Select a player from the board'");
     expect(liveDraftHtml).toContain("renderMockAuctionFeedEvents(mockNominationIdeaEvents(mockDraft))");
     expect(liveDraftHtml).toContain("if (currentState) renderBoard(currentState);\n        renderSaleControls(currentState);\n        return;");
     expect(liveDraftHtml).toContain("const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.recommendedMaxBid");
     expect(liveDraftHtml).toContain("byId('add-price').value = String(nominationPrice)");
-    expect(liveDraftHtml).toContain("const advanceMockDraft = async (action, nominatedPlayerName = selectedTargetName) =>");
+    expect(liveDraftHtml).toContain("const advanceMockDraft = async (action, nominatedPlayerName = selectedTargetName, nominatedPrice = nominationPriceValue()) =>");
     expect(liveDraftHtml).toContain("let pendingCamNominationName = null");
     expect(liveDraftHtml).toContain("action === 'cam-nominate'");
     expect(liveDraftHtml).toContain("nominatedPlayer: pendingCamNominationName");
+    expect(liveDraftHtml).toContain("nominatedPrice: pendingCamNominationPrice");
     expect(liveDraftHtml).toContain("'Nominate ' + shortPlayerName(target.name)");
     expect(liveDraftHtml).toContain("advanceMockDraft('cam-bid')");
     expect(liveDraftHtml).toContain("mockAuction: currentMockDraft && currentMockDraft.auction");
-    expect(liveDraftHtml).toContain("advanceMockDraft('cam-nominate', selectedTargetName)");
+    expect(liveDraftHtml).toContain("advanceMockDraft('cam-nominate', selectedTargetName, nominationPriceValue())");
     expect(liveDraftHtml).toContain("advanceMockDraft('next-cam-decision')");
     expect(liveDraftHtml).toContain("advanceMockDraft('next-round')");
     expect(liveDraftHtml).toContain("advanceMockDraft('complete-mock')");
@@ -450,7 +454,7 @@ describe("live draft UI shell", () => {
 
   it("uses a dark dashboard shell with command rail and panel grouping", () => {
     expect(liveDraftHtml).toContain("color-scheme: dark;");
-    expect(liveDraftHtml).toContain("--bg: #050b12;");
+    expect(liveDraftHtml).toContain("--bg: #02070d;");
     expect(liveDraftHtml).toContain("--nav-rail-width: 356px;");
     expect(liveDraftHtml).toContain("--global-menu-width: 260px;");
     expect(liveDraftHtml).toContain("--global-menu-height: 72px;");
@@ -480,7 +484,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("right: 0;");
     expect(liveDraftHtml).toContain("z-index: 80;");
     expect(liveDraftHtml).toContain("padding: calc(var(--global-menu-height) + 18px) 24px 28px;");
-    expect(liveDraftHtml).toContain("background: #050b12;");
+    expect(liveDraftHtml).toContain("background: var(--bg);");
     expect(liveDraftHtml).toContain(".sidebar-section {");
     expect(liveDraftHtml).not.toContain(".window-controls {");
     expect(liveDraftHtml).not.toContain(".window-dot");
@@ -522,18 +526,18 @@ describe("live draft UI shell", () => {
   });
 
   it("adds purposeful dashboard color accents to draft-room controls", () => {
-    expect(liveDraftHtml).toContain("--pos-rb: #63a8ff;");
-    expect(liveDraftHtml).toContain("--pos-wr: #a78bfa;");
-    expect(liveDraftHtml).toContain("--pos-te: #1fcf8f;");
-    expect(liveDraftHtml).toContain("--pos-qb: #ff8a4c;");
+    expect(liveDraftHtml).toContain("--pos-rb: #5ba8ff;");
+    expect(liveDraftHtml).toContain("--pos-wr: #ad8cff;");
+    expect(liveDraftHtml).toContain("--pos-te: #19e49c;");
+    expect(liveDraftHtml).toContain("--pos-qb: #ff8845;");
     expect(liveDraftHtml).toContain("const positionClassFor = position => 'position-' + safeClassPart(position || 'unknown');");
     expect(liveDraftHtml).toContain("row.classList.add(positionClassFor(target.position));");
     expect(liveDraftHtml).toContain("pill.className = 'market-pill ' + positionClassFor(position);");
     expect(liveDraftHtml).toContain("item.className = 'strategy-value strategy-' + strategyKey");
     expect(liveDraftHtml).toContain("const tagClassFor = label =>");
     expect(liveDraftHtml).toContain(".board-table tbody tr[class*=\"position-\"] td:first-child");
-    expect(liveDraftHtml).toContain("border: 1px solid var(--position-accent-line, rgba(99, 168, 255, 0.42));");
-    expect(liveDraftHtml).toContain("background: linear-gradient(135deg, var(--position-accent-soft, rgba(99, 168, 255, 0.1)) 0%, rgba(12, 32, 51, 0.64) 58%);");
+    expect(liveDraftHtml).toContain("border: 1px solid var(--position-accent-line, rgba(91, 168, 255, 0.68));");
+    expect(liveDraftHtml).toContain("background: #06101a;");
     expect(liveDraftHtml).toContain(".filter-chip:not([data-position-filter=\"ALL\"])::before");
     expect(liveDraftHtml).toContain(".metric:nth-child(4)");
   });

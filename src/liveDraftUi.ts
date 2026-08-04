@@ -11,30 +11,30 @@ export const liveDraftHtml = `<!doctype html>
   <style>
     :root {
       color-scheme: dark;
-      --bg: #050b12;
-      --sidebar: #07111d;
-      --workspace: #07131f;
-      --surface: #081826;
-      --surface-2: #0c2033;
-      --surface-3: #0f2b45;
-      --text: #d9e7f5;
-      --muted: #7f9ab5;
-      --line: #15324d;
-      --line-soft: #10283f;
-      --accent: #63a8ff;
-      --accent-strong: #2d8cff;
-      --green: #1fcf8f;
-      --amber: #f2a93b;
-      --danger: #ff716a;
-      --purple: #a78bfa;
-      --pos-rb: #63a8ff;
-      --pos-wr: #a78bfa;
-      --pos-te: #1fcf8f;
-      --pos-qb: #ff8a4c;
-      --pos-k: #f8d866;
-      --pos-dst: #ff5c7a;
-      --pos-flex: #22d3ee;
-      --shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+      --bg: #02070d;
+      --sidebar: #06101a;
+      --workspace: #040b13;
+      --surface: #06131f;
+      --surface-2: #0a1a2a;
+      --surface-3: #0d253b;
+      --text: #edf6ff;
+      --muted: #9bb8d3;
+      --line: #1e5f8e;
+      --line-soft: #174b72;
+      --accent: #5ba8ff;
+      --accent-strong: #2388ff;
+      --green: #19e49c;
+      --amber: #ffb638;
+      --danger: #ff6b78;
+      --purple: #ad8cff;
+      --pos-rb: #5ba8ff;
+      --pos-wr: #ad8cff;
+      --pos-te: #19e49c;
+      --pos-qb: #ff8845;
+      --pos-k: #ffd84d;
+      --pos-dst: #ff5470;
+      --pos-flex: #20dff4;
+      --shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
       --nav-rail-width: 356px;
       --global-menu-width: 260px;
       --global-menu-height: 72px;
@@ -50,44 +50,44 @@ export const liveDraftHtml = `<!doctype html>
 
     .position-rb {
       --position-accent: var(--pos-rb);
-      --position-accent-soft: rgba(99, 168, 255, 0.11);
-      --position-accent-line: rgba(99, 168, 255, 0.46);
+      --position-accent-soft: rgba(91, 168, 255, 0.16);
+      --position-accent-line: rgba(91, 168, 255, 0.68);
     }
 
     .position-wr {
       --position-accent: var(--pos-wr);
-      --position-accent-soft: rgba(167, 139, 250, 0.11);
-      --position-accent-line: rgba(167, 139, 250, 0.46);
+      --position-accent-soft: rgba(173, 140, 255, 0.16);
+      --position-accent-line: rgba(173, 140, 255, 0.68);
     }
 
     .position-te {
       --position-accent: var(--pos-te);
-      --position-accent-soft: rgba(31, 207, 143, 0.1);
-      --position-accent-line: rgba(31, 207, 143, 0.42);
+      --position-accent-soft: rgba(25, 228, 156, 0.14);
+      --position-accent-line: rgba(25, 228, 156, 0.62);
     }
 
     .position-qb {
       --position-accent: var(--pos-qb);
-      --position-accent-soft: rgba(255, 138, 76, 0.1);
-      --position-accent-line: rgba(255, 138, 76, 0.42);
+      --position-accent-soft: rgba(255, 136, 69, 0.14);
+      --position-accent-line: rgba(255, 136, 69, 0.62);
     }
 
     .position-k {
       --position-accent: var(--pos-k);
-      --position-accent-soft: rgba(248, 216, 102, 0.09);
-      --position-accent-line: rgba(248, 216, 102, 0.38);
+      --position-accent-soft: rgba(255, 216, 77, 0.13);
+      --position-accent-line: rgba(255, 216, 77, 0.58);
     }
 
     .position-dst {
       --position-accent: var(--pos-dst);
-      --position-accent-soft: rgba(255, 92, 122, 0.1);
-      --position-accent-line: rgba(255, 92, 122, 0.42);
+      --position-accent-soft: rgba(255, 84, 112, 0.14);
+      --position-accent-line: rgba(255, 84, 112, 0.62);
     }
 
     .position-flex {
       --position-accent: var(--pos-flex);
-      --position-accent-soft: rgba(34, 211, 238, 0.1);
-      --position-accent-line: rgba(34, 211, 238, 0.42);
+      --position-accent-soft: rgba(32, 223, 244, 0.14);
+      --position-accent-line: rgba(32, 223, 244, 0.62);
     }
 
     html {
@@ -101,7 +101,7 @@ export const liveDraftHtml = `<!doctype html>
       min-width: 100vw;
       min-height: 100vh;
       overflow-x: hidden;
-      background: radial-gradient(circle at top left, rgba(45, 140, 255, 0.12), transparent 34vw), var(--bg);
+      background: var(--bg);
       color: var(--text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 14px;
@@ -114,15 +114,15 @@ export const liveDraftHtml = `<!doctype html>
     button {
       border: 1px solid var(--line);
       border-radius: 6px;
-      background: rgba(12, 32, 51, 0.9);
+      background: #071827;
       color: var(--text);
       cursor: pointer;
       transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
     }
 
     button:hover:not(:disabled) {
-      border-color: rgba(99, 168, 255, 0.58);
-      background: rgba(15, 43, 69, 0.98);
+      border-color: rgba(91, 168, 255, 0.9);
+      background: #0d253b;
     }
 
     button:disabled {
@@ -131,8 +131,8 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     button.primary {
-      border-color: rgba(99, 168, 255, 0.72);
-      background: linear-gradient(135deg, #63a8ff 0%, #8ecbff 100%);
+      border-color: rgba(91, 168, 255, 0.92);
+      background: var(--accent);
       color: #06101a;
       font-weight: 750;
     }
@@ -168,8 +168,8 @@ export const liveDraftHtml = `<!doctype html>
       width: 24px;
       height: 24px;
       padding: 0;
-      border-color: rgba(99, 168, 255, 0.34);
-      background: rgba(99, 168, 255, 0.08);
+      border-color: rgba(91, 168, 255, 0.52);
+      background: rgba(91, 168, 255, 0.1);
       color: #8fbdf1;
       font-size: 14px;
       line-height: 1;
@@ -225,7 +225,7 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .target-action-menu button:hover:not(:disabled) {
-      background: rgba(99, 168, 255, 0.14);
+      background: rgba(91, 168, 255, 0.16);
       color: #f4f8fc;
     }
 
@@ -249,8 +249,8 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     input:focus, select:focus {
-      border-color: rgba(99, 168, 255, 0.92);
-      box-shadow: 0 0 0 3px rgba(99, 168, 255, 0.12);
+      border-color: rgba(91, 168, 255, 0.92);
+      box-shadow: 0 0 0 3px rgba(91, 168, 255, 0.14);
     }
 
     select {
@@ -270,7 +270,7 @@ export const liveDraftHtml = `<!doctype html>
       height: 100vh;
       min-height: 100vh;
       overflow: hidden;
-      background: linear-gradient(180deg, rgba(8, 24, 38, 0.96), rgba(5, 11, 18, 0.98));
+      background: var(--bg);
     }
 
     .app.draft-active {
@@ -298,7 +298,7 @@ export const liveDraftHtml = `<!doctype html>
       min-width: 0;
       padding: 16px 22px 14px;
       border-bottom: 1px solid var(--line);
-      background: #050b12;
+      background: var(--bg);
       box-shadow: none;
     }
 
@@ -393,7 +393,7 @@ export const liveDraftHtml = `<!doctype html>
       overflow-y: auto;
       padding: 18px 22px 20px;
       border-right: 1px solid var(--line);
-      background: linear-gradient(180deg, #07111d 0%, #050b12 100%);
+      background: var(--sidebar);
     }
 
     .brand {
@@ -628,8 +628,8 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .app-menu-item[aria-current="page"] {
-      border-color: rgba(99, 168, 255, 0.72);
-      background: rgba(99, 168, 255, 0.18);
+      border-color: rgba(91, 168, 255, 0.86);
+      background: rgba(91, 168, 255, 0.2);
     }
 
     .mock-batch-control {
@@ -652,7 +652,7 @@ export const liveDraftHtml = `<!doctype html>
       min-width: 0;
       min-height: 34px;
       background:
-        linear-gradient(90deg, rgba(99, 168, 255, 0.58) var(--mock-progress), transparent var(--mock-progress)),
+        linear-gradient(90deg, rgba(91, 168, 255, 0.78) var(--mock-progress), transparent var(--mock-progress)),
         rgba(12, 32, 51, 0.9);
       color: #d9e7f5;
       font-weight: 750;
@@ -665,7 +665,7 @@ export const liveDraftHtml = `<!doctype html>
     #run-mock-batch-button.mock-batch-ready {
       border-color: rgba(31, 207, 143, 0.72);
       background:
-        linear-gradient(90deg, rgba(31, 207, 143, 0.78) var(--mock-progress), transparent var(--mock-progress)),
+        linear-gradient(90deg, rgba(25, 228, 156, 0.86) var(--mock-progress), transparent var(--mock-progress)),
         rgba(12, 32, 51, 0.9);
       color: #eafff7;
     }
@@ -796,15 +796,15 @@ export const liveDraftHtml = `<!doctype html>
 
     .metric {
       --metric-accent: var(--accent);
-      --metric-wash: rgba(99, 168, 255, 0.1);
-      --metric-line: rgba(99, 168, 255, 0.28);
+      --metric-wash: rgba(91, 168, 255, 0.14);
+      --metric-line: rgba(91, 168, 255, 0.48);
       position: relative;
       overflow: hidden;
       min-width: 0;
       padding: 12px 14px;
       border: 1px solid var(--metric-line);
       border-radius: 8px;
-      background: linear-gradient(180deg, var(--metric-wash) 0%, rgba(8, 24, 38, 0.92) 62%);
+      background: #06131f;
       box-shadow: var(--shadow);
     }
 
@@ -817,31 +817,30 @@ export const liveDraftHtml = `<!doctype html>
       height: 7px;
       border-radius: 999px;
       background: var(--metric-accent);
-      box-shadow: 0 0 16px var(--metric-accent);
     }
 
     .metric:nth-child(2) {
       --metric-accent: var(--purple);
-      --metric-wash: rgba(167, 139, 250, 0.1);
-      --metric-line: rgba(167, 139, 250, 0.26);
+      --metric-wash: rgba(173, 140, 255, 0.14);
+      --metric-line: rgba(173, 140, 255, 0.46);
     }
 
     .metric:nth-child(3) {
       --metric-accent: var(--amber);
-      --metric-wash: rgba(242, 169, 59, 0.1);
-      --metric-line: rgba(242, 169, 59, 0.28);
+      --metric-wash: rgba(255, 182, 56, 0.14);
+      --metric-line: rgba(255, 182, 56, 0.48);
     }
 
     .metric:nth-child(4) {
       --metric-accent: var(--green);
-      --metric-wash: rgba(31, 207, 143, 0.1);
-      --metric-line: rgba(31, 207, 143, 0.28);
+      --metric-wash: rgba(25, 228, 156, 0.14);
+      --metric-line: rgba(25, 228, 156, 0.46);
     }
 
     .metric:nth-child(5) {
       --metric-accent: var(--pos-qb);
-      --metric-wash: rgba(255, 138, 76, 0.09);
-      --metric-line: rgba(255, 138, 76, 0.26);
+      --metric-wash: rgba(255, 136, 69, 0.13);
+      --metric-line: rgba(255, 136, 69, 0.46);
     }
 
     .metric span {
@@ -881,17 +880,17 @@ export const liveDraftHtml = `<!doctype html>
       min-width: 0;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: rgba(8, 24, 38, 0.92);
+      background: #06131f;
       box-shadow: var(--shadow);
       overflow: hidden;
     }
 
     .board-panel {
-      background: rgba(8, 24, 38, 0.92);
+      background: #06131f;
     }
 
     .decision-panel {
-      background: rgba(8, 24, 38, 0.92);
+      background: #06131f;
     }
 
     .panel-header {
@@ -902,7 +901,7 @@ export const liveDraftHtml = `<!doctype html>
       min-height: 48px;
       padding: 12px 14px;
       border-bottom: 1px solid var(--line);
-      background: rgba(5, 11, 18, 0.34);
+      background: #02070d;
     }
 
     h2 {
@@ -928,7 +927,7 @@ export const liveDraftHtml = `<!doctype html>
       overflow-x: auto;
       padding: 12px 14px;
       border-bottom: 1px solid var(--line);
-      background: rgba(7, 19, 31, 0.82);
+      background: #06101a;
     }
 
     .segmented {
@@ -941,7 +940,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .filter-chip {
       --chip-accent: var(--accent);
-      --chip-wash: rgba(99, 168, 255, 0.14);
+      --chip-wash: rgba(91, 168, 255, 0.18);
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -957,7 +956,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .filter-chip[data-position-filter="RB"] {
       --chip-accent: var(--pos-rb);
-      --chip-wash: rgba(99, 168, 255, 0.16);
+      --chip-wash: rgba(91, 168, 255, 0.2);
     }
 
     .filter-chip[data-position-filter="WR"] {
@@ -996,12 +995,11 @@ export const liveDraftHtml = `<!doctype html>
       height: 6px;
       border-radius: 999px;
       background: var(--chip-accent);
-      box-shadow: 0 0 12px var(--chip-accent);
     }
 
     .filter-chip[aria-pressed="true"] {
       border-color: var(--chip-accent);
-      background: linear-gradient(180deg, var(--chip-wash) 0%, rgba(5, 11, 18, 0.5) 100%);
+      background: var(--chip-wash);
       color: #e7f2ff;
     }
 
@@ -1035,7 +1033,7 @@ export const liveDraftHtml = `<!doctype html>
       gap: 6px;
       padding: 10px 14px;
       border-bottom: 1px solid var(--line);
-      background: rgba(5, 11, 18, 0.26);
+      background: #02070d;
     }
 
     .market-pill {
@@ -1043,9 +1041,9 @@ export const liveDraftHtml = `<!doctype html>
       gap: 5px;
       align-items: baseline;
       padding: 4px 8px;
-      border: 1px solid var(--position-accent-line, rgba(99, 168, 255, 0.42));
+      border: 1px solid var(--position-accent-line, rgba(91, 168, 255, 0.68));
       border-radius: 6px;
-      background: linear-gradient(135deg, var(--position-accent-soft, rgba(99, 168, 255, 0.1)) 0%, rgba(12, 32, 51, 0.64) 58%);
+      background: #06101a;
       color: var(--muted);
       font-size: 11px;
       white-space: nowrap;
@@ -1058,7 +1056,6 @@ export const liveDraftHtml = `<!doctype html>
       height: 6px;
       border-radius: 999px;
       background: var(--position-accent, var(--accent));
-      box-shadow: 0 0 12px var(--position-accent, var(--accent));
     }
 
     .market-pill strong {
@@ -1072,7 +1069,7 @@ export const liveDraftHtml = `<!doctype html>
       gap: 8px;
       padding: 10px 14px;
       border-bottom: 1px solid var(--line);
-      background: rgba(5, 11, 18, 0.34);
+      background: #02070d;
     }
 
     .mock-auction-feed[hidden] {
@@ -1085,9 +1082,9 @@ export const liveDraftHtml = `<!doctype html>
       justify-content: space-between;
       gap: 10px;
       padding: 9px 10px;
-      border: 1px solid rgba(99, 168, 255, 0.5);
+      border: 1px solid rgba(91, 168, 255, 0.86);
       border-radius: 6px;
-      background: rgba(99, 168, 255, 0.1);
+      background: #0a2034;
     }
 
     .mock-auction-nomination strong {
@@ -1113,10 +1110,10 @@ export const liveDraftHtml = `<!doctype html>
     .mock-feed-line {
       flex: 0 0 auto;
       padding: 5px 7px;
-      border: 1px solid var(--line-soft);
+      border: 1px solid var(--line);
       border-radius: 6px;
-      background: rgba(8, 24, 38, 0.82);
-      color: #a9c4df;
+      background: #06131f;
+      color: #c4daf0;
       font-size: 12px;
       line-height: 1.2;
       white-space: nowrap;
@@ -1137,9 +1134,9 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .mock-feed-line.sold {
-      border-color: rgba(31, 207, 143, 0.52);
-      color: #7af0bd;
-      background: rgba(31, 207, 143, 0.1);
+      border-color: rgba(25, 228, 156, 0.78);
+      color: #77ffd0;
+      background: rgba(25, 228, 156, 0.12);
     }
 
     .scroll {
@@ -1163,7 +1160,7 @@ export const liveDraftHtml = `<!doctype html>
     .target-card[class*="position-"] {
       padding-left: 8px;
       border-radius: 6px;
-      background: linear-gradient(90deg, var(--position-accent-soft, rgba(99, 168, 255, 0.08)) 0%, transparent 34%);
+      background: rgba(8, 24, 38, 0.72);
       box-shadow: inset 3px 0 0 var(--position-accent, var(--accent));
     }
 
@@ -1208,9 +1205,9 @@ export const liveDraftHtml = `<!doctype html>
     .target-card-value {
       min-width: 0;
       padding: 6px 7px;
-      border: 1px solid var(--line-soft);
+      border: 1px solid var(--line);
       border-radius: 6px;
-      background: rgba(5, 11, 18, 0.38);
+      background: #02070d;
     }
 
     .target-card-value span {
@@ -1226,9 +1223,9 @@ export const liveDraftHtml = `<!doctype html>
       gap: 8px;
       min-width: 0;
       padding: 7px 10px;
-      border: 1px solid var(--line-soft);
+      border: 1px solid var(--line);
       border-radius: 6px;
-      background: rgba(12, 32, 51, 0.72);
+      background: #06131f;
       color: var(--muted);
       font-size: 12px;
       font-weight: 650;
@@ -1246,13 +1243,13 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .room-mode-indicator.mock {
-      border-color: rgba(99, 168, 255, 0.52);
-      background: rgba(99, 168, 255, 0.14);
+      border-color: rgba(91, 168, 255, 0.86);
+      background: #0a2034;
     }
 
     .room-mode-indicator.real {
-      border-color: rgba(31, 207, 143, 0.42);
-      background: rgba(31, 207, 143, 0.09);
+      border-color: rgba(25, 228, 156, 0.74);
+      background: rgba(25, 228, 156, 0.1);
     }
 
     .target-card-value strong {
@@ -1336,16 +1333,16 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .board-table tbody tr[class*="position-"]:hover {
-      background: linear-gradient(90deg, var(--position-accent-soft) 0%, rgba(99, 168, 255, 0.045) 48%, transparent 100%);
+      background: #0a1a2a;
     }
 
     .board-table tbody tr[class*="position-"].is-selected {
-      background: linear-gradient(90deg, var(--position-accent-soft) 0%, rgba(99, 168, 255, 0.1) 52%, transparent 100%);
+      background: #0b2236;
     }
 
     th, td {
       padding: 8px 10px;
-      border-bottom: 1px solid var(--line-soft);
+      border-bottom: 1px solid var(--line);
       text-align: left;
       vertical-align: middle;
       overflow-wrap: normal;
@@ -1363,11 +1360,11 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     tbody tr:hover {
-      background: rgba(99, 168, 255, 0.055);
+      background: rgba(91, 168, 255, 0.08);
     }
 
     tbody tr.is-selected {
-      background: rgba(99, 168, 255, 0.1);
+      background: rgba(91, 168, 255, 0.14);
     }
 
     tbody tr.is-nominated {
@@ -1414,14 +1411,14 @@ export const liveDraftHtml = `<!doctype html>
 
     .sort-heading:hover,
     .sort-heading[data-active-sort="true"] {
-      background: rgba(99, 168, 255, 0.08);
-      box-shadow: inset 0 -2px 0 rgba(99, 168, 255, 0.72);
+      background: rgba(91, 168, 255, 0.1);
+      box-shadow: inset 0 -2px 0 rgba(91, 168, 255, 0.86);
       color: #d9e7f5;
     }
 
     .sort-heading:focus-visible {
       outline: 0;
-      box-shadow: inset 0 -2px 0 rgba(99, 168, 255, 0.82), 0 0 0 3px rgba(99, 168, 255, 0.12);
+      box-shadow: inset 0 -2px 0 rgba(91, 168, 255, 0.92), 0 0 0 3px rgba(91, 168, 255, 0.14);
     }
 
     td.money, th.money, td.center, th.center {
@@ -1472,7 +1469,7 @@ export const liveDraftHtml = `<!doctype html>
       margin: 3px 4px 0 0;
       padding: 2px 5px;
       border-radius: 4px;
-      background: rgba(99, 168, 255, 0.14);
+      background: rgba(91, 168, 255, 0.18);
       color: #a9d3ff;
       font-size: 11px;
       line-height: 1.2;
@@ -1484,7 +1481,7 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .tag.need {
-      background: rgba(99, 168, 255, 0.16);
+      background: rgba(91, 168, 255, 0.2);
       color: #b8dcff;
     }
 
@@ -1515,7 +1512,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .strategy-value {
       --strategy-accent: var(--accent);
-      --strategy-wash: rgba(99, 168, 255, 0.1);
+      --strategy-wash: rgba(91, 168, 255, 0.14);
       padding: 2px 5px;
       border: 1px solid rgba(21, 50, 77, 0.76);
       border-radius: 4px;
@@ -1525,7 +1522,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .strategy-balanced {
       --strategy-accent: var(--pos-rb);
-      --strategy-wash: rgba(99, 168, 255, 0.12);
+      --strategy-wash: rgba(91, 168, 255, 0.16);
     }
 
     .strategy-three-rb {
@@ -1597,8 +1594,8 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .side-tabs button[aria-pressed="true"] {
-      border-color: rgba(99, 168, 255, 0.72);
-      background: rgba(99, 168, 255, 0.18);
+      border-color: rgba(91, 168, 255, 0.86);
+      background: rgba(91, 168, 255, 0.2);
       color: #e7f2ff;
     }
 
@@ -1625,9 +1622,9 @@ export const liveDraftHtml = `<!doctype html>
       grid-column: 1 / -1;
       min-height: 38px;
       padding: 10px;
-      border: 1px solid var(--position-accent-line, rgba(99, 168, 255, 0.34));
+      border: 1px solid var(--position-accent-line, rgba(91, 168, 255, 0.58));
       border-radius: 6px;
-      background: linear-gradient(135deg, var(--position-accent-soft, rgba(99, 168, 255, 0.08)) 0%, rgba(5, 11, 18, 0.42) 58%);
+      background: rgba(5, 11, 18, 0.66);
     }
 
     .selected-player strong {
@@ -1758,9 +1755,9 @@ export const liveDraftHtml = `<!doctype html>
       gap: 2px;
       min-width: 0;
       padding: 8px 9px;
-      border: 1px solid var(--position-accent-line, rgba(99, 168, 255, 0.26));
+      border: 1px solid var(--position-accent-line, rgba(91, 168, 255, 0.48));
       border-radius: 6px;
-      background: linear-gradient(135deg, var(--position-accent-soft, rgba(99, 168, 255, 0.08)) 0%, rgba(5, 11, 18, 0.32) 56%);
+      background: rgba(5, 11, 18, 0.54);
     }
 
     .summary-item strong {
@@ -1795,15 +1792,26 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .mock-auction-actions {
-      grid-template-columns: repeat(7, minmax(86px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
     }
 
-    .mock-actions button {
+    .mock-actions button,
+    .mock-actions input {
       min-height: 32px;
       padding: 0 7px;
       font-size: 12px;
       font-weight: 650;
       line-height: 1.15;
+    }
+
+    .mock-actions input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #02070d;
+      color: var(--text);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
     }
 
     .raw-command {
@@ -1856,7 +1864,7 @@ export const liveDraftHtml = `<!doctype html>
       min-width: 100vw;
       min-height: 100vh;
       overflow-x: clip;
-      background: linear-gradient(180deg, rgba(8, 24, 38, 0.96), rgba(5, 11, 18, 0.98));
+      background: var(--bg);
       color: var(--text);
     }
 
@@ -1871,8 +1879,8 @@ export const liveDraftHtml = `<!doctype html>
       right: 0;
       z-index: 80;
       height: var(--global-menu-height);
-      background: #050b12;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+      background: var(--bg);
+      box-shadow: none;
     }
 
     .results-title-block {
@@ -1969,7 +1977,7 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .run-option[aria-selected="true"] {
-      background: rgba(99, 168, 255, 0.16);
+      background: rgba(91, 168, 255, 0.2);
       color: #e7f2ff;
     }
 
@@ -2266,7 +2274,7 @@ export const liveDraftHtml = `<!doctype html>
       max-height: 240px;
       overflow-y: auto;
       padding: 5px;
-      border: 1px solid rgba(99, 168, 255, 0.42);
+      border: 1px solid rgba(91, 168, 255, 0.62);
       border-radius: 8px;
       background: #07131f;
       box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
@@ -2291,11 +2299,11 @@ export const liveDraftHtml = `<!doctype html>
 
     .player-news-filter-option:hover,
     .player-news-filter-option:focus {
-      background: rgba(99, 168, 255, 0.12);
+      background: rgba(91, 168, 255, 0.16);
     }
 
     .player-news-filter-option[aria-selected="true"] {
-      background: rgba(99, 168, 255, 0.18);
+      background: rgba(91, 168, 255, 0.22);
       color: #e7f2ff;
     }
 
@@ -2406,9 +2414,9 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .player-news-date-chip {
-      border-color: rgba(99, 168, 255, 0.46);
+      border-color: rgba(91, 168, 255, 0.68);
       color: #cfe5ff;
-      background: rgba(99, 168, 255, 0.1);
+      background: rgba(91, 168, 255, 0.14);
     }
 
     .player-news-source {
@@ -2878,7 +2886,7 @@ export const liveDraftHtml = `<!doctype html>
         grid-template-columns: auto minmax(0, 1fr) auto;
         min-height: 56px;
         padding: 0 12px;
-        background: #050b12;
+        background: var(--bg);
       }
 
       .draft-title-group {
@@ -3148,6 +3156,7 @@ export const liveDraftHtml = `<!doctype html>
         <div class="mock-auction-feed" id="mock-auction-feed" hidden>
           <div class="mock-auction-nomination" id="mock-active-nomination"></div>
           <div class="mock-actions mock-auction-actions">
+            <input type="number" id="mock-nomination-price" min="1" step="1" value="1" placeholder="Open $" aria-label="Opening nomination bid" hidden disabled>
             <button type="button" id="mock-advance-button" disabled>Advance AI Sale</button>
             <button type="button" id="mock-nominate-button" disabled>Nominate</button>
             <button type="button" id="mock-cam-win-button" disabled>Bid</button>
@@ -3410,6 +3419,7 @@ export const liveDraftHtml = `<!doctype html>
     let draftCountdownTimer = null;
     let activeSidePanel = 'lineup';
     let pendingCamNominationName = null;
+    let pendingCamNominationPrice = 1;
     let currentMockDraft = null;
     let latestMockBatchReport = null;
     let latestMockBatchJob = null;
@@ -3470,6 +3480,10 @@ export const liveDraftHtml = `<!doctype html>
 
     const byId = id => document.getElementById(id);
     const money = value => '$' + Math.round(Number(value || 0));
+    const nominationPriceValue = () => {
+      const price = Number(byId('mock-nomination-price').value);
+      return Number.isInteger(price) && price > 0 ? price : 1;
+    };
     const scoreText = value => Number(value || 0).toFixed(1);
     const deltaMoney = value => {
       const rounded = Math.round(Number(value || 0));
@@ -3515,7 +3529,7 @@ export const liveDraftHtml = `<!doctype html>
     const stateUrl = () => '/api/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery();
     const mockDraftUrl = () =>
       '/api/mock/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery() + '&seed=live-ui' +
-      (pendingCamNominationName ? '&nominatedPlayer=' + encodeURIComponent(pendingCamNominationName) : '');
+      (pendingCamNominationName ? '&nominatedPlayer=' + encodeURIComponent(pendingCamNominationName) + '&nominatedPrice=' + encodeURIComponent(String(pendingCamNominationPrice)) : '');
     const draftNightLockFor = state => {
       if (state && state.activeDraftSession && state.activeDraftSession.key !== currentDraftSession) return currentDraftSession === 'live';
       if (state && state.draftNightLock) return Boolean(state.draftNightLock.locked);
@@ -4087,7 +4101,7 @@ export const liveDraftHtml = `<!doctype html>
       const secondaryAction = currentDraftMode === 'interactive-mock'
         ? targetActionMenuButton('Nominate', !canNominateTarget(target), () => {
             selectTargetForSale(target);
-            void advanceMockDraft('cam-nominate', target.name);
+            void advanceMockDraft('cam-nominate', target.name, nominationPriceValue());
           }, 'target-action-primary')
         : targetActionMenuButton('Select for sale', target.draftable === false, () => selectTargetForSale(target), 'target-action-primary');
 
@@ -5793,7 +5807,7 @@ export const liveDraftHtml = `<!doctype html>
         const target = selectedTarget();
         active.replaceChildren(
           textElement('strong', 'Cam is nominating'),
-          textElement('span', target ? 'Ready to nominate ' + target.name : 'Select a player from the board', 'mock-auction-phase')
+          textElement('span', target ? 'Ready to nominate ' + target.name + ' at ' + money(nominationPriceValue()) : 'Select a player from the board', 'mock-auction-phase')
         );
         renderMockAuctionFeedEvents(mockNominationIdeaEvents(mockDraft));
         return;
@@ -5856,9 +5870,11 @@ export const liveDraftHtml = `<!doctype html>
       const nextDecisionButton = byId('mock-next-decision-button');
       const nextRoundButton = byId('mock-next-round-button');
       const completeButton = byId('mock-complete-button');
+      const nominationPriceInput = byId('mock-nomination-price');
       const target = selectedTarget();
       const terminal = phase === 'complete' || phase === 'blocked';
       const humanStop = phase === 'human-decision' || phase === 'human-nomination';
+      const canNominate = isMockMode && phase === 'human-nomination' && Boolean(target);
       advanceButton.disabled = !isMockMode || phase !== 'ai-sale';
       if (mockDraft && mockDraft.auction && mockDraft.auction.resolution) {
         const auction = mockDraft.auction;
@@ -5866,7 +5882,10 @@ export const liveDraftHtml = `<!doctype html>
       } else {
         advanceButton.textContent = 'Advance AI Sale';
       }
-      nominateButton.disabled = !isMockMode || phase !== 'human-nomination' || !target;
+      nominationPriceInput.hidden = !canNominate;
+      nominationPriceInput.disabled = !canNominate;
+      if (canNominate && nominationPriceValue() <= 0) nominationPriceInput.value = String(pendingCamNominationPrice || 1);
+      nominateButton.disabled = !canNominate;
       nominateButton.textContent = target ? 'Nominate ' + shortPlayerName(target.name) : 'Nominate';
       camBidButton.disabled = !isMockMode || phase !== 'human-decision' || !mockDraft.camDecision;
       camBidButton.textContent = mockDraft && mockDraft.auction && mockDraft.auction.nextCamBid != null ? 'Bid ' + money(mockDraft.auction.nextCamBid) : 'Bid';
@@ -6260,6 +6279,7 @@ export const liveDraftHtml = `<!doctype html>
       draftLifecycle = 'active';
       draftCountdownValue = 0;
       pendingCamNominationName = null;
+      pendingCamNominationPrice = 1;
       persistDraftLifecycle();
 
       if (currentDraftMode === 'interactive-mock') {
@@ -6307,6 +6327,7 @@ export const liveDraftHtml = `<!doctype html>
       draftLifecycle = 'setup';
       draftCountdownValue = 0;
       pendingCamNominationName = null;
+      pendingCamNominationPrice = 1;
       persistDraftLifecycle();
       await refreshDraftRoom();
       focusCommandInput();
@@ -6323,6 +6344,7 @@ export const liveDraftHtml = `<!doctype html>
       else if (!isActiveDraft()) draftLifecycle = 'setup';
       selectedTargetName = null;
       pendingCamNominationName = null;
+      pendingCamNominationPrice = 1;
       persistDraftLifecycle();
       await refreshDraftRoom();
       if (window.location.pathname === '/') {
@@ -6346,6 +6368,7 @@ export const liveDraftHtml = `<!doctype html>
       if (!isActiveDraft()) draftLifecycle = 'setup';
       selectedTargetName = null;
       pendingCamNominationName = null;
+      pendingCamNominationPrice = 1;
       persistDraftLifecycle();
       await refreshDraftRoom();
       focusCommandInput();
@@ -6626,6 +6649,7 @@ export const liveDraftHtml = `<!doctype html>
       alertCommandErrors(data);
       if (!data.errors.length) {
         pendingCamNominationName = null;
+        pendingCamNominationPrice = 1;
         selectedTargetName = data.availableTargets[0] ? data.availableTargets[0].name : null;
         render(data);
       }
@@ -6639,7 +6663,7 @@ export const liveDraftHtml = `<!doctype html>
       return window.confirm('This will ' + action + ' the real live draft room. Export a bundle first if you are not sure.');
     };
 
-    const advanceMockDraft = async (action, nominatedPlayerName = selectedTargetName) => {
+    const advanceMockDraft = async (action, nominatedPlayerName = selectedTargetName, nominatedPrice = nominationPriceValue()) => {
       if (draftNightLockFor(currentState)) {
         window.alert(draftNightLockReasonFor(currentState));
         currentDraftMode = 'real';
@@ -6652,6 +6676,7 @@ export const liveDraftHtml = `<!doctype html>
       }
       if (action === 'cam-nominate') {
         pendingCamNominationName = nominatedPlayerName;
+        pendingCamNominationPrice = nominatedPrice;
         selectedTargetName = nominatedPlayerName;
       }
       if (action === 'cam-bid') {
@@ -6671,9 +6696,13 @@ export const liveDraftHtml = `<!doctype html>
         seed: 'live-ui',
         action,
         nominatedPlayer: pendingCamNominationName,
+        nominatedPrice: pendingCamNominationPrice,
         mockAuction: currentMockDraft && currentMockDraft.auction
       });
-      if (action !== 'cam-nominate' && !data.errors.length) pendingCamNominationName = null;
+      if (action !== 'cam-nominate' && !data.errors.length) {
+        pendingCamNominationName = null;
+        pendingCamNominationPrice = nominationPriceValue();
+      }
       if (!data.mockDraft) await refreshMockDraft();
       focusCommandInput();
       return data;
@@ -6813,6 +6842,7 @@ export const liveDraftHtml = `<!doctype html>
     byId('strategy-select').addEventListener('change', async event => {
       currentStrategyKey = strategyKeys.includes(event.target.value) ? event.target.value : 'three-rb';
       pendingCamNominationName = null;
+      pendingCamNominationPrice = 1;
       persistDraftLifecycle();
       await refreshDraftRoom();
       focusCommandInput();
@@ -6908,7 +6938,11 @@ export const liveDraftHtml = `<!doctype html>
     byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
     byId('reset-button').addEventListener('click', () => resetDraftRoom());
     byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
-    byId('mock-nominate-button').addEventListener('click', () => advanceMockDraft('cam-nominate', selectedTargetName));
+    byId('mock-nominate-button').addEventListener('click', () => advanceMockDraft('cam-nominate', selectedTargetName, nominationPriceValue()));
+    byId('mock-nomination-price').addEventListener('input', () => {
+      pendingCamNominationPrice = nominationPriceValue();
+      if (currentMockDraft && currentMockDraft.phase === 'human-nomination') renderMockAuctionFeed(currentMockDraft);
+    });
     byId('mock-cam-win-button').addEventListener('click', () => advanceMockDraft('cam-bid'));
     byId('mock-pass-button').addEventListener('click', () => advanceMockDraft('pass'));
     byId('mock-next-decision-button').addEventListener('click', () => advanceMockDraft('next-cam-decision'));

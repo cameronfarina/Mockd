@@ -597,6 +597,7 @@ interface InteractiveMockDraftModule {
     pricingConfig?: PricingConfig;
     seed?: string;
     nominatedPlayer?: string;
+    nominatedPrice?: number;
   }): unknown;
   resolveInteractiveMockDraftAction(mockDraft: unknown, action: string): unknown;
 }
@@ -943,6 +944,21 @@ const nominatedPlayerFromValue = (value: unknown): string | undefined => {
   return nominatedPlayer ? nominatedPlayer : undefined;
 };
 
+const nominatedPriceFromValue = (value: unknown): number | undefined => {
+  if (value === undefined || value === null || value === "") return undefined;
+
+  const price = typeof value === "number"
+    ? value
+    : typeof value === "string"
+      ? Number(value.trim())
+      : Number.NaN;
+  if (!Number.isInteger(price) || price <= 0) {
+    throw new Error("Nomination price must be a positive whole-dollar amount.");
+  }
+
+  return price;
+};
+
 const mockDraftScriptFromBody = (body: Record<string, unknown>): MockDraftScript | undefined => {
   const value = body.script ?? body.mockScript;
   if (value === undefined || value === null || value === "") return undefined;
@@ -1076,10 +1092,12 @@ const mockDraftRequestFor = (
   strategyKey: LiveDraftStrategyKey,
   seed: string | undefined,
   nominatedPlayer?: string,
-): { strategyKey: LiveDraftStrategyKey; seed?: string; nominatedPlayer?: string } => ({
+  nominatedPrice?: number,
+): { strategyKey: LiveDraftStrategyKey; seed?: string; nominatedPlayer?: string; nominatedPrice?: number } => ({
   strategyKey,
   ...(seed === undefined ? {} : { seed }),
   ...(nominatedPlayer === undefined ? {} : { nominatedPlayer }),
+  ...(nominatedPrice === undefined ? {} : { nominatedPrice }),
 });
 
 const mockBatchStrategySequence = (
@@ -1348,12 +1366,14 @@ export const createLiveDraftServer = async (
     strategyKey,
     seed,
     nominatedPlayer,
+    nominatedPrice,
   }: {
     draftSessionKey?: string;
     commands?: readonly string[];
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
     nominatedPlayer?: string;
+    nominatedPrice?: number;
   }): Promise<unknown> => {
     const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
     const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
@@ -1367,6 +1387,7 @@ export const createLiveDraftServer = async (
       pricingConfig,
       ...(seed === undefined ? {} : { seed }),
       ...(nominatedPlayer === undefined ? {} : { nominatedPlayer }),
+      ...(nominatedPrice === undefined ? {} : { nominatedPrice }),
     });
   };
   const stateWithMockDraft = async ({
@@ -1374,18 +1395,20 @@ export const createLiveDraftServer = async (
     strategyKey,
     seed,
     nominatedPlayer,
+    nominatedPrice,
   }: {
     draftSessionKey?: string;
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
     nominatedPlayer?: string;
+    nominatedPrice?: number;
   }): Promise<LiveDraftStateResponse & { mockDraft: unknown }> => {
     const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
     const commands = interactiveMockStore.currentCommands();
     return {
       ...await stateFor({ draftSessionKey, mode: "interactive-mock", commands, strategyKey }),
       mockDraft: await mockDraftFor({
-        ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer),
+        ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
         draftSessionKey,
         commands,
       }),
@@ -1482,12 +1505,14 @@ export const createLiveDraftServer = async (
     seed,
     action,
     nominatedPlayer,
+    nominatedPrice,
   }: {
     draftSessionKey: string;
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
     action: string;
     nominatedPlayer?: string;
+    nominatedPrice?: number;
   }): Promise<{ status: number; body: LiveDraftStateResponse & { mockDraft: unknown; errors?: { input: string; message: string }[] } }> => {
     const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
     const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
@@ -1495,6 +1520,7 @@ export const createLiveDraftServer = async (
     let appendedCount = 0;
     let startRound: number | undefined;
     let nextNominatedPlayer = nominatedPlayer;
+    let nextNominatedPrice = nominatedPrice;
     const commandForMockAction = (mockDraft: unknown, actionName: string): string => {
       let currentMockDraft = mockDraft;
       for (let bidStep = 0; bidStep < ownerOrder.length * 2; bidStep += 1) {
@@ -1512,7 +1538,7 @@ export const createLiveDraftServer = async (
 
     for (let step = 0; step < maximumSteps; step += 1) {
       const mockDraft = await mockDraftFor({
-        ...mockDraftRequestFor(strategyKey, seed, nextNominatedPlayer),
+        ...mockDraftRequestFor(strategyKey, seed, nextNominatedPlayer, nextNominatedPrice),
         draftSessionKey,
       });
       const phase = mockDraftPhaseFor(mockDraft);
@@ -1560,7 +1586,10 @@ export const createLiveDraftServer = async (
         return {
           status: 422,
           body: {
-            ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed, nextNominatedPlayer), draftSessionKey }),
+            ...await stateWithMockDraft({
+              ...mockDraftRequestFor(strategyKey, seed, nextNominatedPlayer, nextNominatedPrice),
+              draftSessionKey,
+            }),
             errors: [commandError],
           },
         };
@@ -1568,6 +1597,7 @@ export const createLiveDraftServer = async (
 
       appendedCount += 1;
       nextNominatedPlayer = undefined;
+      nextNominatedPrice = undefined;
     }
 
     return {
@@ -1742,8 +1772,9 @@ export const createLiveDraftServer = async (
         const strategyKey = strategyKeyFromQuery(url);
         const seed = seedFromValue(url.searchParams.get("seed"));
         const nominatedPlayer = nominatedPlayerFromValue(url.searchParams.get("nominatedPlayer"));
+        const nominatedPrice = nominatedPriceFromValue(url.searchParams.get("nominatedPrice"));
         sendJson(response, 200, await stateWithMockDraft({
-          ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer),
+          ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
           draftSessionKey: draftSessionKeyFromQuery(url),
         }));
         return;
@@ -1869,6 +1900,7 @@ export const createLiveDraftServer = async (
         const draftSessionKey = draftSessionKeyFromBody(body);
         const seed = seedFromValue(body.seed);
         const nominatedPlayer = nominatedPlayerFromValue(body.nominatedPlayer);
+        const nominatedPrice = nominatedPriceFromValue(body.nominatedPrice);
         const mockAuction = mockAuctionFromValue(body.mockAuction);
         const action = typeof body.action === "string" ? body.action.trim() : "";
         const lock = draftNightLockFor(draftSessionKey);
@@ -1882,7 +1914,10 @@ export const createLiveDraftServer = async (
 
         if (!action) {
           sendJson(response, 422, {
-            ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer), draftSessionKey }),
+            ...await stateWithMockDraft({
+              ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
+              draftSessionKey,
+            }),
             errors: [{ input: "", message: "Mock draft action is required." }],
           });
           return;
@@ -1896,6 +1931,7 @@ export const createLiveDraftServer = async (
               action,
               ...(seed === undefined ? {} : { seed }),
               ...(nominatedPlayer === undefined ? {} : { nominatedPlayer }),
+              ...(nominatedPrice === undefined ? {} : { nominatedPrice }),
             }),
           );
           sendJson(response, result.status, result.body);
@@ -1912,7 +1948,7 @@ export const createLiveDraftServer = async (
           }
 
           sendJson(response, 200, await stateWithMockDraft({
-            ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer),
+            ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
             draftSessionKey,
           }));
           return;
@@ -1922,7 +1958,7 @@ export const createLiveDraftServer = async (
           const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
           const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
           const mockDraft = mockDraftWithClientAuction(
-            await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer), draftSessionKey }),
+            await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice), draftSessionKey }),
             mockAuction,
           );
           const actionResult = interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, action);
@@ -1949,7 +1985,10 @@ export const createLiveDraftServer = async (
             return {
               status: 422,
               body: {
-                ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer), draftSessionKey }),
+                ...await stateWithMockDraft({
+                  ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
+                  draftSessionKey,
+                }),
                 errors: [commandError],
               },
             };

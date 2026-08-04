@@ -22,43 +22,46 @@ const mockAiSaleCommands = [
 ] as const;
 
 const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiveMockDraft"]> = {
-  buildInteractiveMockDraftState: options => ({
-    phase: options.nominatedPlayer
-      ? "human-decision"
-      : options.commands.length >= 3
-        ? "complete"
-        : options.commands.length >= 2
-          ? "human-decision"
-          : "ai-sale",
-    pickNumber: options.commands.length + 1,
-    aiSaleCommand: mockAiSaleCommands[options.commands.length] ?? mockAiSaleCommands[1],
-    nomination: options.nominatedPlayer ? { player: options.nominatedPlayer } : { player: "Breece Hall" },
-    auction: {
-      status: "cam-decision",
-      player: options.nominatedPlayer ?? "Breece Hall",
-      currentBid: options.commands.length >= 2 ? 41 : 40,
-      currentBidOwner: "Chip",
-      nextCamBid: options.commands.length >= 2 ? 42 : 41,
-      openingBid: 37,
-      feed: [
-        { type: "nomination", text: `Cam nominated ${options.nominatedPlayer ?? "Breece Hall"} for $37` },
-        {
-          type: "bid",
-          owner: "Chip",
-          amount: options.commands.length >= 2 ? 41 : 40,
-          text: `Chip bid $${options.commands.length >= 2 ? 41 : 40}`,
-        },
-      ],
-    },
-    camDecision: options.nominatedPlayer || options.commands.length >= 2
-      ? { recommendedBid: 42, maxBid: 44, topAiBid: 41, topAiBidOwner: "Chip" }
-      : undefined,
-    topTargets: [{ name: "Breece Hall" }],
-    commandCount: options.commands.length,
-    nominatedPlayer: options.nominatedPlayer,
-    seed: options.seed,
-    strategyKey: options.strategyKey,
-  }),
+  buildInteractiveMockDraftState: options => {
+    const openingBid = options.nominatedPrice ?? 37;
+    return {
+      phase: options.nominatedPlayer
+        ? "human-decision"
+        : options.commands.length >= 3
+          ? "complete"
+          : options.commands.length >= 2
+            ? "human-decision"
+            : "ai-sale",
+      pickNumber: options.commands.length + 1,
+      aiSaleCommand: mockAiSaleCommands[options.commands.length] ?? mockAiSaleCommands[1],
+      nomination: options.nominatedPlayer ? { player: options.nominatedPlayer } : { player: "Breece Hall" },
+      auction: {
+        status: "cam-decision",
+        player: options.nominatedPlayer ?? "Breece Hall",
+        currentBid: options.commands.length >= 2 ? 41 : 40,
+        currentBidOwner: "Chip",
+        nextCamBid: options.commands.length >= 2 ? 42 : 41,
+        openingBid,
+        feed: [
+          { type: "nomination", text: `Cam nominated ${options.nominatedPlayer ?? "Breece Hall"} for $${openingBid}` },
+          {
+            type: "bid",
+            owner: "Chip",
+            amount: options.commands.length >= 2 ? 41 : 40,
+            text: `Chip bid $${options.commands.length >= 2 ? 41 : 40}`,
+          },
+        ],
+      },
+      camDecision: options.nominatedPlayer || options.commands.length >= 2
+        ? { recommendedBid: 42, maxBid: 44, topAiBid: 41, topAiBidOwner: "Chip" }
+        : undefined,
+      topTargets: [{ name: "Breece Hall" }],
+      commandCount: options.commands.length,
+      nominatedPlayer: options.nominatedPlayer,
+      seed: options.seed,
+      strategyKey: options.strategyKey,
+    };
+  },
   resolveInteractiveMockDraftAction: (mockDraft, action) => {
     const draft = mockDraft as {
       aiSaleCommand?: string;
@@ -891,10 +894,13 @@ describe("live draft server", () => {
         seed: "server-cam-nomination",
         action: "cam-nominate",
         nominatedPlayer: "Breece Hall",
+        nominatedPrice: 9,
       });
       expect(nominationPreview.status).toBe(200);
       expect(nominationPreview.data.session.commandCount).toBe(0);
       expect(nominationPreview.data.mockDraft.nominatedPlayer).toBe("Breece Hall");
+      expect(nominationPreview.data.mockDraft.auction.openingBid).toBe(9);
+      expect(nominationPreview.data.mockDraft.auction.feed[0].text).toBe("Cam nominated Breece Hall for $9");
 
       const camBid = await post(baseUrl, "/api/mock/advance", {
         draftSession: "practice-3rb",

@@ -165,6 +165,7 @@ export interface BuildInteractiveMockDraftStateOptions {
   pricingConfig?: PricingConfig;
   seed?: string;
   nominatedPlayer?: string;
+  nominatedPrice?: number;
   diagnosticsMode?: AuctionDiagnosticsMode;
 }
 
@@ -728,8 +729,9 @@ const nominationOpeningBidFor = (
   currentBid: number,
   config: AuctionEngineConfig,
   nominatorOpeningBid: number,
+  nominatedPrice?: number,
 ): number => {
-  const modeledOpeningBid = nominatorOpeningBid > 0 ? nominatorOpeningBid : nomination.marketPrice;
+  const modeledOpeningBid = nominatedPrice ?? (nominatorOpeningBid > 0 ? nominatorOpeningBid : nomination.marketPrice);
 
   return Math.max(config.minimumBid, Math.min(currentBid, modeledOpeningBid));
 };
@@ -844,6 +846,7 @@ const auctionStateFor = ({
   aiSale,
   camDecision,
   config,
+  nominatedPrice,
 }: {
   status: InteractiveMockDraftAuctionStatus;
   nomination: InteractiveMockDraftNomination;
@@ -851,6 +854,7 @@ const auctionStateFor = ({
   aiSale: NonNullable<ReturnType<typeof resolveAuctionSale>>;
   camDecision?: InteractiveMockDraftCamDecision;
   config: AuctionEngineConfig;
+  nominatedPrice?: number;
 }): InteractiveMockDraftAuctionState => {
   const currentBid = aiSale.price;
   const currentBidOwner = aiSale.winner;
@@ -859,6 +863,7 @@ const auctionStateFor = ({
     currentBid,
     config,
     aiSale.diagnostics.nominatorOpeningBid,
+    nominatedPrice,
   );
   const feed = [
     auctionEvent({
@@ -922,6 +927,7 @@ const stateForResolvedNomination = ({
   player,
   remainingPlayers,
   diagnosticsMode,
+  nominatedPrice,
 }: {
   prepared: PreparedInteractiveMockDraft;
   watchOwner: Owner;
@@ -933,6 +939,7 @@ const stateForResolvedNomination = ({
   player: Player;
   remainingPlayers: readonly Player[];
   diagnosticsMode: AuctionDiagnosticsMode;
+  nominatedPrice?: number;
 }): InteractiveMockDraftState => {
   const aiOwnerStates = prepared.ownerStates.filter(state => state.owner !== watchOwner);
   const aiSale = resolveAuctionSale(player, aiOwnerStates, remainingPlayers, prepared.config, {
@@ -978,6 +985,7 @@ const stateForResolvedNomination = ({
     aiSale,
     ...(camDecision === undefined ? {} : { camDecision }),
     config: prepared.config,
+    ...(nominatedPrice === undefined ? {} : { nominatedPrice }),
   });
 
   return {
@@ -1009,6 +1017,7 @@ export const buildInteractiveMockDraftState = ({
   pricingConfig = defaultPricingConfig,
   seed = defaultSeed,
   nominatedPlayer,
+  nominatedPrice,
   diagnosticsMode = "full",
 }: BuildInteractiveMockDraftStateOptions): InteractiveMockDraftState => {
   const prepared = prepareInteractiveMockDraft({
@@ -1077,6 +1086,7 @@ export const buildInteractiveMockDraftState = ({
         player: manualPlayer,
         remainingPlayers,
         diagnosticsMode,
+        ...(nominatedPrice === undefined ? {} : { nominatedPrice }),
       });
     }
 

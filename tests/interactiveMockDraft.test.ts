@@ -247,6 +247,7 @@ describe("interactive mock draft", () => {
       strategyKey: "three-rb",
       seed: "cam-nomination-test",
       nominatedPlayer: "Breece Hall",
+      nominatedPrice: 3,
     });
 
     expect(nominationTurn).toMatchObject({
@@ -255,6 +256,8 @@ describe("interactive mock draft", () => {
     });
     expect(nominated.nominator).toBe("Cam");
     expect(nominated.nomination?.player).toBe("Breece Hall");
+    expect(nominated.auction?.openingBid).toBe(3);
+    expect(nominated.auction?.feed[0]?.text).toBe("Cam nominated Breece Hall for $3");
     expect(nominated.aiBids.length).toBeGreaterThan(0);
     expect(nominated.aiSaleCommand).toContain("Breece Hall");
     expect(["human-decision", "ai-sale"]).toContain(nominated.phase);
