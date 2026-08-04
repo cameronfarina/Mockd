@@ -3422,14 +3422,24 @@ export const liveDraftHtml = `<!doctype html>
     const practiceSessionForStrategy = strategyKey =>
       strategyKey === 'wr-heavy' ? 'practice-wr-heavy' : 'practice-3rb';
     const draftSessionKeys = ['live', 'practice-3rb', 'practice-wr-heavy'];
-    const normalizeDraftSession = (value, mode = currentDraftMode) => {
+    const normalizeDraftSession = (value, mode = currentDraftMode, strategyKey = currentStrategyKey) => {
       const session = cleanText(value).trim();
       if (draftSessionKeys.includes(session)) return session;
       if (session.startsWith('scratch:')) return session;
-      return mode === 'interactive-mock' ? practiceSessionForStrategy(currentStrategyKey) : 'live';
+      return mode === 'interactive-mock' ? practiceSessionForStrategy(strategyKey) : 'live';
     };
     const draftModeForSession = (session, mode) =>
       session === 'live' && mode === 'interactive-mock' ? 'real' : mode;
+    const draftLifecycleContext = () => ({
+      mode: currentDraftMode,
+      session: currentDraftSession,
+      strategy: currentStrategyKey
+    });
+    const sameDraftLifecycleContext = context =>
+      context &&
+      context.mode === currentDraftMode &&
+      context.session === currentDraftSession &&
+      context.strategy === currentStrategyKey;
     const isActiveDraft = () => draftLifecycle === 'active';
     const isStartingDraft = () => draftLifecycle === 'countdown';
     const normalizeDraftLifecycle = value => {
@@ -3456,10 +3466,12 @@ export const liveDraftHtml = `<!doctype html>
         const stored = window.localStorage.getItem(draftLifecycleStorageKey);
         if (!stored) return;
         const parsed = JSON.parse(stored);
-        if (draftModes.includes(parsed.mode)) currentDraftMode = parsed.mode;
-        if (typeof parsed.session === 'string' && parsed.session) currentDraftSession = normalizeDraftSession(parsed.session, currentDraftMode);
-        currentDraftMode = draftModeForSession(currentDraftSession, currentDraftMode);
         if (strategyKeys.includes(parsed.strategy)) currentStrategyKey = parsed.strategy;
+        if (draftModes.includes(parsed.mode)) currentDraftMode = parsed.mode;
+        if (typeof parsed.session === 'string' && parsed.session) {
+          currentDraftSession = normalizeDraftSession(parsed.session, currentDraftMode, currentStrategyKey);
+        }
+        currentDraftMode = draftModeForSession(currentDraftSession, currentDraftMode);
         draftLifecycle = normalizeDraftLifecycle(parsed.lifecycle);
       } catch {
         draftLifecycle = 'setup';
@@ -3527,12 +3539,18 @@ export const liveDraftHtml = `<!doctype html>
       const strategy = params.get('strategy');
       const mode = params.get('mode');
       const draftSession = params.get('draftSession');
+      const previousContext = draftLifecycleContext();
 
       if (strategyKeys.includes(strategy)) currentStrategyKey = strategy;
       if (draftModes.includes(mode)) currentDraftMode = mode;
-      if (draftSession) currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode);
-      else currentDraftSession = normalizeDraftSession(currentDraftSession, currentDraftMode);
+      if (draftSession) currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode, currentStrategyKey);
+      else currentDraftSession = normalizeDraftSession(currentDraftSession, currentDraftMode, currentStrategyKey);
       currentDraftMode = draftModeForSession(currentDraftSession, currentDraftMode);
+      if (!sameDraftLifecycleContext(previousContext) && !isStartingDraft()) {
+        draftLifecycle = 'setup';
+        draftCountdownValue = 0;
+        persistDraftLifecycle();
+      }
     };
     const hydrateMyExpertFromLocation = () => {
       const params = new URLSearchParams(window.location.search);

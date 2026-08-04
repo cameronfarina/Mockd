@@ -219,6 +219,11 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const draftRoomRouteUrl = mode =>");
     expect(liveDraftHtml).toContain("const draftSessionForMode = mode =>");
     expect(liveDraftHtml).toContain("const hydrateDraftRoomFromLocation = () =>");
+    expect(liveDraftHtml).toContain("const draftLifecycleContext = () =>");
+    expect(liveDraftHtml).toContain("const sameDraftLifecycleContext = context =>");
+    expect(liveDraftHtml).toContain("const previousContext = draftLifecycleContext();");
+    expect(liveDraftHtml).toContain("if (!sameDraftLifecycleContext(previousContext) && !isStartingDraft())");
+    expect(liveDraftHtml).toContain("draftLifecycle = 'setup';");
     expect(liveDraftHtml).toContain("const openDraftRoomMode = async mode =>");
     expect(liveDraftHtml).toContain("window.location.assign(draftRoomRouteUrl(mode))");
     expect(liveDraftHtml).toContain("window.history.replaceState(null, '', draftRoomRouteUrl(currentDraftMode))");
@@ -373,12 +378,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("let currentDraftSession = 'live'");
     expect(liveDraftHtml).toContain("const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession)");
     expect(liveDraftHtml).toContain("draftSession: currentDraftSession");
-    expect(liveDraftHtml).toContain("const normalizeDraftSession = (value, mode = currentDraftMode) =>");
+    expect(liveDraftHtml).toContain("const normalizeDraftSession = (value, mode = currentDraftMode, strategyKey = currentStrategyKey) =>");
     expect(liveDraftHtml).toContain("if (session.startsWith('scratch:')) return session;");
     expect(liveDraftHtml).toContain("const draftModeForSession = (session, mode) =>");
     expect(liveDraftHtml).toContain("currentDraftMode = draftModeForSession(currentDraftSession, currentDraftMode);");
-    expect(liveDraftHtml).toContain("currentDraftSession = normalizeDraftSession(parsed.session, currentDraftMode);");
-    expect(liveDraftHtml).toContain("currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode);");
+    expect(liveDraftHtml).toContain("currentDraftSession = normalizeDraftSession(parsed.session, currentDraftMode, currentStrategyKey);");
+    expect(liveDraftHtml).toContain("currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode, currentStrategyKey);");
     expect(liveDraftHtml).toContain("const renderStateLoadError = message =>");
     expect(liveDraftHtml).toContain("renderStateLoadError(state.error || 'Could not load draft room.');");
     expect(liveDraftHtml).toContain("const setDraftSession = async draftSession =>");
