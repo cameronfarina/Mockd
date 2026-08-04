@@ -451,7 +451,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("byId('header-export-csv-button').addEventListener('click', () => exportLog('csv'))");
     expect(liveDraftHtml).toContain("byId('header-export-bundle-button').addEventListener('click', () => exportSessionBundle())");
     expect(liveDraftHtml).toContain("byId('header-import-log-button').addEventListener('click', () => byId('import-log-file').click())");
-    expect(liveDraftHtml).toContain("byId('header-undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'))");
+    expect(liveDraftHtml).toContain("const undoDraftRoom = async () =>");
+    expect(liveDraftHtml).toContain("byId('header-undo-button').addEventListener('click', () => undoDraftRoom())");
     expect(liveDraftHtml).toContain("byId('header-reset-button').addEventListener('click', () => resetDraftRoom())");
     expect(liveDraftHtml).toContain("if (!guardDraftModeSwitch(nextMode)) return;");
     expect(liveDraftHtml).toContain("await setDraftMode(mode, { prepareStart: true });");
@@ -670,6 +671,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("postJson('/api/import'");
     expect(liveDraftHtml).toContain("confirmLiveDraftMutation");
     expect(liveDraftHtml).toContain("expectedCommandCount: currentCommandCount()");
+    expect(liveDraftHtml).toContain("confirmUndo: true");
     expect(liveDraftHtml).toContain("confirmImport: true");
     expect(liveDraftHtml).toContain("confirmReset: true");
   });

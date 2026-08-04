@@ -6985,6 +6985,18 @@ export const liveDraftHtml = `<!doctype html>
       alertCommandErrors(data);
     };
 
+    const undoDraftRoom = async () => {
+      if (!confirmLiveDraftMutation('undo the last command in')) {
+        focusCommandInput();
+        return;
+      }
+      const undoGuard = isLiveRealDraftRoom()
+        ? { confirmUndo: true, expectedCommandCount: currentCommandCount() }
+        : {};
+      const data = await postJsonAndRefresh('/api/undo', undoGuard);
+      alertCommandErrors(data);
+    };
+
     const syncBoardSearchInput = source => {
       const other = source.id === 'board-search' ? byId('header-board-search') : byId('board-search');
       other.value = source.value;
@@ -7139,9 +7151,9 @@ export const liveDraftHtml = `<!doctype html>
       closeAppMenu();
       window.location.assign(playerNewsRouteUrl());
     });
-    byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
+    byId('undo-button').addEventListener('click', () => undoDraftRoom());
     byId('reset-button').addEventListener('click', () => resetDraftRoom());
-    byId('header-undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
+    byId('header-undo-button').addEventListener('click', () => undoDraftRoom());
     byId('header-reset-button').addEventListener('click', () => resetDraftRoom());
     byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
     byId('mock-nominate-button').addEventListener('click', () => advanceMockDraft('cam-nominate', selectedTargetName, nominationPriceValue()));

@@ -601,7 +601,7 @@ describe("live draft server", () => {
     }
   });
 
-  it("protects the live room from unconfirmed or stale reset and import actions", async () => {
+  it("protects the live room from unconfirmed or stale undo, reset, and import actions", async () => {
     const directory = await tempSessionDirectory();
     try {
       const app = await createLiveDraftServer({
@@ -641,6 +641,26 @@ describe("live draft server", () => {
       expect(staleReset.data.session.commandCount).toBe(1);
       expect(staleReset.data.errors[0]?.message).toContain("currently has 1");
 
+      const unconfirmedUndo = await post(baseUrl, "/api/undo", {
+        draftSession: "live",
+        mode: "real",
+        strategyKey: "three-rb",
+      });
+      expect(unconfirmedUndo.status).toBe(409);
+      expect(unconfirmedUndo.data.session.commandCount).toBe(1);
+      expect(unconfirmedUndo.data.errors[0]?.message).toContain("requires confirmation");
+
+      const staleUndo = await post(baseUrl, "/api/undo", {
+        draftSession: "live",
+        mode: "real",
+        strategyKey: "three-rb",
+        confirmUndo: true,
+        expectedCommandCount: 0,
+      });
+      expect(staleUndo.status).toBe(409);
+      expect(staleUndo.data.session.commandCount).toBe(1);
+      expect(staleUndo.data.errors[0]?.message).toContain("currently has 1");
+
       const unconfirmedImport = await post(baseUrl, "/api/import", {
         draftSession: "live",
         mode: "real",
@@ -675,6 +695,17 @@ describe("live draft server", () => {
       expect(confirmedImport.status).toBe(200);
       expect(confirmedImport.data.session.commandCount).toBe(1);
       expect(confirmedImport.data.events.map((event: { input: string }) => event.input)).toEqual([mockSaleCommand]);
+
+      const confirmedUndo = await post(baseUrl, "/api/undo", {
+        draftSession: "live",
+        mode: "real",
+        strategyKey: "three-rb",
+        confirmUndo: true,
+        expectedCommandCount: 1,
+      });
+      expect(confirmedUndo.status).toBe(200);
+      expect(confirmedUndo.data.session.commandCount).toBe(0);
+      expect(confirmedUndo.data.events).toEqual([]);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

@@ -1535,8 +1535,8 @@ export const createLiveDraftServer = async (
     draftSessionKey: string;
     mode: LiveDraftSessionMode;
     body: Record<string, unknown>;
-    confirmField: "confirmImport" | "confirmReset";
-    actionLabel: "import" | "reset";
+    confirmField: "confirmImport" | "confirmReset" | "confirmUndo";
+    actionLabel: "import" | "reset" | "undo";
     commandCount: number;
   }): string | undefined => {
     if (!isProtectedLiveDraftMutation(draftSessionKey, mode)) return undefined;
@@ -2398,6 +2398,24 @@ export const createLiveDraftServer = async (
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
         const store = await storeFor(draftSessionKey, mode);
         const result = await runQueuedSessionMutation(draftSessionKey, mode, async (): Promise<LiveDraftMutationResult> => {
+          const unsafeMessage = unsafeLiveMutationMessage({
+            draftSessionKey,
+            mode,
+            body,
+            confirmField: "confirmUndo",
+            actionLabel: "undo",
+            commandCount: store.currentCommands().length,
+          });
+          if (unsafeMessage) {
+            return {
+              status: 409,
+              body: {
+                ...await stateFor({ draftSessionKey, mode, strategyKey }),
+                errors: [{ input: "", message: unsafeMessage }],
+              },
+            };
+          }
+
           await store.undo();
           return {
             status: 200,
