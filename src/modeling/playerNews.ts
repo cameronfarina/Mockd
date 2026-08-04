@@ -30,6 +30,13 @@ export interface PlayerNewsDraftTarget {
   tags?: readonly string[];
 }
 
+export interface PlayerNewsPlayerMetadata {
+  name: string;
+  normalizedPlayerName?: string;
+  position: string;
+  teamAbbreviation?: string;
+}
+
 export interface PlayerNewsDraftEvent {
   player: string;
   normalizedPlayerName?: string;
@@ -40,6 +47,7 @@ export interface PlayerNewsDraftEvent {
 export interface PlayerNewsRosterPlayer {
   name: string;
   position: string;
+  teamAbbreviation?: string;
   price: number;
   source: string;
 }
@@ -129,6 +137,7 @@ export interface PlayerNewsFeed {
 export interface BuildPlayerNewsFeedOptions {
   evidenceRows?: readonly PlayerContextEvidence[];
   rawNewsItems?: readonly RawPlayerNewsItem[];
+  playerMetadata?: readonly PlayerNewsPlayerMetadata[];
   draftState: PlayerNewsDraftState;
   filters?: PlayerNewsFilters;
   generatedAt?: string;
@@ -139,6 +148,15 @@ interface PlayerNewsDraftContext {
   targetsByPlayer: Map<string, PlayerNewsDraftTarget>;
   eventsByPlayer: Map<string, PlayerNewsDraftEvent>;
   rosterByPlayer: Map<string, { owner: string; player: PlayerNewsRosterPlayer }>;
+  metadataByPlayer: Map<string, PlayerNewsPlayerMetadata>;
+}
+
+interface PlayerNewsAuctionLookup {
+  auction: PlayerNewsAuctionSnapshot;
+  availability: PlayerNewsAvailability;
+  target?: PlayerNewsDraftTarget;
+  rosterPlayer?: PlayerNewsRosterPlayer;
+  metadata?: PlayerNewsPlayerMetadata;
 }
 
 const providerStatuses = (localEvidencePath: string): PlayerNewsProviderStatus[] => [
@@ -295,18 +313,39 @@ const rosterMapFor = (
   return rosters;
 };
 
-const draftContextFor = (draftState: PlayerNewsDraftState): PlayerNewsDraftContext => ({
+const metadataMapFor = (
+  players: readonly PlayerNewsPlayerMetadata[],
+): Map<string, PlayerNewsPlayerMetadata> =>
+  new Map(players.map(player => [keyFor(player.normalizedPlayerName ?? player.name), player]));
+
+const draftContextFor = (
+  draftState: PlayerNewsDraftState,
+  playerMetadata: readonly PlayerNewsPlayerMetadata[] = [],
+): PlayerNewsDraftContext => ({
   targetsByPlayer: targetMapFor(draftState.availableTargets),
   eventsByPlayer: eventMapFor(draftState.events),
   rosterByPlayer: rosterMapFor(draftState.owners),
+  metadataByPlayer: metadataMapFor(playerMetadata),
 });
+
+const itemMetadataFor = (
+  market: Pick<PlayerNewsAuctionLookup, "target" | "rosterPlayer" | "metadata">,
+): Pick<PlayerNewsItem, "position" | "teamAbbreviation"> => {
+  const metadata = market.target ?? market.rosterPlayer ?? market.metadata;
+  return {
+    ...(metadata?.position ? { position: metadata.position } : {}),
+    ...(metadata?.teamAbbreviation ? { teamAbbreviation: metadata.teamAbbreviation } : {}),
+  };
+};
 
 const auctionFor = (
   player: string,
   draftContext: PlayerNewsDraftContext,
-): { auction: PlayerNewsAuctionSnapshot; availability: PlayerNewsAvailability; target?: PlayerNewsDraftTarget } => {
+): PlayerNewsAuctionLookup => {
   const key = keyFor(player);
   const target = draftContext.targetsByPlayer.get(key);
+  const rosterEntry = draftContext.rosterByPlayer.get(key);
+  const metadata = draftContext.metadataByPlayer.get(key);
   if (target) {
     return {
       target,
@@ -329,6 +368,8 @@ const auctionFor = (
   const event = draftContext.eventsByPlayer.get(key);
   if (event) {
     return {
+      ...(rosterEntry ? { rosterPlayer: rosterEntry.player } : {}),
+      ...(metadata ? { metadata } : {}),
       auction: { status: "drafted", tags: [] },
       availability: {
         status: "drafted",
@@ -337,9 +378,10 @@ const auctionFor = (
     };
   }
 
-  const rosterEntry = draftContext.rosterByPlayer.get(key);
   if (rosterEntry?.player.source === "keeper") {
     return {
+      rosterPlayer: rosterEntry.player,
+      ...(metadata ? { metadata } : {}),
       auction: { status: "keeper", tags: [] },
       availability: {
         status: "keeper",
@@ -349,6 +391,7 @@ const auctionFor = (
   }
 
   return {
+    ...(metadata ? { metadata } : {}),
     auction: { status: "unavailable", tags: [] },
     availability: {
       status: "unavailable",
@@ -375,8 +418,7 @@ const itemFromEvidence = (
     providerItemId: `local-evidence-${index + 1}`,
     player,
     normalizedPlayerName: keyFor(player),
-    ...(market.target?.position ? { position: market.target.position } : {}),
-    ...(market.target?.teamAbbreviation ? { teamAbbreviation: market.target.teamAbbreviation } : {}),
+    ...itemMetadataFor(market),
     category,
     headline: headlineFact ? `${player} ${headlineFact}` : `${player} ${category.toLowerCase()} note.`,
     fantasyImpact: inferenceFromNote(evidence.note),
@@ -409,8 +451,7 @@ const itemFromRawNews = (
     providerItemId: item.providerItemId,
     player,
     normalizedPlayerName: keyFor(player),
-    ...(market.target?.position ? { position: market.target.position } : {}),
-    ...(market.target?.teamAbbreviation ? { teamAbbreviation: market.target.teamAbbreviation } : {}),
+    ...itemMetadataFor(market),
     category: categoryForRawNews(item),
     headline: `${player}: ${ensureSentence(item.title)}`,
     fantasyImpact: ensureSentence(item.summary),
@@ -479,13 +520,14 @@ export const isPlayerNewsDraftAction = (value: string): value is PlayerNewsDraft
 export const buildPlayerNewsFeed = ({
   evidenceRows = [],
   rawNewsItems = [],
+  playerMetadata = [],
   draftState,
   filters = {},
   generatedAt = new Date().toISOString(),
   localEvidencePath = "data/raw/player-evidence-2026-initial.csv",
 }: BuildPlayerNewsFeedOptions): PlayerNewsFeed => {
   const sourceMode = sourceModeFrom(filters.source);
-  const draftContext = draftContextFor(draftState);
+  const draftContext = draftContextFor(draftState, playerMetadata);
   const localItems = sourceMode === "rotowire-rss"
     ? []
     : evidenceRows.map((evidence, index) => itemFromEvidence(evidence, index, draftContext));

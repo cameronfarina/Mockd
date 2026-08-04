@@ -1,6 +1,8 @@
 const canonicalNameByAlias = new Map<string, string>([
   ["Aaron Jones Sr.", "Aaron Jones"],
+  ["Brian Thomas Jr.", "Brian Thomas"],
   ["Brian Robinson Jr.", "Brian Robinson"],
+  ["Chris Rodriguez Jr.", "Chris Rodriguez"],
   ["Deebo Samuel Sr.", "Deebo Samuel"],
   ["Devon Achane", "De'Von Achane"],
   ["D.J. Moore", "DJ Moore"],

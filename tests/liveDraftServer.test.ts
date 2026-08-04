@@ -1150,6 +1150,17 @@ describe("live draft server", () => {
         sessionDirectory: directory,
         interactiveMockDraft,
         mockBatchRunner,
+        playerNewsProvider: async () => [{
+          provider: "rotowire-rss",
+          providerItemId: "rss-trey-benson",
+          playerName: "Trey Benson",
+          title: "Tending to sore knee",
+          summary: "Benson is dealing with discomfort in his left knee.",
+          publishedAt: "2026-08-03T22:00:00.000Z",
+          fetchedAt: "2026-08-03T22:30:00.000Z",
+          tags: ["Injury"],
+          raw: {},
+        }],
       });
       servers.push(app.server);
       const baseUrl = await listen(app.server);
@@ -1174,6 +1185,17 @@ describe("live draft server", () => {
       expect(data.providers).toEqual(expect.arrayContaining([
         expect.objectContaining({ key: "local-evidence", status: "active" }),
         expect.objectContaining({ key: "sportsdataio", status: "candidate" }),
+      ]));
+
+      const rssResponse = await fetch(`${baseUrl}/api/player-news?source=rotowire-rss&q=Trey%20Benson`);
+      expect(rssResponse.status).toBe(200);
+      const rssData = await rssResponse.json();
+      expect(rssData.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          player: "Trey Benson",
+          position: "RB",
+          teamAbbreviation: "ARI",
+        }),
       ]));
     } finally {
       await rm(directory, { force: true, recursive: true });

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { keepers } from "../config/keepers.js";
 import { leagueConfig, ownerOrder, type Position } from "../config/league.js";
+import { nflTeamByEspnProTeamId } from "../config/nflTeams.js";
 import {
   defaultDraftRoomRankingPath,
   loadDraftRoomRankings,
@@ -77,6 +78,7 @@ import {
   buildPlayerNewsFeed,
   type PlayerNewsFeed,
   type PlayerNewsFilters,
+  type PlayerNewsPlayerMetadata,
   type PlayerNewsSourceMode,
 } from "./modeling/playerNews.js";
 import { loadEspnWeeksOneToFour, type ProjectionRecord } from "./projections.js";
@@ -804,6 +806,19 @@ const projectionLookupFor = (
 ): ReadonlyMap<string, ProjectionRecord> =>
   new Map(projections.map(projection => [projectionLookupKeyFor(projection.name, projection.position), projection]));
 
+const playerNewsMetadataFor = (
+  projections: readonly ProjectionRecord[],
+): PlayerNewsPlayerMetadata[] =>
+  projections.map(projection => {
+    const team = projection.proTeamId === undefined ? undefined : nflTeamByEspnProTeamId[projection.proTeamId];
+    return {
+      name: projection.name,
+      normalizedPlayerName: normalizePlayerName(projection.name),
+      position: projection.position,
+      ...(team ? { teamAbbreviation: team.abbreviation } : {}),
+    };
+  });
+
 const rosterRoleByPlayerId = (
   slots: LiveDraftState["watchOwner"]["slots"],
 ): Map<string, MyExpertPlayer["rosteredRole"]> => {
@@ -1362,6 +1377,7 @@ export const createLiveDraftServer = async (
     return buildPlayerNewsFeed({
       evidenceRows,
       rawNewsItems,
+      playerMetadata: playerNewsMetadataFor(projections),
       draftState: await stateFor({
         draftSessionKey: draftSessionKeyFromQuery(url),
         mode: sessionModeFromQuery(url),

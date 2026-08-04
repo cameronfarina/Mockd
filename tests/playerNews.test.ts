@@ -161,6 +161,64 @@ describe("player news feed", () => {
     expect(feed.items.find(item => item.player === "Confirmed WR")?.draftAction).toBe("Fade");
   });
 
+  it("fills team and position from player metadata when news players are outside the auction pool", () => {
+    const feed = buildPlayerNewsFeed({
+      rawNewsItems: [{
+        provider: "rotowire-rss",
+        providerItemId: "remote-1",
+        playerName: "Brian Thomas",
+        title: "Off to good start in camp",
+        summary: "Thomas has followed up his impressive spring with a good start to training camp.",
+        publishedAt: "2026-08-03T22:13:00.000Z",
+        fetchedAt: "2026-08-03T22:30:00.000Z",
+        tags: ["Practice"],
+        raw: {},
+      }, {
+        provider: "rotowire-rss",
+        providerItemId: "remote-2",
+        playerName: "Trey Benson",
+        title: "Tending to sore knee",
+        summary: "Benson is dealing with discomfort in his left knee.",
+        publishedAt: "2026-08-03T22:00:00.000Z",
+        fetchedAt: "2026-08-03T22:30:00.000Z",
+        tags: ["Injury"],
+        raw: {},
+      }],
+      playerMetadata: [{
+        name: "Brian Thomas Jr.",
+        position: "WR",
+        teamAbbreviation: "JAX",
+      }, {
+        name: "Trey Benson",
+        position: "RB",
+        teamAbbreviation: "ARI",
+      }],
+      draftState: {
+        availableTargets: [],
+        events: [],
+        owners: [],
+      },
+      filters: {
+        source: "rotowire-rss",
+      },
+    });
+
+    expect(feed.items.find(item => item.player === "Brian Thomas")).toMatchObject({
+      position: "WR",
+      teamAbbreviation: "JAX",
+      availability: {
+        status: "unavailable",
+      },
+    });
+    expect(feed.items.find(item => item.player === "Trey Benson")).toMatchObject({
+      position: "RB",
+      teamAbbreviation: "ARI",
+      availability: {
+        status: "unavailable",
+      },
+    });
+  });
+
   it("defaults to all sources when no source filter is provided", () => {
     const evidenceRows = parsePlayerContextEvidenceCsv([
       "player,category,score,confidence,source,note,provider,source_date,source_quality",
