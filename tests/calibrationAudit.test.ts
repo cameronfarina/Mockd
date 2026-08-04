@@ -94,18 +94,28 @@ describe("historical calibration audit", () => {
       delta: audit.overall.scenarioAuctionSpendDelta,
     });
 
+    const rawScenarioSpendTarget = (position: "RB" | "WR" | "TE"): number => {
+      const positionSpend = audit.positionSpend.find(candidate => candidate.position === position);
+      if (!positionSpend) throw new Error(`Missing ${position} spend calibration.`);
+      return roundToTwo(
+        positionSpend.historicalAverageSpend *
+        audit.overall.scenarioAverageOpenAuctionDollars /
+        audit.overall.historicalAverageAuctionSpend,
+      );
+    };
+
     const rbSpend = audit.positionSpend.find(position => position.position === "RB");
+    const wrSpend = audit.positionSpend.find(position => position.position === "WR");
+    const teSpend = audit.positionSpend.find(position => position.position === "TE");
     expect(rbSpend).toBeDefined();
+    expect(wrSpend).toBeDefined();
+    expect(teSpend).toBeDefined();
     expect(Number.isFinite(rbSpend?.delta ?? Number.NaN)).toBe(true);
-    const rbScenarioSpendTarget = roundToTwo(
-      (rbSpend?.historicalAverageSpend ?? 0) *
-      audit.overall.scenarioAverageOpenAuctionDollars /
-      audit.overall.historicalAverageAuctionSpend,
+    expect(rbSpend?.scenarioSpendDelta).toBe(
+      roundToTwo((rbSpend?.mockAverageSpend ?? 0) - (rbSpend?.scenarioAverageSpendTarget ?? 0)),
     );
-    expect(rbSpend).toMatchObject({
-      scenarioAverageSpendTarget: rbScenarioSpendTarget,
-      scenarioSpendDelta: roundToTwo((rbSpend?.mockAverageSpend ?? 0) - rbScenarioSpendTarget),
-    });
+    expect(teSpend?.scenarioAverageSpendTarget).toBeLessThan(rawScenarioSpendTarget("TE") - 30);
+    expect(wrSpend?.scenarioAverageSpendTarget).toBeGreaterThan(rawScenarioSpendTarget("WR"));
 
     const rbSpendGate = audit.gates.items.find(gate => gate.key === "position-spend:RB");
     expect(rbSpendGate).toMatchObject({
@@ -260,7 +270,7 @@ describe("historical calibration audit", () => {
     });
   }, 15000);
 
-  it("keeps production-sized QB spend inside the historical calibration band", async () => {
+  it("keeps production-sized position spend inside the historical calibration bands", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const pricingConfig = await buildPricingConfigFromSources();
@@ -276,6 +286,8 @@ describe("historical calibration audit", () => {
     });
     const audit = buildHistoricalCalibrationAudit({ historicalRecords, batch });
 
+    const positionSpendGates = audit.gates.items.filter(gate => gate.category === "position_spend");
+    const budgetRemainingGate = audit.gates.items.find(gate => gate.key === "budget-remaining:league-average");
     const qbSpendGate = audit.gates.items.find(gate => gate.key === "position-spend:QB");
     const qbCount = audit.positionCounts.find(position => position.position === "QB");
     const premiumTopEndFloorGate = audit.gates.items.find(
@@ -286,6 +298,12 @@ describe("historical calibration audit", () => {
     expect(qbSpendGate).toMatchObject({
       category: "position_spend",
       label: "QB spend",
+      status: "pass",
+    });
+    expect(positionSpendGates.every(gate => gate.status === "pass")).toBe(true);
+    expect(budgetRemainingGate).toMatchObject({
+      category: "budget_remaining",
+      label: "League average budget remaining",
       status: "pass",
     });
     expect(qbCount?.mockAverageCount).toBeGreaterThanOrEqual(21);

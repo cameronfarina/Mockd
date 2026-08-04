@@ -482,7 +482,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
   ownerPlayerTargetMaxBids: {},
   positionOverbidDamping: {
     QB: 0.75,
-    WR: 0.18,
+    WR: 0.4,
     TE: 0.65,
   },
   scarcity: {
@@ -550,7 +550,7 @@ const defaultAuctionEngineConfig: AuctionEngineConfig = {
     maxPremium: 0.05,
   },
   lateOpeningBid: {
-    startRosterSlotsRemaining: 2,
+    startRosterSlotsRemaining: 4,
     targetBudgetPerSlot: 1,
     maxPlayerPrice: 15,
     maxExtraBid: 6,

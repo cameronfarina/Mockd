@@ -1,5 +1,6 @@
 import { ownerOrder, positions, type Owner, type Position } from "../../config/league.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
+import { defaultKeeperScenarioConfig } from "./keeperInflation.js";
 import type { MockBatch, MockRun } from "./mockBatch.js";
 
 type PositionAmounts = Record<Position, number>;
@@ -339,6 +340,96 @@ const mockPositionSpend = (
       .reduce((total, pick) => total + pick.price, 0),
   ));
 
+const averageScenarioKeeperCount = (
+  runs: readonly MockRun[],
+  position: Position,
+): number =>
+  average(runs.map(run => run.keeperScenario.keeperCounts[position]));
+
+const historicalTopAuctionSpendForCount = (
+  records: readonly HistoricalAuctionRecord[],
+  seasons: readonly number[],
+  position: Position,
+  count: number,
+): number => {
+  if (count <= 0) return 0;
+
+  const fullCount = Math.floor(count);
+  const fractionalCount = count - fullCount;
+
+  return average(seasons.map(season => {
+    const prices = records
+      .filter(record => record.season === season && record.position === position)
+      .map(record => record.price)
+      .sort((left, right) => right - left);
+    const fullSpend = prices
+      .slice(0, fullCount)
+      .reduce((total, price) => total + price, 0);
+    const fractionalSpend = (prices[fullCount] ?? 0) * fractionalCount;
+
+    return fullSpend + fractionalSpend;
+  }));
+};
+
+const redistributeRemovedKeeperSpend = (
+  baseTargets: PositionAmounts,
+  removedTargets: PositionAmounts,
+): PositionAmounts => {
+  const adjustedTargets = { ...baseTargets };
+  const removedTotal = positions.reduce((total, position) => total + removedTargets[position], 0);
+  if (removedTotal <= 0) return adjustedTargets;
+
+  const redistributionPositions = positions.filter(position => removedTargets[position] === 0);
+  const fallbackPositions = redistributionPositions.length === 0 ? [...positions] : redistributionPositions;
+  const redistributionWeightTotal = fallbackPositions.reduce(
+    (total, position) => total + baseTargets[position],
+    0,
+  );
+  if (redistributionWeightTotal <= 0) return adjustedTargets;
+
+  for (const position of positions) {
+    adjustedTargets[position] = Math.max(0, baseTargets[position] - removedTargets[position]);
+  }
+  for (const position of fallbackPositions) {
+    adjustedTargets[position] += removedTotal * (baseTargets[position] / redistributionWeightTotal);
+  }
+
+  return adjustedTargets;
+};
+
+const keeperAdjustedPositionSpendTargets = (
+  records: readonly HistoricalAuctionRecord[],
+  runs: readonly MockRun[],
+  seasons: readonly number[],
+  scenarioSpendScale: number,
+): PositionAmounts => {
+  const baseTargets = positions.reduce<PositionAmounts>(
+    (targets, position) => ({
+      ...targets,
+      [position]: historicalPositionSpend(records, seasons, position) * scenarioSpendScale,
+    }),
+    { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
+  );
+  const removedTargets = positions.reduce<PositionAmounts>(
+    (targets, position) => {
+      const extraKeeperCount = Math.max(
+        0,
+        averageScenarioKeeperCount(runs, position) -
+          defaultKeeperScenarioConfig.typicalKeeperCounts[position],
+      );
+      const opportunitySpend = historicalTopAuctionSpendForCount(records, seasons, position, extraKeeperCount);
+
+      return {
+        ...targets,
+        [position]: Math.min(baseTargets[position], opportunitySpend * scenarioSpendScale),
+      };
+    },
+    { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
+  );
+
+  return redistributeRemovedKeeperSpend(baseTargets, removedTargets);
+};
+
 const historicalPositionCount = (
   records: readonly HistoricalAuctionRecord[],
   seasons: readonly number[],
@@ -386,10 +477,16 @@ const summarizePositionSpend = (
   const scenarioSpendScale = historicalAverageAuctionSpend === 0
     ? 1
     : scenarioAverageOpenAuctionDollars / historicalAverageAuctionSpend;
+  const scenarioSpendTargets = keeperAdjustedPositionSpendTargets(
+    records,
+    runs,
+    seasons,
+    scenarioSpendScale,
+  );
 
   return positions.map(position => {
     const historicalAverageSpend = roundToTwo(historicalPositionSpend(records, seasons, position));
-    const scenarioAverageSpendTarget = roundToTwo(historicalAverageSpend * scenarioSpendScale);
+    const scenarioAverageSpendTarget = roundToTwo(scenarioSpendTargets[position]);
     const mockAverageSpend = roundToTwo(mockPositionSpend(runs, position));
 
     return {
