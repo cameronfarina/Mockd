@@ -183,8 +183,14 @@ describe("live draft UI shell", () => {
   it("includes board behavior for position filters, sortable values, and draft-day guardrails", () => {
     expect(liveDraftHtml).toContain("const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST']");
     expect(liveDraftHtml).toContain("const valueGapFor = target => target.personalValue - target.liveExpectedPrice");
-    expect(liveDraftHtml).toContain("['Bid', money(bidPrice), '']");
+    expect(liveDraftHtml).toContain("[selectedBidLabelFor(target), money(bidPrice), '']");
     expect(liveDraftHtml).toContain("['Season', scoreText(target.seasonProjection), '']");
+    expect(liveDraftHtml).toContain("const selectedMockAuctionPriceFor = target =>");
+    expect(liveDraftHtml).toContain("const selectedBidLabelFor = target =>");
+    expect(liveDraftHtml).toContain("selectedBidLabelFor(target)");
+    expect(liveDraftHtml).toContain("selectedBidPriceFor(target)");
+    expect(liveDraftHtml).toContain("return 'Current';");
+    expect(liveDraftHtml).toContain("return isActiveDraft() && currentDraftMode === 'interactive-mock' ? 'Path max' : 'Bid';");
     expect(liveDraftHtml).not.toContain("priorityAtPriceFor");
     expect(liveDraftHtml).toContain("const strategyValueLabels =");
     expect(liveDraftHtml).toContain("const renderStrategyValues = target =>");

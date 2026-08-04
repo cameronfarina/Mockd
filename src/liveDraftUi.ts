@@ -3440,6 +3440,23 @@ export const liveDraftHtml = `<!doctype html>
       const price = priceInputValue();
       return Number.isFinite(price) && price > 0 ? price : target.recommendedMaxBid;
     };
+    const selectedMockAuctionPriceFor = target => {
+      if (!isActiveDraft() || currentDraftMode !== 'interactive-mock' || !currentMockDraft || !currentMockDraft.auction) return null;
+      const auction = currentMockDraft.auction;
+      if (auction.player !== target.name) return null;
+      return auction.resolution && auction.resolution.price != null
+        ? auction.resolution.price
+        : auction.currentBid;
+    };
+    const selectedBidPriceFor = target => {
+      const mockAuctionPrice = selectedMockAuctionPriceFor(target);
+      if (mockAuctionPrice != null) return mockAuctionPrice;
+      return activeBidPriceFor(target);
+    };
+    const selectedBidLabelFor = target => {
+      if (selectedMockAuctionPriceFor(target) != null) return 'Current';
+      return isActiveDraft() && currentDraftMode === 'interactive-mock' ? 'Path max' : 'Bid';
+    };
     const valueGapAtPriceFor = (target, price) => target.personalValue - price;
     const isFlexPosition = position => flexPositions.includes(position);
     const selectedTarget = () => currentState && currentState.availableTargets.find(target => target.name === selectedTargetName);
@@ -6179,13 +6196,13 @@ export const liveDraftHtml = `<!doctype html>
         target.position + ' ' + (target.teamAbbreviation || '-') + ' - bye ' + (target.byeWeek || '-'),
         'subtle'
       );
-      const bidPrice = activeBidPriceFor(target);
+      const bidPrice = selectedBidPriceFor(target);
       const values = document.createElement('div');
       values.className = 'selected-values';
       for (const [label, value, className] of [
         ['Exp', money(target.expectedPrice), ''],
         ['Live', money(target.liveExpectedPrice), ''],
-        ['Bid', money(bidPrice), ''],
+        [selectedBidLabelFor(target), money(bidPrice), ''],
         ['Our', money(target.personalValue), ''],
         ['Bid gap', deltaMoney(valueGapAtPriceFor(target, bidPrice)), gapClassFor(valueGapAtPriceFor(target, bidPrice))],
         ['Season', scoreText(target.seasonProjection), '']
