@@ -2992,7 +2992,7 @@ export const liveDraftHtml = `<!doctype html>
         <div class="mock-batch-control">
           <input id="mock-batch-runs" inputmode="numeric" pattern="[0-9]*" value="25" aria-label="Mock draft run count">
           <button type="button" id="run-mock-batch-button">Run mocks</button>
-          <input id="mock-batch-script" autocomplete="off" placeholder="Script: target Jadarian Price max $20" aria-label="Mock draft script">
+          <input id="mock-batch-script" autocomplete="off" placeholder="Build around Hampton:46-52:2; target Zay max $31" aria-label="Mock draft script">
         </div>
       </div>
       <div class="sidebar-section">
@@ -4345,6 +4345,14 @@ export const liveDraftHtml = `<!doctype html>
       const scriptOutcomes = latestMockBatchReport.script && latestMockBatchReport.script.targetOutcomes
         ? latestMockBatchReport.script.targetOutcomes
         : [];
+      if (latestMockBatchReport.script && latestMockBatchReport.script.buildAround) {
+        const buildAround = latestMockBatchReport.script.buildAround;
+        items.push(mockDraftItem(
+          'Build around',
+          buildAround.player + ' at ' + buildAround.prices.map(price => money(price)).join(' / ') +
+            ' - ' + latestMockBatchReport.summary.runCount + ' simulated drafts'
+        ));
+      }
       if (scriptOutcomes.length) {
         items.push(mockDraftItem(
           'Script result',
@@ -5064,10 +5072,20 @@ export const liveDraftHtml = `<!doctype html>
       const camScoreRange = report.analytics.camScoreRange;
       const commonPath = report.analytics.topCamRosterPaths[0];
       const strategyCoach = report.analytics.strategyCoach;
+      const buildAround = report.script && report.script.buildAround
+        ? report.script.buildAround
+        : null;
       const scriptOutcome = report.script && report.script.targetOutcomes
         ? report.script.targetOutcomes[0]
         : null;
       root.replaceChildren(
+        ...(buildAround ? [
+          insightCard(
+            'Build around',
+            buildAround.player + ' price sweep',
+            buildAround.prices.map(price => money(price)).join(' / ') + ' across ' + report.summary.runCount + ' simulated drafts'
+          )
+        ] : []),
         ...(scriptOutcome ? [
           insightCard(
             'Script result',

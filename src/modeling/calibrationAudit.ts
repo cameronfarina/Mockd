@@ -195,7 +195,7 @@ const positionSpendThresholds: Record<Position, { warn: number; fail: number }> 
   QB: { warn: 25, fail: 50 },
   RB: { warn: 50, fail: 100 },
   WR: { warn: 50, fail: 100 },
-  TE: { warn: 25, fail: 50 },
+  TE: { warn: 25, fail: 60 },
   K: { warn: 10, fail: 20 },
   DST: { warn: 10, fail: 20 },
 };

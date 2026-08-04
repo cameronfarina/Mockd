@@ -62,6 +62,7 @@ import { buildDraftReadyReport } from "./modeling/draftReadiness.js";
 import { liveDraftStrategies, type LiveDraftStrategyKey } from "./modeling/liveDraftStrategies.js";
 import { type ForcedAuctionSale } from "./modeling/mockBatch.js";
 import {
+  buildAroundStrategyLabScenarios,
   runStrategyLab,
   strategyLabReportMarkdown,
   type StrategyLabScenario,
@@ -240,9 +241,71 @@ const strategyLabTargetMaxBidsOptionValue = (): StrategyLabTargetMaxBid[] | unde
   strategyLabPlayerPriceEntriesOptionValue("--target")
     ?.map(({ player, price }) => ({ owner: "Cam", player, maxBid: price }));
 
+const buildAroundPricesFor = (priceSpec: string): number[] => {
+  const [rangeText, stepText] = priceSpec.split(":");
+  if (!rangeText) throw new Error("Build-around price list is required.");
+
+  if (rangeText.includes("-")) {
+    const [minimumText, maximumText] = rangeText.split("-");
+    const minimum = Number(minimumText);
+    const maximum = Number(maximumText);
+    const step = stepText === undefined ? 1 : Number(stepText);
+
+    if (
+      !Number.isInteger(minimum) ||
+      !Number.isInteger(maximum) ||
+      !Number.isInteger(step) ||
+      minimum < 1 ||
+      maximum < minimum ||
+      step < 1
+    ) {
+      throw new Error(`Invalid build-around range "${priceSpec}". Use min-max[:step], for example 46-52:2.`);
+    }
+
+    const prices: number[] = [];
+    for (let price = minimum; price <= maximum; price += step) prices.push(price);
+    return prices;
+  }
+
+  const prices = rangeText.split(",").map(priceText => Number(priceText.trim()));
+  if (prices.some(price => !Number.isInteger(price) || price < 1)) {
+    throw new Error(`Invalid build-around prices "${priceSpec}". Use 46,48,50 or 46-52:2.`);
+  }
+  return prices;
+};
+
+const strategyLabBuildAroundOptionValues = (): { player: string; prices: number[] }[] =>
+  optionValues("--build-around").map(rawEntry => {
+    const separatorIndex = rawEntry.indexOf(":");
+    if (separatorIndex <= 0 || separatorIndex === rawEntry.length - 1) {
+      throw new Error(`Invalid --build-around entry "${rawEntry}". Use Player Name:price,price or Player Name:min-max:step.`);
+    }
+
+    const player = rawEntry.slice(0, separatorIndex).trim();
+    const priceSpec = rawEntry.slice(separatorIndex + 1).trim().replace(/\$/g, "");
+    if (!player || !priceSpec) {
+      throw new Error(`Invalid --build-around entry "${rawEntry}". Use Player Name:price,price or Player Name:min-max:step.`);
+    }
+
+    return { player, prices: buildAroundPricesFor(priceSpec) };
+  });
+
 const strategyLabScenariosFromOptions = (): StrategyLabScenario[] | undefined => {
   const forcedSales = strategyLabForcedSalesOptionValue() ?? [];
   const targetMaxBids = strategyLabTargetMaxBidsOptionValue() ?? [];
+  const buildAroundEntries = strategyLabBuildAroundOptionValues();
+  if (buildAroundEntries.length > 0) {
+    return buildAroundEntries.flatMap(entry =>
+      buildAroundStrategyLabScenarios({
+        player: entry.player,
+        prices: entry.prices,
+        strategyKey: strategyLabStrategyOptionValue(),
+        baseForcedSales: forcedSales,
+        targetMaxBids,
+      }),
+    );
+  }
+
   if (forcedSales.length === 0 && targetMaxBids.length === 0) return undefined;
 
   return [{
@@ -1012,7 +1075,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run scenarios:sensitivity [-- --limit=60 --format=json|csv --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run sanity [-- --scenario=expected --limit=40 --runs=10 --seed-prefix=top-sanity --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run outliers:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:template [-- --scenario=expected --limit=40 --runs=10 --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:adapt -- --input=path.csv [--adapter=scored-local --format=csv|json] | npm run evidence:coverage [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run qa [-- --scenarios=expected --runs=2 --seed-prefix=qa --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run strategy:lab [-- --scenario=expected --runs=25 --format=json|markdown --seed-prefix=strategy-lab --force=\"Puka Nacua:75\" --target=\"Breece Hall:42\" --strategy=wr-heavy --label=\"Puka path\"] | npm run teams [-- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --strategy-mode=force --engine-mode=fast|full --format=json|markdown|csv --seed-prefix=draft-prep] | npm run draft:ready [-- --owner=Cam --strategy=three-rb --scenario=expected --runs=50 --qa-runs=10 --strategy-mode=force --engine-mode=fast|full --min-matches=10 --seed-prefix=draft-ready] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run backtest | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv --no-default-evidence]");
+  console.log("Usage: npm run keepers | npm run profiles | npm run rankings | npm run prices [-- --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run scenarios [-- --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run scenarios:sensitivity [-- --limit=60 --format=json|csv --custom-weights --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run validate | npm run audit -- --player=\"Drake London\" [--scenario=expected --runs=10 --seed-prefix=player-audit --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run sanity [-- --scenario=expected --limit=40 --runs=10 --seed-prefix=top-sanity --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run outliers:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:queue [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:template [-- --scenario=expected --limit=40 --runs=10 --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run evidence:adapt -- --input=path.csv [--adapter=scored-local --format=csv|json] | npm run evidence:coverage [-- --scenario=expected --limit=40 --runs=10 --format=json|csv --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run mock [-- --scenario=expected --seed=mockd-default --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run smoke [-- --scenario=expected --runs=2 --seed=smoke --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run qa [-- --scenarios=expected --runs=2 --seed-prefix=qa --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run mocks [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run strategy:lab [-- --scenario=expected --runs=25 --format=json|markdown --seed-prefix=strategy-lab --force=\"Puka Nacua:75\" --target=\"Breece Hall:42\" --build-around=\"Omarion Hampton:46-52:2\" --strategy=wr-heavy --label=\"Puka path\"] | npm run teams [-- --owner=Cam --strategy=three-rb --scenario=expected --runs=250 --strategy-mode=force --engine-mode=fast|full --format=json|markdown|csv --seed-prefix=draft-prep] | npm run draft:ready [-- --owner=Cam --strategy=three-rb --scenario=expected --runs=50 --qa-runs=10 --strategy-mode=force --engine-mode=fast|full --min-matches=10 --seed-prefix=draft-ready] | npm run calibration [-- --scenarios=expected --runs=50 --seed-prefix=mockd --player-context=path.csv --player-evidence=path.csv --no-default-evidence] | npm run backtest | npm run outputs [-- --scenarios=expected --runs=50 --seed-prefix=mockd --out=data/processed/mock-prep --evidence-limit=40 --scenario-sensitivity-limit=60 --player-context=path.csv --player-evidence=path.csv --no-default-evidence]");
 };
 
 main().catch(error => {

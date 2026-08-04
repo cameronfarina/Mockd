@@ -407,6 +407,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("closeAppMenu()");
     expect(liveDraftHtml).toContain("byId('mock-results-run-new-button').addEventListener('click', () => runMockBatch())");
     expect(liveDraftHtml).toContain("script: mockBatchScript()");
+    expect(liveDraftHtml).toContain("Build around Hampton:46-52:2; target Zay max $31");
+    expect(liveDraftHtml).toContain("'Build around'");
+    expect(liveDraftHtml).toContain("latestMockBatchReport.script.buildAround");
     expect(liveDraftHtml).toContain("const renderPositionMarket = state =>");
     expect(liveDraftHtml).toContain("const renderOwnerNeeds = state =>");
     expect(liveDraftHtml).toContain("const renderShortlist = state =>");

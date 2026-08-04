@@ -1143,6 +1143,62 @@ describe("live draft server", () => {
     }
   });
 
+  it("accepts build-around mock scripts and runs each price point as a forced Cam start", async () => {
+    const directory = await tempSessionDirectory();
+    const capturedOptions: RunMockBatchOptions[] = [];
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner: options => {
+          capturedOptions.push(options);
+          return mockBatchRunner(options);
+        },
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const started = await post(baseUrl, "/api/mock-batch", {
+        strategyKey: "three-rb",
+        runs: 2,
+        seedPrefix: "build-around-server-test",
+        script: "build around omarion hampton at 46-50:2; target zay flowers max 31",
+      });
+      const completed = await waitForMockBatchJob(baseUrl, started.data.jobId);
+
+      expect(started.data.totalRuns).toBe(6);
+      expect(completed.status).toBe("complete");
+      expect(completed.result.summary.runCount).toBe(6);
+      expect(completed.result.script).toMatchObject({
+        label: "Build around Omarion Hampton at $46/$48/$50 / Target Zay Flowers up to $31",
+        buildAround: {
+          owner: "Cam",
+          player: "Omarion Hampton",
+          prices: [46, 48, 50],
+        },
+      });
+      expect(completed.result.runs.map((run: { label: string }) => run.label)).toEqual([
+        "Run 1: Hampton $46",
+        "Run 2: Hampton $46",
+        "Run 3: Hampton $48",
+        "Run 4: Hampton $48",
+        "Run 5: Hampton $50",
+        "Run 6: Hampton $50",
+      ]);
+      expect(capturedOptions.map(options => options.forcedSales)).toEqual([
+        [{ owner: "Cam", player: "Omarion Hampton", price: 46 }],
+        [{ owner: "Cam", player: "Omarion Hampton", price: 48 }],
+        [{ owner: "Cam", player: "Omarion Hampton", price: 50 }],
+      ]);
+      for (const options of capturedOptions) {
+        expect(options.runsPerScenario).toBe(2);
+        expect(options.auctionConfigOverrides?.ownerPlayerTargetMaxBids?.Cam?.["Zay Flowers"]).toBe(31);
+      }
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it("serves the player news page and local evidence-backed player news API", async () => {
     const directory = await tempSessionDirectory();
     try {

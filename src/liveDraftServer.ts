@@ -62,6 +62,7 @@ import {
 import {
   runMockBatch,
   runMockBatchProgressively,
+  summarizeMockBatch,
   type ForcedAuctionSale,
   type MockBatch,
   type RunMockBatchOptions,
@@ -1006,6 +1007,47 @@ const targetMaxBidOverridesFor = (
   return { ownerPlayerTargetMaxBids };
 };
 
+const buildAroundPriceCountFor = (script: MockDraftScript | undefined): number =>
+  Math.max(1, script?.buildAround?.prices.length ?? 1);
+
+const buildAroundPriceForRun = (
+  script: MockDraftScript | undefined,
+  completedRuns: number,
+  runsPerPricePoint: number,
+): number | undefined => {
+  const prices = script?.buildAround?.prices;
+  if (!prices?.length) return undefined;
+  return prices[Math.min(prices.length - 1, Math.floor(completedRuns / Math.max(1, runsPerPricePoint)))];
+};
+
+const forcedSalesForBuildAroundRun = (
+  script: MockDraftScript | undefined,
+  completedRuns: number,
+  runsPerPricePoint: number,
+): ForcedAuctionSale[] | undefined => {
+  const buildAround = script?.buildAround;
+  const price = buildAroundPriceForRun(script, completedRuns, runsPerPricePoint);
+  if (!buildAround || price === undefined) return undefined;
+
+  return [{ owner: buildAround.owner, player: buildAround.player, price }];
+};
+
+const buildAroundRunLabelsFor = (
+  script: MockDraftScript | undefined,
+  runsPerPricePoint: number,
+): string[] => {
+  const buildAround = script?.buildAround;
+  if (!buildAround) return [];
+
+  const shortName = buildAround.player.trim().split(/\s+/).at(-1) ?? buildAround.player;
+  let runNumber = 0;
+  return buildAround.prices.flatMap(price =>
+    Array.from({ length: runsPerPricePoint }, () => {
+      runNumber += 1;
+      return `Run ${runNumber}: ${shortName} $${price}`;
+    }));
+};
+
 const mergeOwnerPlayerTargetMaxBids = (
   base: OwnerPlayerTargetMaxBids | undefined,
   overrides: OwnerPlayerTargetMaxBids | undefined,
@@ -1754,48 +1796,105 @@ export const createLiveDraftServer = async (
 
     try {
       const scriptOverrides = targetMaxBidOverridesFor(job.script);
-      const batch = options.mockBatchRunner
-        ? options.mockBatchRunner({
-          projections,
-          historicalRecords,
-          keepers,
-          scenarioKeys: ["expected"],
-          runsPerScenario,
-          seedPrefix,
-          pricingConfig,
-          auctionConfigOverrides: mergeAuctionConfigOverrides(
-            strategyAuctionOverridesFor("Cam", job.strategyKey, { variantSeed: seedPrefix }),
-            scriptOverrides,
-          ),
-          diagnosticsMode: "summary",
-        })
-        : await runMockBatchProgressively({
-          projections,
-          historicalRecords,
-          keepers,
-          scenarioKeys: ["expected"],
-          runsPerScenario,
-          seedPrefix,
-          pricingConfig,
-          auctionConfigOverridesForRun: context =>
-            mergeAuctionConfigOverrides(
-              strategyAuctionOverridesFor(
-                "Cam",
-                job.runStrategyKeys[context.completedRuns] ?? job.strategyKey,
-                { variantSeed: context.seed },
-              ),
+      const priceCount = buildAroundPriceCountFor(job.script);
+      const totalRuns = runsPerScenario * priceCount;
+      const runLabels = buildAroundRunLabelsFor(job.script, runsPerScenario);
+      let batch: MockBatch;
+
+      if (options.mockBatchRunner && job.script?.buildAround) {
+        const runs: MockBatch["runs"] = [];
+        for (let priceIndex = 0; priceIndex < job.script.buildAround.prices.length; priceIndex += 1) {
+          const price = job.script.buildAround.prices[priceIndex];
+          if (price === undefined) continue;
+          const segment = options.mockBatchRunner({
+            projections,
+            historicalRecords,
+            keepers,
+            scenarioKeys: ["expected"],
+            runsPerScenario,
+            seedPrefix: `${seedPrefix}:build-around:${normalizePlayerName(job.script.buildAround.player)}:${price}`,
+            pricingConfig,
+            auctionConfigOverrides: mergeAuctionConfigOverrides(
+              strategyAuctionOverridesFor("Cam", job.strategyKey, { variantSeed: `${seedPrefix}:${price}` }),
               scriptOverrides,
             ),
-          diagnosticsMode: "summary",
-          onRunComplete: async progress => {
-            updateMockBatchJobProgress(job, progress.completedRuns);
-            await yieldToEventLoop();
+            forcedSales: [{ owner: job.script.buildAround.owner, player: job.script.buildAround.player, price }],
+            diagnosticsMode: "summary",
+          });
+          runs.push(...segment.runs);
+          updateMockBatchJobProgress(job, Math.min(totalRuns, runs.length));
+          await yieldToEventLoop();
+        }
+
+        batch = {
+          options: {
+            scenarioKeys: ["expected"],
+            runsPerScenario,
+            seedPrefix,
+            diagnosticsMode: "summary",
           },
-        });
+          runs,
+          summary: summarizeMockBatch(runs),
+        };
+      } else {
+        batch = options.mockBatchRunner
+          ? options.mockBatchRunner({
+            projections,
+            historicalRecords,
+            keepers,
+            scenarioKeys: ["expected"],
+            runsPerScenario,
+            seedPrefix,
+            pricingConfig,
+            auctionConfigOverrides: mergeAuctionConfigOverrides(
+              strategyAuctionOverridesFor("Cam", job.strategyKey, { variantSeed: seedPrefix }),
+              scriptOverrides,
+            ),
+            diagnosticsMode: "summary",
+          })
+          : await runMockBatchProgressively({
+            projections,
+            historicalRecords,
+            keepers,
+            scenarioKeys: ["expected"],
+            runsPerScenario: totalRuns,
+            seedPrefix,
+            pricingConfig,
+            auctionConfigOverridesForRun: context =>
+              mergeAuctionConfigOverrides(
+                strategyAuctionOverridesFor(
+                  "Cam",
+                  job.runStrategyKeys[context.completedRuns] ?? job.strategyKey,
+                  { variantSeed: context.seed },
+                ),
+                scriptOverrides,
+              ),
+            ...(job.script?.buildAround === undefined
+              ? {}
+              : {
+                forcedSalesForRun: context =>
+                  forcedSalesForBuildAroundRun(job.script, context.completedRuns, runsPerScenario) ?? [],
+              }),
+            diagnosticsMode: "summary",
+            onRunComplete: async progress => {
+              updateMockBatchJobProgress(job, progress.completedRuns);
+              await yieldToEventLoop();
+            },
+          });
+        if (job.script?.buildAround) {
+          batch = {
+            ...batch,
+            options: {
+              ...batch.options,
+              runsPerScenario,
+            },
+          };
+        }
+      }
 
       updateMockBatchJobProgress(job, job.totalRuns);
       job.status = "complete";
-      job.result = buildMockResultsReport(batch, job.strategyKey, job.runStrategyKeys, job.script);
+      job.result = buildMockResultsReport(batch, job.strategyKey, job.runStrategyKeys, job.script, runLabels);
       job.updatedAt = new Date().toISOString();
     } catch (error) {
       job.status = "failed";
@@ -1816,13 +1915,14 @@ export const createLiveDraftServer = async (
     script?: MockDraftScript;
   }): MockBatchJob => {
     const now = new Date().toISOString();
+    const totalRuns = runsPerScenario * buildAroundPriceCountFor(script);
     const job: MockBatchJob = {
       jobId: `mock-batch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       status: "queued",
       strategyKey,
-      runStrategyKeys: mockBatchStrategySequence(strategyKey, runsPerScenario),
+      runStrategyKeys: mockBatchStrategySequence(strategyKey, totalRuns),
       ...(script === undefined ? {} : { script }),
-      totalRuns: runsPerScenario,
+      totalRuns,
       completedRuns: 0,
       percent: 0,
       startedAt: now,

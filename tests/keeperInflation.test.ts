@@ -31,20 +31,20 @@ describe("keeper inflation scenarios", () => {
     expect(confirmedOnly.positionFactors.RB).toBeLessThan(confirmedOnly.globalFactor);
     expect(confirmedOnly.positionFactors.WR).toBeLessThan(confirmedOnly.globalFactor);
 
-    expect(expected.keeperCounts).toEqual({ QB: 1, RB: 6, WR: 6, TE: 1, K: 0, DST: 0 });
-    expect(expected.totalKeeperCost).toBe(163);
-    expect(expected.openAuctionDollars).toBe(2637);
-    expectNear(expected.globalFactor, 2637 / 2596.5);
+    expect(expected.keeperCounts).toEqual({ QB: 1, RB: 6, WR: 6, TE: 2, K: 0, DST: 0 });
+    expect(expected.totalKeeperCost).toBe(173);
+    expect(expected.openAuctionDollars).toBe(2627);
+    expectNear(expected.globalFactor, 2627 / 2596.5);
     expectNear(expected.positionFactors.RB, expected.globalFactor);
     expectNear(expected.positionFactors.WR, expected.globalFactor);
 
-    expect(highRetention.keeperCounts).toEqual({ QB: 1, RB: 8, WR: 5, TE: 1, K: 0, DST: 0 });
-    expect(highRetention.totalKeeperCost).toBe(159);
-    expect(highRetention.openAuctionDollars).toBe(2641);
-    expectNear(highRetention.globalFactor, 2641 / 2596.5);
+    expect(highRetention.keeperCounts).toEqual({ QB: 1, RB: 8, WR: 5, TE: 2, K: 0, DST: 0 });
+    expect(highRetention.totalKeeperCost).toBe(169);
+    expect(highRetention.openAuctionDollars).toBe(2631);
+    expectNear(highRetention.globalFactor, 2631 / 2596.5);
     expect(highRetention.positionFactors.RB).toBeGreaterThan(highRetention.globalFactor);
     expect(highRetention.positionFactors.WR).toBeLessThan(highRetention.globalFactor);
-    expectNear(highRetention.positionFactors.TE, highRetention.globalFactor);
+    expect(highRetention.positionFactors.TE).toBeGreaterThan(highRetention.globalFactor);
   });
 
   it("removes known keepers from the auction pool by scenario status", async () => {

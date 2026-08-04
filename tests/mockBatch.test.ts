@@ -30,7 +30,7 @@ describe("mock batch simulation", () => {
         label: "Expected",
         runCount: 2,
         invalidRosterCount: 0,
-        averagePickCount: 218,
+        averagePickCount: 217,
       },
     ]);
 
@@ -159,7 +159,7 @@ describe("mock batch simulation", () => {
     expect(cam?.players.some(player => player.name === "De'Von Achane" && player.price === 50)).toBe(true);
     expect(run.picks.some(pick => pick.player === "Puka Nacua")).toBe(false);
     expect(run.inputCounts.auctionPlayers).toBe(baselineRun.inputCounts.auctionPlayers - 1);
-    expect(run.pickCount).toBe(217);
+    expect(run.pickCount).toBe(216);
     expect(cam?.valid).toBe(true);
   }, 15000);
 

@@ -79,6 +79,7 @@ export interface RunMockBatchRunContext {
 
 export interface RunMockBatchProgressiveOptions extends RunMockBatchOptions {
   auctionConfigOverridesForRun?: (context: RunMockBatchRunContext) => AuctionEngineConfigOverrides;
+  forcedSalesForRun?: (context: RunMockBatchRunContext) => readonly ForcedAuctionSale[];
   onRunComplete?: (progress: RunMockBatchProgress) => void | Promise<void>;
 }
 
@@ -799,6 +800,7 @@ export const runMockBatchProgressively = async ({
   auctionConfigOverrides = {},
   forcedSales = [],
   auctionConfigOverridesForRun,
+  forcedSalesForRun,
   diagnosticsMode = "full",
   onRunComplete,
 }: RunMockBatchProgressiveOptions): Promise<MockBatch> => {
@@ -829,7 +831,7 @@ export const runMockBatchProgressively = async ({
         preparation.ownerRosterMaximums,
         seed,
         auctionConfigOverridesForRun?.(runContext) ?? auctionConfigOverrides,
-        forcedSales,
+        forcedSalesForRun?.(runContext) ?? forcedSales,
         diagnosticsMode,
       );
       runs.push(run);

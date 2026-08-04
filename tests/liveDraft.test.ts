@@ -367,7 +367,7 @@ describe("live draft room", () => {
         expect.objectContaining({
           key: "keeper-coverage",
           status: "warn",
-          detail: expect.stringContaining("6/14 owners"),
+          detail: expect.stringContaining("7/14 owners"),
         }),
         expect.objectContaining({ key: "draft-path", status: "pass" }),
       ]),

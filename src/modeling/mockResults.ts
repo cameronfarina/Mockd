@@ -146,6 +146,7 @@ export interface MockResultsScriptTargetOutcome {
 export interface MockResultsScriptSummary {
   raw: string;
   label: string;
+  buildAround?: MockDraftScript["buildAround"];
   targetMaxBids: MockDraftScriptTargetMaxBid[];
   targetOutcomes: MockResultsScriptTargetOutcome[];
   runsPerScenario?: number;
@@ -673,6 +674,7 @@ const scriptSummaryFor = (
 ): MockResultsScriptSummary => ({
   raw: script.raw,
   label: script.label,
+  ...(script.buildAround === undefined ? {} : { buildAround: script.buildAround }),
   targetMaxBids: [...script.targetMaxBids],
   targetOutcomes: script.targetMaxBids.map(target => scriptTargetOutcomeFor(target, runs)),
   ...(script.runsPerScenario === undefined ? {} : { runsPerScenario: script.runsPerScenario }),
@@ -682,6 +684,7 @@ const runResultFor = (
   run: MockRun,
   index: number,
   strategyKey: LiveDraftStrategyKey,
+  label?: string,
 ): MockResultsRun => {
   const baseTeams = ownerOrder.map(owner => {
     const roster = run.rosters.find(candidate => candidate.owner === owner);
@@ -700,7 +703,7 @@ const runResultFor = (
 
   return {
     index: index + 1,
-    label: `Run ${index + 1}: ${strategyShortName(strategyKey)}`,
+    label: label ?? `Run ${index + 1}: ${strategyShortName(strategyKey)}`,
     seed: run.seed,
     strategyKey,
     scenarioLabel: run.keeperScenario.label,
@@ -717,10 +720,12 @@ export const buildMockResultsReport = (
   strategyKey: LiveDraftStrategyKey,
   runStrategyKeys: readonly LiveDraftStrategyKey[] = [],
   script?: MockDraftScript,
+  runLabels: readonly string[] = [],
 ): MockResultsReport => {
   const cam = batch.summary.owners.find(owner => owner.owner === "Cam");
   const resolvedRunStrategyKeys = batch.runs.map((_run, index) => runStrategyKeys[index] ?? strategyKey);
-  const runs = batch.runs.map((run, index) => runResultFor(run, index, resolvedRunStrategyKeys[index] ?? strategyKey));
+  const runs = batch.runs.map((run, index) =>
+    runResultFor(run, index, resolvedRunStrategyKeys[index] ?? strategyKey, runLabels[index]));
 
   return {
     mode: "batch-mock",

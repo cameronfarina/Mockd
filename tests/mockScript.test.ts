@@ -27,6 +27,24 @@ describe("mock draft scripts", () => {
     });
   });
 
+  it("parses build-around price sweeps", () => {
+    expect(parseMockDraftScript(
+      "run 10 mocks where i build around Omarion Hampton at $46-$50 by $2; target Zay Flowers max $31",
+    )).toMatchObject({
+      raw: "run 10 mocks where i build around Omarion Hampton at $46-$50 by $2; target Zay Flowers max $31",
+      runsPerScenario: 10,
+      label: "Build around Omarion Hampton at $46/$48/$50 / Target Zay Flowers up to $31",
+      buildAround: {
+        owner: "Cam",
+        player: "Omarion Hampton",
+        prices: [46, 48, 50],
+      },
+      targetMaxBids: [
+        { owner: "Cam", player: "Zay Flowers", maxBid: 31 },
+      ],
+    });
+  });
+
   it("canonicalizes lower-case player targets against available player names", () => {
     const script = parseMockDraftScript("target jadarian price max 20");
     if (!script) throw new Error("Expected mock draft script.");
@@ -48,8 +66,8 @@ describe("mock draft scripts", () => {
     });
   });
 
-  it("rejects non-target scripts before a mock job starts", () => {
+  it("rejects non-experiment scripts before a mock job starts", () => {
     expect(() => parseMockDraftScript("draft good players cheaply"))
-      .toThrow("Mock script must include a target");
+      .toThrow("Mock script must include a target or build-around");
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { keepers } from "../config/keepers.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
 import {
+  buildAroundStrategyLabScenarios,
   defaultStrategyLabScenarios,
   runStrategyLab,
   strategyLabReportMarkdown,
@@ -55,6 +56,55 @@ describe("strategy lab", () => {
     ]);
     expect(valueWrCook?.targetOutcomes).toHaveLength(3);
   }, 20000);
+
+  it("builds forced Cam scenario sweeps around one player at multiple prices", () => {
+    const scenarios = buildAroundStrategyLabScenarios({
+      player: "Omarion Hampton",
+      prices: [46, 48, 50],
+      strategyKey: "three-rb",
+      targetMaxBids: [{ owner: "Cam", player: "Zay Flowers", maxBid: 31 }],
+      baseForcedSales: [{ owner: "Cam", player: "Jadarian Price", price: 18 }],
+    });
+
+    expect(scenarios).toEqual([
+      {
+        key: "build-around-omarion-hampton-46",
+        label: "Build around Omarion Hampton $46",
+        question: "If Cam builds around Omarion Hampton at $46, what does the rest of the roster become?",
+        strategyKey: "three-rb",
+        forcedSales: [
+          { owner: "Cam", player: "Jadarian Price", price: 18 },
+          { owner: "Cam", player: "Omarion Hampton", price: 46 },
+        ],
+        targetMaxBids: [{ owner: "Cam", player: "Zay Flowers", maxBid: 31 }],
+        notes: "Build-around sweep: compare the same anchor at different price points.",
+      },
+      {
+        key: "build-around-omarion-hampton-48",
+        label: "Build around Omarion Hampton $48",
+        question: "If Cam builds around Omarion Hampton at $48, what does the rest of the roster become?",
+        strategyKey: "three-rb",
+        forcedSales: [
+          { owner: "Cam", player: "Jadarian Price", price: 18 },
+          { owner: "Cam", player: "Omarion Hampton", price: 48 },
+        ],
+        targetMaxBids: [{ owner: "Cam", player: "Zay Flowers", maxBid: 31 }],
+        notes: "Build-around sweep: compare the same anchor at different price points.",
+      },
+      {
+        key: "build-around-omarion-hampton-50",
+        label: "Build around Omarion Hampton $50",
+        question: "If Cam builds around Omarion Hampton at $50, what does the rest of the roster become?",
+        strategyKey: "three-rb",
+        forcedSales: [
+          { owner: "Cam", player: "Jadarian Price", price: 18 },
+          { owner: "Cam", player: "Omarion Hampton", price: 50 },
+        ],
+        targetMaxBids: [{ owner: "Cam", player: "Zay Flowers", maxBid: 31 }],
+        notes: "Build-around sweep: compare the same anchor at different price points.",
+      },
+    ]);
+  });
 
   it("renders a markdown leaderboard for fast draft-prep review", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);

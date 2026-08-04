@@ -231,4 +231,74 @@ describe("CLI strategy lab", () => {
       }),
     ]);
   }, 30000);
+
+  it("generates build-around price sweeps from the CLI", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "strategy:lab",
+        "--",
+        "--runs=1",
+        "--strategy=three-rb",
+        "--build-around=Omarion Hampton:46-50:2",
+        "--target=Zay Flowers:31",
+        "--seed-prefix=cli-strategy-lab-build-around-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 30 * 1024 * 1024,
+      },
+    );
+    const report = JSON.parse(stdout) as {
+      options: {
+        runsPerScenario: number;
+        seedPrefix: string;
+      };
+      scenarios: {
+        key: string;
+        label: string;
+        forcedSales: {
+          owner: string;
+          player: string;
+          price: number;
+        }[];
+        targetMaxBids: {
+          owner: string;
+          player: string;
+          maxBid: number;
+        }[];
+        camForcedStart: {
+          budgetRemaining: number;
+          maxBid: number;
+        };
+      }[];
+    };
+
+    expect(report.options).toMatchObject({
+      runsPerScenario: 1,
+      seedPrefix: "cli-strategy-lab-build-around-test",
+    });
+    expect(report.scenarios.map(scenario => scenario.key)).toEqual([
+      "build-around-omarion-hampton-46",
+      "build-around-omarion-hampton-48",
+      "build-around-omarion-hampton-50",
+    ]);
+    expect(report.scenarios.map(scenario => scenario.label)).toEqual([
+      "Build around Omarion Hampton $46",
+      "Build around Omarion Hampton $48",
+      "Build around Omarion Hampton $50",
+    ]);
+    expect(report.scenarios.map(scenario => scenario.forcedSales)).toEqual([
+      [{ owner: "Cam", player: "Omarion Hampton", price: 46 }],
+      [{ owner: "Cam", player: "Omarion Hampton", price: 48 }],
+      [{ owner: "Cam", player: "Omarion Hampton", price: 50 }],
+    ]);
+    expect(report.scenarios.every(scenario =>
+      scenario.targetMaxBids.some(target => target.player === "Zay Flowers" && target.maxBid === 31),
+    )).toBe(true);
+    expect(report.scenarios[0]?.camForcedStart.budgetRemaining).toBe(104);
+    expect(report.scenarios[2]?.camForcedStart.budgetRemaining).toBe(100);
+  }, 30000);
 });
