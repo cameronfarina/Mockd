@@ -181,6 +181,58 @@ export const liveDraftHtml = `<!doctype html>
       color: var(--amber);
     }
 
+    .target-action {
+      position: relative;
+      display: inline-grid;
+      place-items: center;
+    }
+
+    button.target-action-trigger[aria-expanded="true"] {
+      border-color: rgba(31, 207, 143, 0.9);
+      background: rgba(31, 207, 143, 0.16);
+      color: #7af0bd;
+    }
+
+    .target-action-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      z-index: 40;
+      display: grid;
+      gap: 2px;
+      width: max-content;
+      min-width: 142px;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #07131f;
+      box-shadow: var(--shadow);
+    }
+
+    .target-action-menu[hidden] {
+      display: none;
+    }
+
+    .target-action-menu button {
+      width: 100%;
+      min-height: 30px;
+      padding: 0 9px;
+      border: 0;
+      background: transparent;
+      color: #b9cbe0;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .target-action-menu button:hover:not(:disabled) {
+      background: rgba(99, 168, 255, 0.14);
+      color: #f4f8fc;
+    }
+
+    .target-action-menu button.target-action-primary {
+      color: #7af0bd;
+    }
+
     input, select {
       height: 34px;
       min-width: 0;
@@ -1257,6 +1309,21 @@ export const liveDraftHtml = `<!doctype html>
     .board-table tbody tr.keeper-row > td:first-child,
     .board-table tbody tr.keeper-row > td:nth-child(2) {
       background: #0a1825;
+    }
+
+    .board-table tbody tr.target-action-row-open {
+      position: relative;
+      z-index: 18;
+    }
+
+    .board-table tbody tr.target-action-row-open > td:first-child,
+    .board-table tbody tr.target-action-row-open > td.target-action-cell-open {
+      z-index: 30;
+      overflow: visible;
+    }
+
+    .board-table tbody tr.target-action-row-open .target-action-menu {
+      z-index: 60;
     }
 
     .board-table tbody tr[class*="position-"] td:first-child {
@@ -3414,6 +3481,12 @@ export const liveDraftHtml = `<!doctype html>
     const safeClassPart = value => cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'unknown';
     const positionClassFor = position => 'position-' + safeClassPart(position || 'unknown');
     const valueGapFor = target => target.personalValue - target.liveExpectedPrice;
+    const canNominateTarget = target =>
+      currentDraftMode === 'interactive-mock' &&
+      currentMockDraft &&
+      currentMockDraft.phase === 'human-nomination' &&
+      target &&
+      target.draftable !== false;
     const activeBidPriceFor = target => {
       const price = priceInputValue();
       return Number.isFinite(price) && price > 0 ? price : target.recommendedMaxBid;
@@ -3945,17 +4018,82 @@ export const liveDraftHtml = `<!doctype html>
       return button;
     };
 
-    const addTargetButton = (target, className) => {
+    const closeTargetActionMenus = () => {
+      for (const menu of document.querySelectorAll('.target-action-menu')) {
+        menu.hidden = true;
+      }
+      for (const trigger of document.querySelectorAll('.target-action-trigger')) {
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+      for (const cell of document.querySelectorAll('.target-action-cell-open')) {
+        cell.classList.remove('target-action-cell-open');
+      }
+      for (const row of document.querySelectorAll('.target-action-row-open')) {
+        row.classList.remove('target-action-row-open');
+      }
+    };
+
+    const targetActionMenuButton = (label, disabled, onClick, className = '') => {
       const button = document.createElement('button');
-      button.className = className;
       button.type = 'button';
-      button.textContent = '+';
-      button.title = 'Add ' + target.name;
-      if (target.draftable === false) button.disabled = true;
-      button.addEventListener('click', () => {
-        selectTargetForSale(target);
+      button.role = 'menuitem';
+      button.textContent = label;
+      button.disabled = disabled;
+      if (className) button.className = className;
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        closeTargetActionMenus();
+        onClick();
       });
       return button;
+    };
+
+    const addTargetButton = (target, className) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'target-action';
+
+      const button = document.createElement('button');
+      button.className = className + ' target-action-trigger';
+      button.type = 'button';
+      button.textContent = '+';
+      button.title = 'Actions for ' + target.name;
+      button.setAttribute('aria-label', button.title);
+      button.setAttribute('aria-haspopup', 'menu');
+      button.setAttribute('aria-expanded', 'false');
+      if (target.draftable === false) button.disabled = true;
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        const menu = wrapper.querySelector('.target-action-menu');
+        const shouldOpen = Boolean(menu && menu.hidden);
+        closeTargetActionMenus();
+        if (menu) menu.hidden = !shouldOpen;
+        button.setAttribute('aria-expanded', String(shouldOpen));
+        if (shouldOpen) {
+          const cell = wrapper.closest('td');
+          if (cell) cell.classList.add('target-action-cell-open');
+          const row = wrapper.closest('tr');
+          if (row) row.classList.add('target-action-row-open');
+        }
+      });
+
+      const menu = document.createElement('div');
+      menu.className = 'target-action-menu';
+      menu.role = 'menu';
+      menu.hidden = true;
+      menu.addEventListener('click', event => event.stopPropagation());
+
+      const shortlistLabel = isShortlisted(target) ? 'Remove from shortlist' : 'Add to shortlist';
+      const shortlistAction = targetActionMenuButton(shortlistLabel, target.draftable === false, () => toggleShortlist(target));
+      const secondaryAction = currentDraftMode === 'interactive-mock'
+        ? targetActionMenuButton('Nominate', !canNominateTarget(target), () => {
+            selectTargetForSale(target);
+            void advanceMockDraft('cam-nominate', target.name);
+          }, 'target-action-primary')
+        : targetActionMenuButton('Select for sale', target.draftable === false, () => selectTargetForSale(target), 'target-action-primary');
+
+      menu.replaceChildren(shortlistAction, secondaryAction);
+      wrapper.replaceChildren(button, menu);
+      return wrapper;
     };
 
     const ownerNeedsFor = owner => {
@@ -5536,6 +5674,14 @@ export const liveDraftHtml = `<!doctype html>
         ? mockDraft.auction.feed
         : [];
 
+    const mockNominationIdeaEvents = mockDraft =>
+      (mockDraft && Array.isArray(mockDraft.topTargets) ? mockDraft.topTargets : [])
+        .slice(0, 5)
+        .map(target => ({
+          type: 'nomination',
+          text: 'Idea: ' + target.name + ' ' + money(target.liveExpectedPrice)
+        }));
+
     const mockAuctionResolutionEvents = auction => {
       if (!auction) return [];
       const resolution = auction.resolution || (
@@ -5635,11 +5781,21 @@ export const liveDraftHtml = `<!doctype html>
       const root = byId('mock-auction-feed');
       const active = byId('mock-active-nomination');
       const lines = byId('mock-auction-feed-lines');
-      const shouldShow = currentDraftMode === 'interactive-mock' && mockDraft && mockDraft.auction;
+      const shouldShow = currentDraftMode === 'interactive-mock' && mockDraft && (mockDraft.phase === 'human-nomination' || Boolean(mockDraft.auction));
       root.hidden = !shouldShow;
       if (!shouldShow) {
         active.replaceChildren();
         lines.replaceChildren();
+        return;
+      }
+
+      if (mockDraft.phase === 'human-nomination') {
+        const target = selectedTarget();
+        active.replaceChildren(
+          textElement('strong', 'Cam is nominating'),
+          textElement('span', target ? 'Ready to nominate ' + target.name : 'Select a player from the board', 'mock-auction-phase')
+        );
+        renderMockAuctionFeedEvents(mockNominationIdeaEvents(mockDraft));
         return;
       }
 
@@ -5890,7 +6046,7 @@ export const liveDraftHtml = `<!doctype html>
         } else if (isAuctionTarget && auction.nextCamBid != null) {
           warning.textContent = 'Use the Bid ' + money(auction.nextCamBid) + ' button in the mock auction controls.';
         } else if (currentMockDraft && currentMockDraft.phase === 'human-nomination') {
-          warning.textContent = target ? 'Use Nominate ' + shortPlayerName(target.name) + ' in the mock auction controls.' : 'Select a player to nominate.';
+          warning.textContent = target ? 'Use Nominate ' + shortPlayerName(target.name) + ' above the board, or open the + menu on any player.' : 'Select a player to nominate.';
         } else {
           warning.textContent = 'Mock mode uses the auction controls below. Manual sale logging is disabled here.';
         }
@@ -6481,7 +6637,7 @@ export const liveDraftHtml = `<!doctype html>
       return window.confirm('This will ' + action + ' the real live draft room. Export a bundle first if you are not sure.');
     };
 
-    const advanceMockDraft = async action => {
+    const advanceMockDraft = async (action, nominatedPlayerName = selectedTargetName) => {
       if (draftNightLockFor(currentState)) {
         window.alert(draftNightLockReasonFor(currentState));
         currentDraftMode = 'real';
@@ -6493,7 +6649,8 @@ export const liveDraftHtml = `<!doctype html>
         await setDraftMode('interactive-mock');
       }
       if (action === 'cam-nominate') {
-        pendingCamNominationName = selectedTargetName;
+        pendingCamNominationName = nominatedPlayerName;
+        selectedTargetName = nominatedPlayerName;
       }
       if (action === 'cam-bid') {
         byId('mock-cam-win-button').disabled = true;
@@ -6792,11 +6949,13 @@ export const liveDraftHtml = `<!doctype html>
       if (!event.target.closest || !event.target.closest('.run-selector')) byId('mock-results-run-list').hidden = true;
       if (!event.target.closest || !event.target.closest('#app-menu')) closeAppMenu();
       if (!event.target.closest || !event.target.closest('.player-news-filter')) closePlayerNewsFilters();
+      if (!event.target.closest || !event.target.closest('.target-action')) closeTargetActionMenus();
     });
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape') {
         closeAppMenu();
         closePlayerNewsFilters();
+        closeTargetActionMenus();
       }
     });
     document.addEventListener('visibilitychange', () => {
