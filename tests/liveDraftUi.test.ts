@@ -266,7 +266,17 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("await syncLatestMockBatchJob()");
     expect(liveDraftHtml).toContain("button.classList.toggle('mock-batch-ready', isReady)");
     expect(liveDraftHtml).toContain("button.textContent = 'See results'");
-    expect(liveDraftHtml).toContain("if (latestMockBatchJob && latestMockBatchJob.status === 'complete' && latestMockBatchJob.result)");
+    expect(liveDraftHtml).toContain("const mockBatchJobMatchesCurrentControls = job =>");
+    expect(liveDraftHtml).toContain("jobScript === currentScript");
+    expect(liveDraftHtml).toContain("Number(job.runsPerScenario || 25) === currentMockBatchRuns()");
+    expect(liveDraftHtml).toContain("mockBatchJobMatchesCurrentControls(latestMockBatchJob)");
+    expect(liveDraftHtml).toContain("byId('mock-batch-runs').addEventListener('input', () => {");
+    expect(liveDraftHtml).toContain("byId('mock-batch-script').addEventListener('input', () => {");
+    expect(liveDraftHtml).toContain("renderMockBatchResultsForJob(latestMockBatchJob)");
+    expect(liveDraftHtml).toContain("const renderMockBatchResultsForJob = job =>");
+    expect(liveDraftHtml).toContain("'Previous results'");
+    expect(liveDraftHtml).toContain("'Run mocks to apply the current strategy, run count, and script.'");
+    expect(liveDraftHtml).toContain("renderMockBatchButtonState(latestMockBatchJob);");
     expect(liveDraftHtml).toContain("const renderMockResultsRoute = report =>");
     expect(liveDraftHtml).toContain("const renderMyExpertPage = async () =>");
     expect(liveDraftHtml).toContain("const myExpertUrl = () =>");

@@ -4069,6 +4069,8 @@ export const liveDraftHtml = `<!doctype html>
       if (!target || target.draftable === false) return;
       selectedTargetName = target.name;
       byId('mock-batch-script').value = buildAroundScriptForTarget(target);
+      renderMockBatchButtonState(latestMockBatchJob);
+      renderMockBatchResultsForJob(latestMockBatchJob);
       renderBoard(currentState);
       byId('run-mock-batch-button').focus();
     };
@@ -4555,6 +4557,22 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       root.replaceChildren(...items);
+    };
+
+    const renderMockBatchResultsForJob = job => {
+      if (!job || !job.result) {
+        renderMockBatchResults(null);
+        return;
+      }
+      if (!mockBatchJobMatchesCurrentControls(job)) {
+        const previousLabel = job.script && job.script.label ? 'Previous: ' + job.script.label + '. ' : '';
+        byId('mock-batch-results').replaceChildren(mockDraftItem(
+          'Previous results',
+          previousLabel + 'Run mocks to apply the current strategy, run count, and script.'
+        ));
+        return;
+      }
+      renderMockBatchResults(job.result);
     };
 
     const insightCard = (label, headline, details) => {
@@ -6571,6 +6589,21 @@ export const liveDraftHtml = `<!doctype html>
       button.disabled = !isVisible;
     };
 
+    const currentMockBatchRuns = () => {
+      const value = Number(byId('mock-batch-runs').value || 25);
+      return Number.isInteger(value) && value > 0 ? value : 25;
+    };
+
+    const mockBatchJobMatchesCurrentControls = job => {
+      if (!job) return false;
+      const currentScript = mockBatchScript();
+      const jobScript = job.script && job.script.raw ? job.script.raw : '';
+      const scriptRunsControlTheBatch = Boolean(job.script && job.script.runsPerScenario !== undefined);
+      return job.strategyKey === currentStrategyKey &&
+        jobScript === currentScript &&
+        (scriptRunsControlTheBatch || Number(job.runsPerScenario || 25) === currentMockBatchRuns());
+    };
+
     const renderMockBatchButtonState = job => {
       const button = byId('run-mock-batch-button');
       const resultsRunNewButton = byId('mock-results-run-new-button');
@@ -6579,9 +6612,10 @@ export const liveDraftHtml = `<!doctype html>
       const status = job ? job.status : '';
       const percent = Math.max(0, Math.min(100, Number(job && job.percent ? job.percent : 0)));
       const isRunning = status === 'queued' || status === 'running';
-      const isReady = status === 'complete' && job && job.result;
+      const isReady = status === 'complete' && job && job.result && mockBatchJobMatchesCurrentControls(job);
+      const hasPreviousResults = status === 'complete' && job && job.result;
 
-      button.style.setProperty('--mock-progress', isRunning || isReady ? percent + '%' : '0%');
+      button.style.setProperty('--mock-progress', isRunning || hasPreviousResults ? percent + '%' : '0%');
       button.classList.toggle('mock-batch-running', isRunning);
       button.classList.toggle('mock-batch-ready', isReady);
       button.disabled = isRunning;
@@ -6618,7 +6652,7 @@ export const liveDraftHtml = `<!doctype html>
       latestMockBatchJob = job;
       if (job.result) {
         latestMockBatchReport = job.result;
-        renderMockBatchResults(job.result);
+        renderMockBatchResultsForJob(job);
       }
       renderMockBatchButtonState(job);
 
@@ -6647,7 +6681,7 @@ export const liveDraftHtml = `<!doctype html>
       latestMockBatchJob = job;
       if (job && job.result) {
         latestMockBatchReport = job.result;
-        renderMockBatchResults(job.result);
+        renderMockBatchResultsForJob(job);
       }
       renderMockBatchButtonState(job);
       syncMockResultsMenuItem(job, forceVisible);
@@ -7148,11 +7182,24 @@ export const liveDraftHtml = `<!doctype html>
     byId('confirm-start-draft-button').addEventListener('click', () => beginDraftCountdown());
     byId('end-draft-button').addEventListener('click', () => endActiveDraft());
     byId('run-mock-batch-button').addEventListener('click', () => {
-      if (latestMockBatchJob && latestMockBatchJob.status === 'complete' && latestMockBatchJob.result) {
+      if (
+        latestMockBatchJob &&
+        latestMockBatchJob.status === 'complete' &&
+        latestMockBatchJob.result &&
+        mockBatchJobMatchesCurrentControls(latestMockBatchJob)
+      ) {
         window.location.assign('/mock-results');
         return;
       }
       runMockBatch();
+    });
+    byId('mock-batch-runs').addEventListener('input', () => {
+      renderMockBatchButtonState(latestMockBatchJob);
+      renderMockBatchResultsForJob(latestMockBatchJob);
+    });
+    byId('mock-batch-script').addEventListener('input', () => {
+      renderMockBatchButtonState(latestMockBatchJob);
+      renderMockBatchResultsForJob(latestMockBatchJob);
     });
     byId('see-mock-results-button').addEventListener('click', () => {
       closeAppMenu();

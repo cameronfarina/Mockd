@@ -657,6 +657,7 @@ interface MockBatchJob {
   strategyKey: LiveDraftStrategyKey;
   runStrategyKeys: readonly LiveDraftStrategyKey[];
   script?: MockDraftScript;
+  runsPerScenario: number;
   totalRuns: number;
   completedRuns: number;
   percent: number;
@@ -1820,6 +1821,7 @@ export const createLiveDraftServer = async (
     strategyKey: job.strategyKey,
     runStrategyKeys: job.runStrategyKeys,
     ...(job.script === undefined ? {} : { script: job.script }),
+    runsPerScenario: job.runsPerScenario,
     totalRuns: job.totalRuns,
     completedRuns: job.completedRuns,
     percent: job.percent,
@@ -1983,6 +1985,7 @@ export const createLiveDraftServer = async (
       strategyKey,
       runStrategyKeys: mockBatchStrategySequence(strategyKey, totalRuns, runsPerScenario),
       ...(script === undefined ? {} : { script }),
+      runsPerScenario,
       totalRuns,
       completedRuns: 0,
       percent: 0,

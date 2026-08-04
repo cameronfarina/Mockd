@@ -1246,6 +1246,7 @@ describe("live draft server", () => {
       const completed = await waitForMockBatchJob(baseUrl, started.data.jobId);
 
       expect(capturedOptions?.runsPerScenario).toBe(2);
+      expect(started.data.runsPerScenario).toBe(2);
       expect(started.data.runStrategyKeys).toEqual(["three-rb", "balanced"]);
       expect(capturedOptions?.auctionConfigOverrides?.ownerPlayerTargetMaxBids?.Cam?.["Jadarian Price"]).toBe(20);
       expect(completed.result.script).toMatchObject({
