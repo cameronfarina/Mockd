@@ -493,6 +493,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("byId('app-menu-button').addEventListener('click'");
     expect(liveDraftHtml).toContain("closeAppMenu()");
     expect(liveDraftHtml).toContain("byId('mock-results-run-new-button').addEventListener('click', () => runMockBatch())");
+    expect(liveDraftHtml).toContain("byId('mock-results-run-button').textContent = 'No runs yet'");
+    expect(liveDraftHtml).toContain("byId('mock-results-run-button').disabled = true");
+    expect(liveDraftHtml).toContain("button.disabled = !selectedRun");
+    expect(liveDraftHtml).toContain("if (byId('mock-results-run-button').disabled) return;");
     expect(liveDraftHtml).toContain("script: mockBatchScript()");
     expect(liveDraftHtml).toContain("Build around Hampton:46-52:2; target Zay max $31");
     expect(liveDraftHtml).toContain("'Build around'");

@@ -5449,6 +5449,7 @@ export const liveDraftHtml = `<!doctype html>
       const button = byId('mock-results-run-button');
       const list = byId('mock-results-run-list');
       button.textContent = selectedRun ? selectedRun.label : 'Run results';
+      button.disabled = !selectedRun;
       list.replaceChildren(...runs.map((run, index) => {
         const option = document.createElement('button');
         option.type = 'button';
@@ -5472,7 +5473,9 @@ export const liveDraftHtml = `<!doctype html>
       if (!latestMockBatchReport || !latestMockBatchReport.runs || !latestMockBatchReport.runs.length) {
         byId('mock-results-title').textContent = 'No completed mock batch yet.';
         byId('mock-results-status').textContent = 'Start a batch from the draft room.';
-        byId('mock-results-run-button').textContent = 'Run results';
+        byId('mock-results-run-button').textContent = 'No runs yet';
+        byId('mock-results-run-button').disabled = true;
+        byId('mock-results-run-list').hidden = true;
         byId('mock-results-run-list').replaceChildren();
         byId('mock-results-analytics').replaceChildren();
         byId('mock-results-intelligence').replaceChildren();
@@ -5500,6 +5503,8 @@ export const liveDraftHtml = `<!doctype html>
       byId('mock-results-title').textContent = 'Mock batch running.';
       byId('mock-results-status').textContent = String(job.percent || 0) + '% complete';
       byId('mock-results-run-button').textContent = 'Waiting for results';
+      byId('mock-results-run-button').disabled = true;
+      byId('mock-results-run-list').hidden = true;
       byId('mock-results-run-list').replaceChildren();
       byId('mock-results-analytics').replaceChildren();
       byId('mock-results-intelligence').replaceChildren();
@@ -5511,7 +5516,9 @@ export const liveDraftHtml = `<!doctype html>
       byId('mock-results-view').hidden = false;
       byId('mock-results-title').textContent = 'Mock results unavailable.';
       byId('mock-results-status').textContent = message;
-      byId('mock-results-run-button').textContent = 'Run results';
+      byId('mock-results-run-button').textContent = 'No runs yet';
+      byId('mock-results-run-button').disabled = true;
+      byId('mock-results-run-list').hidden = true;
       byId('mock-results-run-list').replaceChildren();
       byId('mock-results-analytics').replaceChildren();
       byId('mock-results-intelligence').replaceChildren();
@@ -7203,6 +7210,7 @@ export const liveDraftHtml = `<!doctype html>
       schedulePlayerNewsRefresh();
     });
     byId('mock-results-run-button').addEventListener('click', () => {
+      if (byId('mock-results-run-button').disabled) return;
       const list = byId('mock-results-run-list');
       list.hidden = !list.hidden;
     });
