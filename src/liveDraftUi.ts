@@ -360,27 +360,6 @@ export const liveDraftHtml = `<!doctype html>
       width: var(--global-menu-width);
     }
 
-    .app.draft-active .draft-header {
-      padding-right: 16px;
-      padding-left: 16px;
-    }
-
-    .app.draft-active .header-actions {
-      flex: 1 1 auto;
-      max-width: none;
-    }
-
-    .app.draft-active .header-search {
-      flex: 1 1 180px;
-      width: auto;
-      min-width: 160px;
-    }
-
-    .app.draft-active #end-draft-button {
-      flex: 0 0 auto;
-      white-space: nowrap;
-    }
-
     .sidebar {
       grid-column: 1;
       grid-row: 2;
@@ -472,6 +451,11 @@ export const liveDraftHtml = `<!doctype html>
       min-width: 0;
     }
 
+    .header-end-action {
+      justify-self: end;
+      white-space: nowrap;
+    }
+
     .search {
       width: 100%;
       height: 36px;
@@ -518,6 +502,59 @@ export const liveDraftHtml = `<!doctype html>
       height: 34px;
       padding: 0 10px;
       white-space: nowrap;
+    }
+
+    .app.draft-active .draft-header {
+      grid-template-columns: 48px minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
+      align-content: center;
+      column-gap: 16px;
+      row-gap: 10px;
+      min-height: 108px;
+      padding: 14px 18px 16px;
+    }
+
+    .app.draft-active .draft-title-group {
+      grid-column: 2;
+      grid-row: 1;
+      max-width: min(100%, 680px);
+    }
+
+    .app.draft-active .room-mode-indicator {
+      max-width: min(48vw, 430px);
+    }
+
+    .app.draft-active .room-mode-indicator span {
+      min-width: 0;
+      max-width: 330px;
+    }
+
+    .app.draft-active .header-actions {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      justify-self: stretch;
+      justify-content: flex-end;
+      width: 100%;
+      max-width: none;
+    }
+
+    .app.draft-active .header-search {
+      flex: 1 1 420px;
+      width: auto;
+      min-width: 260px;
+      max-width: 640px;
+    }
+
+    .app.draft-active .header-sale-command {
+      flex: 1 1 420px;
+      min-width: 320px;
+      max-width: 560px;
+    }
+
+    .app.draft-active .header-end-action {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
     }
 
     .top-actions {
@@ -2999,8 +3036,8 @@ export const liveDraftHtml = `<!doctype html>
           <button type="button" id="header-undo-button">Undo</button>
           <button type="button" id="header-reset-button">Reset</button>
         </div>
-        <button class="danger" type="button" id="end-draft-button" aria-label="End active draft" hidden>End draft</button>
       </div>
+      <button class="danger header-end-action" type="button" id="end-draft-button" aria-label="End active draft" hidden>End draft</button>
     </header>
     <nav class="sidebar" aria-label="Draft room controls">
       <input class="search" id="board-search" autocomplete="off" placeholder="Search player, position, or team">

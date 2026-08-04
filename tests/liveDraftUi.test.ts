@@ -162,6 +162,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("class=\"workspace\"");
     expect(liveDraftHtml).toContain("class=\"sidebar-section\"");
     expect(liveDraftHtml).toContain(".app.draft-active .header-actions");
+    expect(liveDraftHtml).toContain(".app.draft-active .draft-header {\n      grid-template-columns: 48px minmax(0, 1fr) auto;\n      grid-template-rows: auto auto;");
+    expect(liveDraftHtml).toContain(".app.draft-active .header-actions {\n      grid-column: 1 / -1;\n      grid-row: 2;");
+    expect(liveDraftHtml).toContain(".app.draft-active .header-end-action {\n      grid-column: 3;");
+    expect(liveDraftHtml).toContain("class=\"danger header-end-action\"");
     expect(liveDraftHtml).toContain("grid-template-columns: minmax(0, 1fr) clamp(340px, 24vw, 410px)");
     expect(liveDraftHtml).toContain("let boardSortKey = 'liveExpectedPrice';");
     expect(liveDraftHtml).toContain("<option value=\"liveExpectedPrice\">Expected draft price</option>");
