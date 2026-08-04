@@ -181,10 +181,9 @@ const ownerOptionValue = (): Owner => {
 
 const draftPlanStrategyOptionValue = (): DraftPlanStrategyKey => {
   const value = optionValue("--strategy") ?? "three-rb";
-  if (value !== "three-rb") {
-    throw new Error(`Unknown draft plan strategy "${value}". Use three-rb.`);
-  }
-  return value;
+  if (value in liveDraftStrategies) return value as DraftPlanStrategyKey;
+
+  throw new Error(`Unknown draft plan strategy "${value}". Use balanced, three-rb, hero-rb, or wr-heavy.`);
 };
 
 const draftPlanStrategyModeOptionValue = (): "filter" | "force" => {

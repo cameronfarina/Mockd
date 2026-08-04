@@ -54,4 +54,25 @@ describe("live draft strategy values", () => {
     expect(wrHeavyLondon?.liveExpectedPrice).toBe(balancedLondon?.liveExpectedPrice);
     expect(wrHeavyLondon?.personalValue).toBeGreaterThan(balancedLondon?.personalValue ?? 0);
   });
+
+  it("keeps Cam's uncapped strategy value separate from path max discipline", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+      strategyKey: "three-rb",
+    });
+
+    const cappedTarget = state.availableTargets.find(target =>
+      target.position === "WR" && target.tags.some(tag => tag.startsWith("path max $")),
+    );
+
+    expect(cappedTarget).toBeDefined();
+    expect(cappedTarget?.personalValue).toBeGreaterThan(cappedTarget?.recommendedMaxBid ?? 0);
+    expect(cappedTarget?.strategyValues["three-rb"]).toBe(cappedTarget?.personalValue);
+  });
 });

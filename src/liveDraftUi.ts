@@ -6039,7 +6039,7 @@ export const liveDraftHtml = `<!doctype html>
       nextRoundButton.textContent = 'Sim to next round';
       nextRoundButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
       completeButton.textContent = mockAdvanceRequestAction === 'complete-mock' ? 'Completing mock...' : 'Complete mock draft';
-      completeButton.disabled = mockAdvanceBusy || !isMockMode || terminal;
+      completeButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
 
       if (!isMockMode) {
         details.replaceChildren(mockDraftItem('Mock draft', 'Start mock draft to enter the practice room.'));

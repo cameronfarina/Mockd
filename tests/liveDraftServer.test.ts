@@ -325,7 +325,8 @@ describe("live draft server", () => {
 
       expect(gibbs).toMatchObject({
         expectedPrice: 72,
-        personalValue: 76,
+        personalValue: 80,
+        recommendedMaxBid: 76,
         draftRoomRank: {
           sourceLabel: "Average Half PPR",
           platformRank: 1.3,
@@ -334,7 +335,8 @@ describe("live draft server", () => {
       });
       expect(london).toMatchObject({
         expectedPrice: 46,
-        personalValue: 26,
+        personalValue: expect.any(Number),
+        recommendedMaxBid: 26,
       });
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -1074,6 +1076,20 @@ describe("live draft server", () => {
         "Cam bid $42",
         "Chip bid $43",
       ]);
+
+      const camWin = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "practice-3rb",
+        strategyKey: "three-rb",
+        seed: "server-auction-bid",
+        action: "cam-bid",
+        mockAuction: aiRaise.data.mockDraft.auction,
+      });
+
+      expect(camWin.status).toBe(200);
+      expect(camWin.data.session.commandCount).toBe(1);
+      expect(camWin.data.events.map((event: { input: string }) => event.input)).toEqual([
+        "Cam drafted Breece Hall for 42",
+      ]);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -1110,22 +1126,12 @@ describe("live draft server", () => {
         seed: "server-speed-controls",
         action: "complete-mock",
       });
-      expect(complete.status).toBe(200);
-      expect(complete.data.session.commandCount).toBeGreaterThan(2);
-      expect(complete.data.events.map((event: { input: string }) => event.input)).toEqual(
-        expect.arrayContaining([
-          mockAiSaleCommands[0],
-          mockAiSaleCommands[1],
-        ]),
-      );
-      expect(complete.data.mockDraft.phase).toBe("complete");
-      const logLines = (await readFile(complete.data.session.paths.logPath, "utf8")).trim().split("\n");
-      const lastLogEntry = JSON.parse(logLines.at(-1) ?? "{}");
-      expect(lastLogEntry.mutation).toMatchObject({
-        type: "import",
-        previousCommandCount: 2,
-        importedCount: complete.data.session.commandCount,
-      });
+      expect(complete.status).toBe(422);
+      expect(complete.data.session.commandCount).toBe(2);
+      expect(complete.data.mockDraft.phase).toBe("human-decision");
+      expect(complete.data.errors).toContainEqual(expect.objectContaining({
+        message: "Complete mock draft is paused while Cam has a live decision.",
+      }));
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

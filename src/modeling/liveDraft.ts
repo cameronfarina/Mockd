@@ -1130,20 +1130,19 @@ const buildTargets = ({
       const strategyPathMaxBid = strategyPathMaxBidFor(player, watchOwner, strategy);
       const uncappedPersonalValue = rawStrategyValues[strategy.key];
       const personalValue = fitsWatchOwnerRoster
-        ? Math.min(uncappedPersonalValue, strategyPathMaxBid ?? uncappedPersonalValue)
+        ? uncappedPersonalValue
         : 0;
-      const strategyValues = {
-        ...rawStrategyValues,
-        [strategy.key]: personalValue,
-      };
-      const recommendedMaxBid = personalValue;
+      const recommendedMaxBid = fitsWatchOwnerRoster
+        ? Math.min(personalValue, strategyPathMaxBid ?? personalValue)
+        : 0;
+      const strategyValues = rawStrategyValues;
       const valueScore = draftPriorityScoreFor({
         player,
         needMultiplier,
         liveExpectedPrice,
       });
       const tags = targetTagsFor(player, watchOwner, strategy);
-      if (strategyPathMaxBid !== undefined && strategyPathMaxBid < uncappedPersonalValue) {
+      if (strategyPathMaxBid !== undefined && strategyPathMaxBid < personalValue) {
         tags.push(`path max $${strategyPathMaxBid}`);
       }
 

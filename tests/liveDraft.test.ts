@@ -286,7 +286,7 @@ describe("live draft room", () => {
         landmineScore: 5.5,
       },
     });
-    expect(gibbs?.personalValue).toBe(76);
+    expect(gibbs?.personalValue).toBe(80);
     expect(gibbs?.strategyValues).toMatchObject({
       balanced: expect.any(Number),
       "three-rb": gibbs?.personalValue,
@@ -300,7 +300,7 @@ describe("live draft room", () => {
     expect(gibbs?.tags).toContain("path max $76");
     expect(puka).toMatchObject({
       position: "WR",
-      personalValue: 26,
+      personalValue: 76,
       recommendedMaxBid: 26,
       tags: expect.arrayContaining(["path max $26"]),
     });

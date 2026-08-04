@@ -91,4 +91,46 @@ describe("CLI draft readiness", () => {
     expect(report.draftPlan.matchedRunCount).toBeGreaterThan(0);
     expect(report.draftPlan.topCandidate?.rbCore).toHaveLength(3);
   }, 30000);
+
+  it("accepts balanced as a draft readiness strategy", async () => {
+    const { stdout } = await execFileAsync(
+      "npm",
+      [
+        "run",
+        "--silent",
+        "draft:ready",
+        "--",
+        "--owner=Cam",
+        "--strategy=balanced",
+        "--scenario=expected",
+        "--runs=3",
+        "--qa-runs=4",
+        "--limit=2",
+        "--strategy-mode=force",
+        "--min-matches=1",
+        "--seed-prefix=draft-ready-balanced-cli-test",
+      ],
+      {
+        cwd: process.cwd(),
+        maxBuffer: 30 * 1024 * 1024,
+      },
+    );
+    const report = JSON.parse(stdout) as {
+      recommendedExitCode: number;
+      options: {
+        strategyKey: string;
+      };
+      draftPlan: {
+        matchedRunCount: number;
+        topCandidate?: {
+          rbCore: string[];
+        };
+      };
+    };
+
+    expect(report.recommendedExitCode).toBe(0);
+    expect(report.options.strategyKey).toBe("balanced");
+    expect(report.draftPlan.matchedRunCount).toBeGreaterThan(0);
+    expect(report.draftPlan.topCandidate?.rbCore.length).toBeGreaterThanOrEqual(1);
+  }, 30000);
 });

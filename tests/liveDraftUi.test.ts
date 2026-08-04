@@ -406,6 +406,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("nextDecisionButton.textContent = 'Skip to Cam decision';");
     expect(liveDraftHtml).toContain("nextRoundButton.textContent = 'Sim to next round';");
     expect(liveDraftHtml).toContain("completeButton.textContent = mockAdvanceRequestAction === 'complete-mock' ? 'Completing mock...' : 'Complete mock draft';");
+    expect(liveDraftHtml).toContain("completeButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;");
     expect(liveDraftHtml).toContain("if (data.availableTargets && data.owners) render(data);");
     expect(liveDraftHtml).toContain("else await refreshMockDraft();");
     expect(liveDraftHtml).toContain("mockAuctionFeedLines(mockDraft)");

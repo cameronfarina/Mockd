@@ -417,4 +417,98 @@ describe("draft plan generation", () => {
     ]);
     expect(report.candidates[0]?.lineup.find(entry => entry.slot === "FLEX")?.player.name).toBe("Value RB 3");
   });
+
+  it("builds balanced plans without forcing the true 3RB shape", () => {
+    const batch: MockBatch = {
+      options: {
+        scenarioKeys: ["expected"],
+        runsPerScenario: 1,
+        seedPrefix: "draft-plan-balanced-test",
+      },
+      runs: [
+        {
+          seed: "draft-plan-balanced-test:expected:1",
+          keeperScenario: expectedScenario,
+          inputCounts: {
+            pricedPlayers: 0,
+            auctionPlayers: 0,
+            lockedKeepers: 0,
+          },
+          pickCount: 0,
+          picks: [],
+          budgetTrajectory: [],
+          rosters: [
+            {
+              owner: "Cam",
+              spend: 200,
+              budgetRemaining: 0,
+              week1Score: 118,
+              weeks1To4Score: 472,
+              valid: true,
+              errors: [],
+              positionSpend: {
+                QB: 2,
+                RB: 87,
+                WR: 104,
+                TE: 4,
+                K: 1,
+                DST: 2,
+              },
+              players: [
+                player("Cheap QB", "QB", 2),
+                player("RB Starter", "RB", 45, 72),
+                player("RB Value", "RB", 22, 54),
+                player("RB Bench", "RB", 8, 28),
+                player("WR Anchor", "WR", 48, 76),
+                player("WR Starter", "WR", 34, 64),
+                player("WR Flex", "WR", 18, 58),
+                player("WR Bench", "WR", 4, 20),
+                player("TE Value", "TE", 4, 32),
+                player("Kicker", "K", 1),
+                player("Defense", "DST", 2),
+                player("Bench RB 2", "RB", 1, 12),
+                player("Bench WR 2", "WR", 1, 10),
+                player("Bench WR 3", "WR", 1, 8),
+                player("Bench TE", "TE", 1, 6),
+                player("Bench RB 3", "RB", 1, 4),
+              ],
+            },
+          ],
+          invalidRosterCount: 0,
+          unsoldPlayerCount: 0,
+        },
+      ],
+      summary: {
+        runCount: 1,
+        scenarios: [],
+        players: [],
+        owners: [],
+        ownerPlayerExposure: [],
+      },
+    };
+
+    const threeRbReport = buildDraftPlanReport({
+      batch,
+      owner: "Cam",
+      strategyKey: "three-rb",
+      limit: 5,
+    });
+    const balancedReport = buildDraftPlanReport({
+      batch,
+      owner: "Cam",
+      strategyKey: "balanced",
+      limit: 5,
+    });
+
+    expect(threeRbReport.matchedRunCount).toBe(0);
+    expect(balancedReport.matchedRunCount).toBe(1);
+    expect(balancedReport.strategy.label).toBe("Balanced");
+    expect(balancedReport.recommendations.targetClusters[0]).toMatchObject({
+      label: "RB starters",
+      position: "RB",
+      targetNames: ["RB Starter", "RB Value"],
+    });
+    expect(balancedReport.recommendations.pivotRules.map(rule => rule.label)).toContain("Take the discount");
+    expect(balancedReport.recommendations.deadZoneWarnings).toEqual([]);
+  });
 });

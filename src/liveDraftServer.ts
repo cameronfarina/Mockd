@@ -1142,6 +1142,20 @@ const mockDraftFromInteractiveMockAction = (result: unknown): unknown | undefine
 const mockAuctionFromValue = (value: unknown): unknown | undefined =>
   value && typeof value === "object" ? value : undefined;
 
+const mockAuctionPlayerFromValue = (value: unknown): string | undefined => {
+  if (!value || typeof value !== "object") return undefined;
+  const player = (value as Record<string, unknown>).player;
+  return typeof player === "string" && player.trim() ? player.trim() : undefined;
+};
+
+const mockAuctionOpeningBidFromValue = (value: unknown): number | undefined => {
+  if (!value || typeof value !== "object") return undefined;
+  const openingBid = (value as Record<string, unknown>).openingBid;
+  return typeof openingBid === "number" && Number.isInteger(openingBid) && openingBid > 0
+    ? openingBid
+    : undefined;
+};
+
 const mockDraftWithClientAuction = (mockDraft: unknown, mockAuction: unknown | undefined): unknown => {
   if (!mockAuction || !mockDraft || typeof mockDraft !== "object") return mockDraft;
 
@@ -1642,6 +1656,24 @@ export const createLiveDraftServer = async (
               draftSessionKey,
             }),
             errors: currentState.errors,
+          },
+        };
+      }
+
+      const currentMockDraft = await mockDraftFor({
+        ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
+        draftSessionKey,
+      });
+      const currentPhase = mockDraftPhaseFor(currentMockDraft);
+      if (currentPhase === "human-decision" || currentPhase === "human-nomination") {
+        return {
+          status: 422,
+          body: {
+            ...await stateWithMockDraft({
+              ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
+              draftSessionKey,
+            }),
+            errors: [{ input: "", message: "Complete mock draft is paused while Cam has a live decision." }],
           },
         };
       }
@@ -2230,8 +2262,13 @@ export const createLiveDraftServer = async (
         const result = await runQueuedSessionMutation(draftSessionKey, "interactive-mock", async (): Promise<LiveDraftMutationResult> => {
           const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
           const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
+          const restoredNominatedPlayer = nominatedPlayer ?? mockAuctionPlayerFromValue(mockAuction);
+          const restoredNominatedPrice = nominatedPrice ?? mockAuctionOpeningBidFromValue(mockAuction);
           const mockDraft = mockDraftWithClientAuction(
-            await mockDraftFor({ ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice), draftSessionKey }),
+            await mockDraftFor({
+              ...mockDraftRequestFor(strategyKey, seed, restoredNominatedPlayer, restoredNominatedPrice),
+              draftSessionKey,
+            }),
             mockAuction,
           );
           const actionResult = interactiveMockDraft.resolveInteractiveMockDraftAction(mockDraft, action);

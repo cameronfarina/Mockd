@@ -317,71 +317,11 @@ export const strategyAuctionOverridesFor = (
   strategyKey: LiveDraftStrategyKey,
   options: { variantSeed?: string } = {},
 ): AuctionEngineConfigOverrides => {
-  if (strategyKey === "three-rb") {
-    return draftPlanAuctionOverridesFor({
-      owner,
-      strategyKey,
-      ...(options.variantSeed === undefined ? {} : { variantSeed: options.variantSeed }),
-    });
-  }
-  if (strategyKey === "hero-rb") {
-    return {
-      ownerDemandMultipliers: {
-        [owner]: { QB: 0.65, RB: 1.08, WR: 1.14, TE: 0.82 },
-      },
-      ownerBehaviors: {
-        [owner]: {
-          priceAggression: 1.03,
-          scarcityChase: 1.08,
-          replacementPatience: 0.99,
-          anchorAggression: 1.12,
-          depthAggression: 0.96,
-        },
-      },
-      ownerPositionAnchorTargets: {
-        [owner]: { RB: 1 },
-      },
-      ownerPositionSlotMaxBids: {
-        [owner]: {
-          RB: [62, 22, 12, 5, 2],
-          WR: [45, 34, 24, 14, 8, 4, 1],
-          TE: [8, 2],
-          K: [1],
-          DST: [1],
-        },
-      },
-    };
-  }
-  if (strategyKey === "wr-heavy") {
-    return {
-      ownerDemandMultipliers: {
-        [owner]: { QB: 0.62, RB: 0.9, WR: 1.24, TE: 0.82 },
-      },
-      ownerBehaviors: {
-        [owner]: {
-          priceAggression: 1.05,
-          scarcityChase: 1.12,
-          replacementPatience: 0.98,
-          anchorAggression: 1.18,
-          depthAggression: 1.02,
-        },
-      },
-      ownerPositionAnchorTargets: {
-        [owner]: { WR: 3 },
-      },
-      ownerPositionSlotMaxBids: {
-        [owner]: {
-          RB: [42, 24, 12, 5, 2],
-          WR: [58, 48, 36, 20, 12, 6, 2],
-          TE: [7, 2],
-          K: [1],
-          DST: [1],
-        },
-      },
-    };
-  }
-
-  return {};
+  return draftPlanAuctionOverridesFor({
+    owner,
+    strategyKey,
+    ...(options.variantSeed === undefined ? {} : { variantSeed: options.variantSeed }),
+  });
 };
 
 const buildInteractiveAuctionConfig = ({

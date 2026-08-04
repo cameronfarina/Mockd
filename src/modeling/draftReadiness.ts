@@ -183,18 +183,26 @@ const candidateShapeCheck = (report: DraftPlanReport): DraftReadyCheck => {
     };
   }
 
-  const valid = candidate.rbCore.length === 3 &&
-    candidate.rosterSpend <= leagueConfig.auctionBudget &&
-    candidate.rbCoreSpend >= report.strategy.thresholds.rbCoreSpendMinimum;
+  const valid = report.strategy.key === "three-rb"
+    ? candidate.rbCore.length === 3 &&
+      candidate.rosterSpend <= leagueConfig.auctionBudget &&
+      candidate.rbCoreSpend >= report.strategy.thresholds.rbCoreSpendMinimum
+    : candidate.lineup.length >= 9 &&
+      candidate.rosterSpend <= leagueConfig.auctionBudget &&
+      candidate.players.length >= leagueConfig.rosterSize;
 
   return {
     key: "top-candidate-shape",
     label: "Top candidate shape",
     status: valid ? "pass" : "fail",
     severity: "hard",
-    message: valid
-      ? `Top plan has a $${candidate.rbCoreSpend} RB core and $${candidate.rosterSpend} total spend.`
-      : `Top plan shape missed the strategy constraints: $${candidate.rbCoreSpend} RB core, $${candidate.rosterSpend} total spend.`,
+    message: report.strategy.key === "three-rb"
+      ? valid
+        ? `Top plan has a $${candidate.rbCoreSpend} RB core and $${candidate.rosterSpend} total spend.`
+        : `Top plan shape missed the strategy constraints: $${candidate.rbCoreSpend} RB core, $${candidate.rosterSpend} total spend.`
+      : valid
+        ? `Top ${report.strategy.label} plan has a legal lineup, ${candidate.players.length} players, and $${candidate.rosterSpend} total spend.`
+        : `Top ${report.strategy.label} plan missed lineup, roster-size, or budget constraints: ${candidate.lineup.length} starters, ${candidate.players.length} players, $${candidate.rosterSpend} total spend.`,
   };
 };
 

@@ -183,7 +183,7 @@ describe("auction engine economics", () => {
       starterMinimums: positionAmounts(0),
       flexMinimum: 0,
       ownerDemandMultipliers: {},
-      seed: "nomination-order",
+      seed: "nomination-order-a",
     });
 
     const result = simulateAuction({
@@ -226,6 +226,31 @@ describe("auction engine economics", () => {
     );
   });
 
+  it("varies the opening nominator by seed while keeping each run deterministic", () => {
+    const owners: Owner[] = ["Beaton", "Hoody"];
+    const players = [
+      player("Later value WR", "WR", 35),
+      player("Elite market RB", "RB", 70),
+    ];
+    const firstNominatorFor = (seed: string): Owner | undefined =>
+      simulateAuction({
+        players,
+        config: buildAuctionConfig({
+          owners,
+          auctionBudget: 100,
+          rosterSize: 1,
+          rosterMaximums: positionAmounts(1),
+          starterMinimums: positionAmounts(0),
+          flexMinimum: 0,
+          ownerDemandMultipliers: {},
+          seed,
+        }),
+      }).picks[0]?.nominator;
+
+    expect(firstNominatorFor("start-0")).toBe(firstNominatorFor("start-0"));
+    expect(new Set([firstNominatorFor("start-0"), firstNominatorFor("start-1")]).size).toBe(2);
+  });
+
   it("lets the current nominator target an affordable roster need instead of the next luxury player", () => {
     const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
     const starterMinimums = {
@@ -240,7 +265,7 @@ describe("auction engine economics", () => {
       starterMinimums,
       flexMinimum: 0,
       ownerDemandMultipliers: {},
-      seed: "nomination-needs",
+      seed: "nomination-needs-1",
     });
 
     const result = simulateAuction({
@@ -295,7 +320,7 @@ describe("auction engine economics", () => {
         flushMoneyWeight: 0,
         tieBreakWeight: 0,
       },
-      seed: "nomination-opponent-needs",
+      seed: "opponent-needs-a",
     });
 
     const result = simulateAuction({
@@ -332,7 +357,7 @@ describe("auction engine economics", () => {
           RB: 1.4,
         },
       },
-      seed: "nomination-full-skip",
+      seed: "nomination-full-skip-6",
     });
 
     const result = simulateAuction({

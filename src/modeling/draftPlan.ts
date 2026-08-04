@@ -2,9 +2,10 @@ import { type Owner, type Position } from "../../config/league.js";
 import { lineupScore, optimizeLineup } from "../lineupOptimizer.js";
 import type { LineupEntry, Player } from "../types.js";
 import type { AuctionEngineConfigOverrides } from "./auctionEngine.js";
+import type { LiveDraftStrategyKey } from "./liveDraftStrategies.js";
 import type { MockBatch, MockRosterSummary, PlayerBatchSummary } from "./mockBatch.js";
 
-export type DraftPlanStrategyKey = "three-rb";
+export type DraftPlanStrategyKey = LiveDraftStrategyKey;
 
 export interface DraftPlanStrategyDefinition {
   key: DraftPlanStrategyKey;
@@ -334,6 +335,16 @@ const threeRbAuctionVariantFor = (variantSeed: string | undefined): ThreeRbAucti
     )] ?? threeRbAuctionVariants[0]!;
 
 export const draftPlanStrategies = {
+  balanced: {
+    key: "balanced",
+    label: "Balanced",
+    thresholds: {
+      rb1Minimum: 20,
+      rb2Minimum: 1,
+      rb3Minimum: 0,
+      rbCoreSpendMinimum: 40,
+    },
+  },
   "three-rb": {
     key: "three-rb",
     label: "True 3RB",
@@ -344,7 +355,197 @@ export const draftPlanStrategies = {
       rbCoreSpendMinimum: threeRbPathRules.rbCoreBudget.minimumSpend,
     },
   },
+  "hero-rb": {
+    key: "hero-rb",
+    label: "Hero RB",
+    thresholds: {
+      rb1Minimum: 45,
+      rb2Minimum: 1,
+      rb3Minimum: 0,
+      rbCoreSpendMinimum: 65,
+    },
+  },
+  "wr-heavy": {
+    key: "wr-heavy",
+    label: "WR Heavy",
+    thresholds: {
+      rb1Minimum: 1,
+      rb2Minimum: 1,
+      rb3Minimum: 0,
+      rbCoreSpendMinimum: 24,
+    },
+  },
 } as const satisfies Record<DraftPlanStrategyKey, DraftPlanStrategyDefinition>;
+
+const strategyPlanRules = {
+  balanced: {
+    priceBands: [
+      {
+        slot: "RB1",
+        position: "RB",
+        minimumPrice: 35,
+        maximumPrice: 68,
+        note: "Lead RB lane without locking into three premium backs.",
+      },
+      {
+        slot: "RB2",
+        position: "RB",
+        minimumPrice: 18,
+        maximumPrice: 48,
+        note: "Second RB lane that protects starter quality.",
+      },
+      {
+        slot: "WR1",
+        position: "WR",
+        minimumPrice: 20,
+        maximumPrice: 52,
+        note: "Paid WR lane when value beats forcing another RB.",
+      },
+      {
+        slot: "WR2",
+        position: "WR",
+        minimumPrice: 8,
+        maximumPrice: 28,
+        note: "Second WR starter value pocket.",
+      },
+      {
+        slot: "TE",
+        position: "TE",
+        minimumPrice: 1,
+        maximumPrice: 8,
+        note: "Controlled TE lane unless the board creates a discount.",
+      },
+    ],
+    pivotRules: [
+      {
+        label: "Take the discount",
+        trigger: "A starter at RB or WR falls below live value.",
+        action: "Buy the discount and rebalance the next starter slot instead of staying rigid by position.",
+      },
+      {
+        label: "Avoid double panic",
+        trigger: "Two premium rooms clear above your value in a row.",
+        action: "Let one tier go and spend into the next RB/WR pocket with a firm max.",
+      },
+    ],
+  },
+  "three-rb": {
+    priceBands: threeRbPathRules.priceBands,
+    pivotRules: threeRbPathRules.pivotRules,
+  },
+  "hero-rb": {
+    priceBands: [
+      {
+        slot: "RB1",
+        position: "RB",
+        minimumPrice: 48,
+        maximumPrice: 72,
+        note: "One premium RB anchor, then let RB2 come from value.",
+      },
+      {
+        slot: "RB2",
+        position: "RB",
+        minimumPrice: 8,
+        maximumPrice: 30,
+        note: "Discount RB2 lane after the anchor.",
+      },
+      {
+        slot: "WR1",
+        position: "WR",
+        minimumPrice: 28,
+        maximumPrice: 60,
+        note: "Primary receiver spend after the RB anchor is secured.",
+      },
+      {
+        slot: "WR2",
+        position: "WR",
+        minimumPrice: 16,
+        maximumPrice: 38,
+        note: "Second WR starter lane with room for upside.",
+      },
+      {
+        slot: "TE",
+        position: "TE",
+        minimumPrice: 1,
+        maximumPrice: 8,
+        note: "Controlled TE lane unless the anchor/WR spend comes in light.",
+      },
+    ],
+    pivotRules: [
+      {
+        label: "Anchor RB miss",
+        trigger: "The RB anchor tier clears above your max.",
+        action: "Do not chase a fake hero build; pivot to balanced RB2/WR spend.",
+      },
+      {
+        label: "WR pocket closes",
+        trigger: "WR1 and WR2 both climb above plan.",
+        action: "Use RB2 value and keep TE cheap so the roster does not become thin.",
+      },
+    ],
+  },
+  "wr-heavy": {
+    priceBands: [
+      {
+        slot: "WR1",
+        position: "WR",
+        minimumPrice: 38,
+        maximumPrice: 72,
+        note: "Primary receiver anchor lane.",
+      },
+      {
+        slot: "WR2",
+        position: "WR",
+        minimumPrice: 24,
+        maximumPrice: 56,
+        note: "Second receiver lane for a real weekly edge.",
+      },
+      {
+        slot: "WR3",
+        position: "WR",
+        minimumPrice: 12,
+        maximumPrice: 36,
+        note: "Third receiver/flex value pocket.",
+      },
+      {
+        slot: "RB1",
+        position: "RB",
+        minimumPrice: 18,
+        maximumPrice: 48,
+        note: "Playable RB lane without fighting the elite-RB room.",
+      },
+      {
+        slot: "RB2",
+        position: "RB",
+        minimumPrice: 6,
+        maximumPrice: 28,
+        note: "Second RB lane built from price discipline.",
+      },
+      {
+        slot: "TE",
+        position: "TE",
+        minimumPrice: 1,
+        maximumPrice: 8,
+        note: "Cheap TE lane.",
+      },
+    ],
+    pivotRules: [
+      {
+        label: "Receiver tax",
+        trigger: "WR anchors are all clearing at premium RB prices.",
+        action: "Take the RB discount and turn the build back toward balanced instead of paying for the logo.",
+      },
+      {
+        label: "RB scarcity spike",
+        trigger: "The room is letting every playable RB disappear.",
+        action: "Buy one RB starter before adding the third receiver.",
+      },
+    ],
+  },
+} as const satisfies Record<DraftPlanStrategyKey, {
+  priceBands: readonly DraftPlanPriceBand[];
+  pivotRules: readonly DraftPlanPivotRule[];
+}>;
 
 export interface DraftPlanAuctionOverridesOptions {
   owner: Owner;
@@ -357,7 +558,94 @@ export const draftPlanAuctionOverridesFor = ({
   strategyKey,
   variantSeed,
 }: DraftPlanAuctionOverridesOptions): AuctionEngineConfigOverrides => {
-  if (strategyKey !== "three-rb") return {};
+  if (strategyKey === "balanced") {
+    return {
+      ownerDemandMultipliers: {
+        [owner]: {
+          QB: 0.65,
+          RB: 1.04,
+          WR: 1.06,
+          TE: 0.82,
+        },
+      },
+      ownerBehaviors: {
+        [owner]: {
+          priceAggression: 1.02,
+          scarcityChase: 1.06,
+          replacementPatience: 1,
+          anchorAggression: 1.1,
+          depthAggression: 0.98,
+        },
+      },
+      ownerPositionSlotMaxBids: {
+        [owner]: {
+          RB: [58, 46, 24, 10, 4],
+          WR: [54, 38, 24, 12, 6, 3, 1],
+          TE: [8, 2],
+          K: [1],
+          DST: [1],
+        },
+      },
+    };
+  }
+
+  if (strategyKey === "hero-rb") {
+    return {
+      ownerDemandMultipliers: {
+        [owner]: { QB: 0.65, RB: 1.08, WR: 1.14, TE: 0.82 },
+      },
+      ownerBehaviors: {
+        [owner]: {
+          priceAggression: 1.03,
+          scarcityChase: 1.08,
+          replacementPatience: 0.99,
+          anchorAggression: 1.12,
+          depthAggression: 0.96,
+        },
+      },
+      ownerPositionAnchorTargets: {
+        [owner]: { RB: 1 },
+      },
+      ownerPositionSlotMaxBids: {
+        [owner]: {
+          RB: [62, 22, 12, 5, 2],
+          WR: [45, 34, 24, 14, 8, 4, 1],
+          TE: [8, 2],
+          K: [1],
+          DST: [1],
+        },
+      },
+    };
+  }
+
+  if (strategyKey === "wr-heavy") {
+    return {
+      ownerDemandMultipliers: {
+        [owner]: { QB: 0.62, RB: 0.9, WR: 1.24, TE: 0.82 },
+      },
+      ownerBehaviors: {
+        [owner]: {
+          priceAggression: 1.05,
+          scarcityChase: 1.12,
+          replacementPatience: 0.98,
+          anchorAggression: 1.18,
+          depthAggression: 1.02,
+        },
+      },
+      ownerPositionAnchorTargets: {
+        [owner]: { WR: 3 },
+      },
+      ownerPositionSlotMaxBids: {
+        [owner]: {
+          RB: [42, 24, 12, 5, 2],
+          WR: [58, 48, 36, 20, 12, 6, 2],
+          TE: [7, 2],
+          K: [1],
+          DST: [1],
+        },
+      },
+    };
+  }
 
   const variant = threeRbAuctionVariantFor(variantSeed);
 
@@ -581,6 +869,36 @@ const qualifiesForThreeRb = (
     startingRbCount >= threeRbPathRules.rbCoreBudget.targetCount;
 };
 
+const draftedSpendFor = (players: readonly Player[], position: Position, count: number): number =>
+  sortPlayers(players.filter(player => player.position === position))
+    .slice(0, count)
+    .reduce((total, player) => total + player.price, 0);
+
+const qualifiesForStrategy = (
+  roster: MockRosterSummary,
+  rbCore: readonly Player[],
+  strategy: DraftPlanStrategyDefinition,
+  lineup: readonly LineupEntry[],
+): boolean => {
+  if (strategy.key === "three-rb") return qualifiesForThreeRb(rbCore, strategy, lineup);
+
+  const hasLegalStarters = lineup.length >= 9;
+  if (!hasLegalStarters) return false;
+
+  if (strategy.key === "hero-rb") {
+    return (rbCore[0]?.price ?? 0) >= strategy.thresholds.rb1Minimum &&
+      draftedSpendFor(roster.players, "WR", 2) >= 30;
+  }
+
+  if (strategy.key === "wr-heavy") {
+    return draftedSpendFor(roster.players, "WR", 2) >= 40 &&
+      (rbCore[0]?.price ?? 0) >= strategy.thresholds.rb1Minimum;
+  }
+
+  return (rbCore[0]?.price ?? 0) >= strategy.thresholds.rb1Minimum &&
+    draftedSpendFor(roster.players, "WR", 2) >= 12;
+};
+
 const buildCandidate = (
   seed: string,
   scenarioKey: string,
@@ -592,7 +910,7 @@ const buildCandidate = (
 
   const rbCore = sortPlayers(roster.players.filter(player => player.position === "RB")).slice(0, 3);
   const optimizedLineup = optimizeLineup({ strategy: strategy.key, players: roster.players }, "weeks1To4");
-  if (!qualifiesForThreeRb(rbCore, strategy, optimizedLineup)) return undefined;
+  if (!qualifiesForStrategy(roster, rbCore, strategy, optimizedLineup)) return undefined;
 
   const lineupNames = new Set(optimizedLineup.map(entry => entry.player.name));
   const players = sortPlayers(roster.players).map(player => draftPlanPlayerFor(player, marketByName));
@@ -677,16 +995,20 @@ const coachSlotDefinitions: readonly CoachSlotDefinition[] = [
 const topCoachCandidates = (candidates: readonly DraftPlanCandidate[]): DraftPlanCandidate[] =>
   candidates.slice(0, Math.min(candidates.length, coachCohortLimit));
 
-const pathBandForSlot = (slot: CoachSlotKey): DraftPlanPriceBand | undefined =>
-  threeRbPathRules.priceBands.find(band => band.slot === slot);
+const pathBandForSlot = (
+  slot: CoachSlotKey,
+  strategy: DraftPlanStrategyDefinition,
+): DraftPlanPriceBand | undefined =>
+  strategyPlanRules[strategy.key].priceBands.find(band => band.slot === slot);
 
 const fallbackWindowForBlueprint = (
   definition: CoachSlotDefinition,
   minimumPrice: number,
   maximumPrice: number,
   averagePrice: number,
+  strategy: DraftPlanStrategyDefinition,
 ): Pick<DraftPlanPriceBand, "minimumPrice" | "maximumPrice"> => {
-  const pathBand = pathBandForSlot(definition.slot);
+  const pathBand = pathBandForSlot(definition.slot, strategy);
   const minimum = Math.max(
     minimumFallbackPrice,
     Math.min(minimumPrice, Math.floor(averagePrice - fallbackWindowCushion)),
@@ -787,6 +1109,7 @@ const slotBlueprintFor = (
   definition: CoachSlotDefinition,
   candidates: readonly DraftPlanCandidate[],
   marketPlayers: readonly PlayerBatchSummary[],
+  strategy: DraftPlanStrategyDefinition,
 ): DraftPlanSlotBlueprint | undefined => {
   const players = candidates
     .map(candidate => definition.playerForCandidate(candidate))
@@ -804,6 +1127,7 @@ const slotBlueprintFor = (
     minimumPrice,
     maximumPrice,
     average(prices),
+    strategy,
   );
 
   return {
@@ -909,6 +1233,7 @@ const guardrailStatus = (failed: boolean, warned: boolean): DraftPlanRiskStatus 
 
 const riskGuardrailsFor = (
   candidates: readonly DraftPlanCandidate[],
+  strategy: DraftPlanStrategyDefinition,
 ): DraftPlanRiskGuardrail[] => {
   if (candidates.length === 0) {
     return [{
@@ -916,6 +1241,37 @@ const riskGuardrailsFor = (
       status: "fail",
       detail: "No sampled roster reached the requested strategy shape; do not treat this path as live-ready yet.",
     }];
+  }
+
+  if (strategy.key !== "three-rb") {
+    const rosterSpends = candidates.map(candidate => candidate.rosterSpend);
+    const starterScores = candidates.map(candidate => candidate.weeks1To4Score);
+    const dollarPlayerCounts = candidates.map(candidate =>
+      candidate.players.filter(player => player.price <= 1).length,
+    );
+    const spendMinimum = Math.min(...rosterSpends);
+    const spendMaximum = Math.max(...rosterSpends);
+    const scoreMinimum = Math.min(...starterScores);
+    const scoreMaximum = Math.max(...starterScores);
+    const averageDollarPlayers = roundToTwo(average(dollarPlayerCounts));
+
+    return [
+      {
+        label: "Budget usage",
+        status: guardrailStatus(spendMaximum > 200, spendMinimum < 185),
+        detail: `Best sampled teams spent ${priceWindowText(spendMinimum, spendMaximum)}; leaving more than about $15 unused means the plan probably passed too many useful tiers.`,
+      },
+      {
+        label: "Starter strength",
+        status: guardrailStatus(scoreMinimum <= 0, scoreMaximum - scoreMinimum > 80),
+        detail: `Best sampled teams landed in a ${scoreMinimum.toFixed(1)}-${scoreMaximum.toFixed(1)} Weeks 1-4 starter range.`,
+      },
+      {
+        label: "Dollar-player exposure",
+        status: guardrailStatus(averageDollarPlayers >= 11, averageDollarPlayers >= 9),
+        detail: `Best sampled teams averaged ${averageDollarPlayers.toFixed(1)} $1 players; crossing 9 means the roster is leaning thin.`,
+      },
+    ];
   }
 
   const rbCoreSpends = candidates.map(candidate => candidate.rbCoreSpend);
@@ -957,42 +1313,47 @@ const riskGuardrailsFor = (
 const strategyCoachFor = (
   candidates: readonly DraftPlanCandidate[],
   marketPlayers: readonly PlayerBatchSummary[],
+  strategy: DraftPlanStrategyDefinition,
 ): DraftPlanStrategyCoach => {
   const coachCandidates = topCoachCandidates(candidates);
   const blueprint = coachSlotDefinitions
-    .map(definition => slotBlueprintFor(definition, coachCandidates, marketPlayers))
+    .map(definition => slotBlueprintFor(definition, coachCandidates, marketPlayers, strategy))
     .filter((slot): slot is DraftPlanSlotBlueprint => slot !== undefined);
   const averageWeeks1To4Score = roundToTwo(average(coachCandidates.map(candidate => candidate.weeks1To4Score)));
 
   return {
     headline: coachCandidates.length
-      ? `Top ${coachCandidates.length} sampled ${coachCandidates.length === 1 ? "build" : "builds"} averaged ${averageWeeks1To4Score.toFixed(1)} Weeks 1-4 points. Use the bands as guardrails, not guarantees.`
+      ? `Top ${coachCandidates.length} sampled ${strategy.label} ${coachCandidates.length === 1 ? "build" : "builds"} averaged ${averageWeeks1To4Score.toFixed(1)} Weeks 1-4 points. Use the bands as guardrails, not guarantees.`
       : "No winning roster blueprint yet; run more mocks or loosen the strategy filters.",
     sampleSize: coachCandidates.length,
     averageWeeks1To4Score,
     blueprint,
     contingencyPlans: contingencyPlansFor(blueprint),
-    riskGuardrails: riskGuardrailsFor(coachCandidates),
+    riskGuardrails: riskGuardrailsFor(coachCandidates, strategy),
   };
 };
 
 const buildRecommendations = (
   candidates: readonly DraftPlanCandidate[],
   marketPlayers: readonly PlayerBatchSummary[],
+  strategy: DraftPlanStrategyDefinition,
 ): DraftPlanRecommendations => {
   const topCandidate = candidates[0];
-  const rbBands = threeRbPathRules.priceBands.filter(band => band.position === "RB");
-  const wrBands = threeRbPathRules.priceBands.filter(band => band.position === "WR");
-  const teBand = threeRbPathRules.priceBands.find(band => band.position === "TE");
+  const rules = strategyPlanRules[strategy.key];
+  const rbBands = rules.priceBands.filter(band => band.position === "RB");
+  const wrBands = rules.priceBands.filter(band => band.position === "WR");
+  const teBand = rules.priceBands.find(band => band.position === "TE");
   const targetClusters: DraftPlanTargetCluster[] = [];
 
   if (topCandidate) {
     targetClusters.push({
-      label: "RB core",
+      label: strategy.key === "three-rb" ? "RB core" : "RB starters",
       position: "RB",
-      targetNames: topCandidate.rbCore.map(player => player.name),
+      targetNames: topCandidate.rbCore.slice(0, strategy.key === "three-rb" ? 3 : 2).map(player => player.name),
       priceBand: rbBands.map(priceBandText).join(" / "),
-      note: `The true 3RB build works when three startable RBs fit inside about $${threeRbPathRules.rbCoreBudget.minimumSpend}-$${threeRbPathRules.rbCoreBudget.hardBudget} of core RB spend.`,
+      note: strategy.key === "three-rb"
+        ? `The true 3RB build works when three startable RBs fit inside about $${threeRbPathRules.rbCoreBudget.minimumSpend}-$${threeRbPathRules.rbCoreBudget.hardBudget} of core RB spend.`
+        : "Use RB prices as a budget lane, then let the WR/TE board decide where the next dollar creates the most weekly points.",
     });
 
     const wrTargets = topCandidate.players
@@ -1001,11 +1362,13 @@ const buildRecommendations = (
       .map(player => player.name);
     if (wrTargets.length) {
       targetClusters.push({
-        label: "WR values",
+        label: strategy.key === "wr-heavy" ? "WR core" : "WR values",
         position: "WR",
         targetNames: wrTargets,
         priceBand: wrBands.map(priceBandText).join(" / "),
-        note: "Fill WR starters from the value pocket after the RB budget envelope is protected.",
+        note: strategy.key === "wr-heavy"
+          ? "WR-heavy builds need real receiver strength, but still need price discipline after the first two buys."
+          : "Fill WR starters from the value pocket after the RB budget envelope is protected.",
       });
     }
 
@@ -1025,11 +1388,11 @@ const buildRecommendations = (
   }
 
   return {
-    maxPriceBands: threeRbPathRules.priceBands.map(band => ({ ...band })),
+    maxPriceBands: rules.priceBands.map(band => ({ ...band })),
     targetClusters,
-    pivotRules: threeRbPathRules.pivotRules.map(rule => ({ ...rule })),
-    deadZoneWarnings: topCandidate ? [] : ["No sampled roster matched the true 3RB path."],
-    strategyCoach: strategyCoachFor(candidates, marketPlayers),
+    pivotRules: rules.pivotRules.map(rule => ({ ...rule })),
+    deadZoneWarnings: topCandidate ? [] : [`No sampled roster matched the ${strategy.label} path.`],
+    strategyCoach: strategyCoachFor(candidates, marketPlayers, strategy),
   };
 };
 
@@ -1072,7 +1435,7 @@ export const buildDraftPlanReport = ({
     runCount: batch.runs.length,
     matchedRunCount: candidates.length,
     candidateLimit: limit,
-    recommendations: buildRecommendations(candidates, batch.summary.players),
+    recommendations: buildRecommendations(candidates, batch.summary.players, strategy),
     candidates: candidates.slice(0, limit),
   };
 };

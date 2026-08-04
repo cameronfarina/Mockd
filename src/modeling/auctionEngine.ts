@@ -1933,6 +1933,12 @@ export const nextNominationTurn = (
   throw new Error("Unable to find an owner with an open roster slot.");
 };
 
+const initialNominationCursorFor = (config: AuctionEngineConfig): number => {
+  if (config.owners.length === 0) return 0;
+  const roll = hashString(`${config.seed}:nomination-cursor`) / hashDivisor;
+  return Math.floor(roll * config.owners.length);
+};
+
 type PositionBooleans = Record<Position, boolean>;
 
 interface NominationOwnerContext {
@@ -2403,7 +2409,7 @@ export const simulateAuction = ({
   const budgetTrajectory = diagnosticsMode === "full"
     ? budgetTrajectoryRowsFor(ownerStates, 0, "initial", initialSpendByOwner)
     : [];
-  let nominationCursor = 0;
+  let nominationCursor = initialNominationCursorFor(config);
 
   while (availablePlayers.length > 0 && !allRostersFull(ownerStates)) {
     const nominationTurn = nextNominationTurn(ownerStates, config, nominationCursor);

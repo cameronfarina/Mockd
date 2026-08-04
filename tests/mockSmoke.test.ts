@@ -51,8 +51,8 @@ describe("mock smoke report", () => {
     expect(report.firstTwoRounds[0]).toMatchObject({
       pick: 1,
       round: 1,
-      nominator: "Beaton",
     });
+    expect(ownerOrder).toContain(report.firstTwoRounds[0]?.nominator);
     expect(report.firstTwoRounds[0]?.nominationDiagnostics).toMatchObject({
       selectedPlayer: report.firstTwoRounds[0]?.player,
       candidateCount: expect.any(Number),
