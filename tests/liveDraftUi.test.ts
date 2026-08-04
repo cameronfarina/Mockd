@@ -300,6 +300,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("textElement('strong', 'Cam is nominating')");
     expect(liveDraftHtml).toContain("target ? 'Ready to nominate ' + target.name : 'Select a player from the board'");
     expect(liveDraftHtml).toContain("renderMockAuctionFeedEvents(mockNominationIdeaEvents(mockDraft))");
+    expect(liveDraftHtml).toContain("if (currentState) renderBoard(currentState);\n        renderSaleControls(currentState);\n        return;");
     expect(liveDraftHtml).toContain("const nominationPrice = mockDraft.camDecision ? mockDraft.camDecision.recommendedBid : target.recommendedMaxBid");
     expect(liveDraftHtml).toContain("byId('add-price').value = String(nominationPrice)");
     expect(liveDraftHtml).toContain("const advanceMockDraft = async (action, nominatedPlayerName = selectedTargetName) =>");

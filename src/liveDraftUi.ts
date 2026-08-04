@@ -5891,6 +5891,8 @@ export const liveDraftHtml = `<!doctype html>
           mockDraftItem('Cam nomination', target ? 'Nominate ' + target.name + ' from the board.' : 'Select a player from the board.'),
           mockDraftItem('Nomination ideas', ideas.length ? ideas.map(candidate => candidate.name + ' ' + money(candidate.liveExpectedPrice)).join(' / ') : '-')
         );
+        if (currentState) renderBoard(currentState);
+        renderSaleControls(currentState);
         return;
       }
 
