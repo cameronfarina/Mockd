@@ -153,6 +153,8 @@ export interface MockResultsScriptBuildAroundOutcome {
   draftedByOtherCount: number;
   undraftedCount: number;
   averageSalePrice: number;
+  minimumSalePrice: number;
+  maximumSalePrice: number;
   averageCamRank: number;
   averageCamWeek1Score: number;
   averageCamWeeks1To4Score: number;
@@ -738,6 +740,8 @@ const scriptBuildAroundOutcomesFor = (
       draftedByOtherCount: rosteredTargets.length - ownerTargets.length,
       undraftedCount: priceRuns.length - rosteredTargets.length,
       averageSalePrice: roundToTwo(average(salePrices)),
+      minimumSalePrice: salePrices.length === 0 ? 0 : Math.min(...salePrices),
+      maximumSalePrice: salePrices.length === 0 ? 0 : Math.max(...salePrices),
       averageCamRank: roundToTwo(average(priceRuns.map(run => run.camOutcome.rank))),
       averageCamWeek1Score: roundToTwo(average(priceRuns.map(run => run.camOutcome.week1Score))),
       averageCamWeeks1To4Score: roundToTwo(average(priceRuns.map(run => run.camOutcome.weeks1To4Score))),

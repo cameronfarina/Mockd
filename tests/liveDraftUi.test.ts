@@ -501,6 +501,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("latestMockBatchReport.script.buildAroundOutcomes");
     expect(liveDraftHtml).toContain("'Price sweep'");
     expect(liveDraftHtml).toContain("bestBuildAroundOutcomeFor(buildAroundOutcomes)");
+    expect(liveDraftHtml).toContain("outcome.minimumSalePrice || outcome.maximumSalePrice");
+    expect(liveDraftHtml).toContain("outcome.averageOwnerWeek1WhenDrafted");
+    expect(liveDraftHtml).toContain("' / Season ' + scoreText(outcome.averageOwnerSeasonStrengthWhenDrafted)");
     expect(liveDraftHtml).toContain("const renderPositionMarket = state =>");
     expect(liveDraftHtml).toContain("const renderOwnerNeeds = state =>");
     expect(liveDraftHtml).toContain("const renderShortlist = state =>");

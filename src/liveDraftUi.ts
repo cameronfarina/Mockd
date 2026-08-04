@@ -4453,14 +4453,22 @@ export const liveDraftHtml = `<!doctype html>
       const teamResult = outcome.averageOwnerRankWhenDrafted
         ? ' / avg rank when landed ' + scoreText(outcome.averageOwnerRankWhenDrafted)
         : '';
-      return outcome.player + ' up to ' + money(outcome.maxBid) + ': ' + ownerResult + saleRange + teamResult;
+      const scoringResult = outcome.averageOwnerWeek1WhenDrafted
+        ? ' / W1 ' + scoreText(outcome.averageOwnerWeek1WhenDrafted) +
+          ' / Season ' + scoreText(outcome.averageOwnerSeasonStrengthWhenDrafted)
+        : '';
+      return outcome.player + ' up to ' + money(outcome.maxBid) + ': ' + ownerResult + saleRange + teamResult + scoringResult;
     };
 
     const buildAroundOutcomeText = outcome => {
       if (!outcome) return '';
       const hitRate = Math.round((outcome.draftedByOwnerRate || 0) * 100);
+      const saleRange = outcome.minimumSalePrice || outcome.maximumSalePrice
+        ? ' / sale range ' + money(outcome.minimumSalePrice) + '-' + money(outcome.maximumSalePrice)
+        : '';
       return money(outcome.price) + ': ' +
         outcome.draftedByOwnerCount + '/' + outcome.runCount + ' landed (' + hitRate + '%)' +
+        saleRange +
         ' / avg rank ' + scoreText(outcome.averageCamRank) +
         ' / W1 ' + scoreText(outcome.averageCamWeek1Score) +
         ' / Season ' + scoreText(outcome.averageCamSeasonStrengthScore) +
