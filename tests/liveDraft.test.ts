@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { keepers } from "../config/keepers.js";
 import { leagueConfig } from "../config/league.js";
+import { defaultDraftRoomRankingPath, loadDraftRoomRankings } from "../src/data/draftRoomRankings.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
 import { buildLiveDraftState, parseLiveDraftSaleCommand } from "../src/modeling/liveDraft.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
@@ -251,16 +252,19 @@ describe("live draft room", () => {
   it("exposes board metadata for a simple search-and-add interface", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
+    const draftRoomRankings = await loadDraftRoomRankings(defaultDraftRoomRankingPath);
     const state = buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
       watchOwner: "Cam",
       scenarioKey: "expected",
+      draftRoomRankings,
     });
 
     const camFirstRunningBackSlot = state.watchOwner.slots.find(slot => slot.slot === "RB1");
     const gibbs = state.availableTargets.find(target => target.name === "Jahmyr Gibbs");
+    const puka = state.availableTargets.find(target => target.name === "Puka Nacua");
 
     expect(camFirstRunningBackSlot?.player).toMatchObject({
       name: "De'Von Achane",
@@ -274,9 +278,15 @@ describe("live draft room", () => {
       byeWeek: 6,
       week1Projection: 20.03,
       seasonProjection: 331.2,
+      draftRoomRank: {
+        sourceLabel: "Average Half PPR",
+        platformRank: 1.3,
+        fantasyProsRank: 2,
+        platformGapVsFantasyPros: -0.33,
+        landmineScore: 5.5,
+      },
     });
-    expect(gibbs?.personalValue).toBeGreaterThanOrEqual(gibbs?.liveExpectedPrice ?? 0);
-    expect(gibbs?.personalValue).toBeLessThanOrEqual(80);
+    expect(gibbs?.personalValue).toBe(76);
     expect(gibbs?.strategyValues).toMatchObject({
       balanced: expect.any(Number),
       "three-rb": gibbs?.personalValue,
@@ -288,6 +298,12 @@ describe("live draft room", () => {
     expect(gibbs?.recommendedMaxBid).toBeLessThanOrEqual(state.watchOwner.maxBid);
     expect(gibbs?.recommendedMaxBid).toBe(76);
     expect(gibbs?.tags).toContain("path max $76");
+    expect(puka).toMatchObject({
+      position: "WR",
+      personalValue: 26,
+      recommendedMaxBid: 26,
+      tags: expect.arrayContaining(["path max $26"]),
+    });
     expect(state.draftPath).toMatchObject({
       strategyKey: "three-rb",
       label: "True 3RB",

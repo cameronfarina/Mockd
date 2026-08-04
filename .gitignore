@@ -5,4 +5,6 @@ dist/
 coverage/
 .playwright-mcp/
 data/live-draft/
+data/processed/mock-prep/
 output/*.tmp.xlsx
+player-news-*.png

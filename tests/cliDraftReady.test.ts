@@ -17,7 +17,7 @@ describe("CLI draft readiness", () => {
         "--strategy=three-rb",
         "--scenario=expected",
         "--runs=4",
-        "--qa-runs=1",
+        "--qa-runs=10",
         "--limit=2",
         "--strategy-mode=force",
         "--min-matches=1",
@@ -70,7 +70,7 @@ describe("CLI draft readiness", () => {
       strategyMode: "force",
       scenarioKey: "expected",
       runs: 4,
-      qaRuns: 1,
+      qaRuns: 10,
       engineMode: "fast",
       minimumMatches: 1,
     });

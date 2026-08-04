@@ -5,6 +5,11 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { keepers } from "../config/keepers.js";
 import { leagueConfig, ownerOrder, type Position } from "../config/league.js";
+import {
+  defaultDraftRoomRankingPath,
+  loadDraftRoomRankings,
+  type DraftRoomRanking,
+} from "./data/draftRoomRankings.js";
 import { normalizePlayerName } from "./data/normalizePlayerName.js";
 import {
   loadHistoricalAuctionRecords,
@@ -54,7 +59,9 @@ import {
   type LeagueSyncProviderStatusReport,
 } from "./modeling/leagueSync.js";
 import {
+  runMockBatch,
   runMockBatchProgressively,
+  type ForcedAuctionSale,
   type MockBatch,
   type RunMockBatchOptions,
 } from "./modeling/mockBatch.js";
@@ -595,6 +602,7 @@ interface InteractiveMockDraftModule {
     watchOwner: "Cam";
     strategyKey: LiveDraftStrategyKey;
     pricingConfig?: PricingConfig;
+    draftRoomRankings?: readonly DraftRoomRanking[];
     seed?: string;
     nominatedPlayer?: string;
     nominatedPrice?: number;
@@ -658,6 +666,7 @@ export interface CreateLiveDraftServerOptions {
   sessionDirectory?: string;
   projections?: readonly ProjectionRecord[];
   historicalRecords?: readonly HistoricalAuctionRecord[];
+  draftRoomRankings?: readonly DraftRoomRanking[];
   pricingConfig?: PricingConfig;
   interactiveMockDraft?: InteractiveMockDraftModule;
   mockBatchRunner?: MockBatchRunner;
@@ -1138,6 +1147,7 @@ export const createLiveDraftServer = async (
 ): Promise<LiveDraftServerApp> => {
   const projections = options.projections ?? (await loadEspnWeeksOneToFour(projectionPath));
   const historicalRecords = options.historicalRecords ?? (await loadHistoricalAuctionRecords());
+  const draftRoomRankings = options.draftRoomRankings ?? (await loadDraftRoomRankings(defaultDraftRoomRankingPath));
   const pricingConfig = options.pricingConfig ?? (await buildPricingConfigFromSources());
   const baseSessionDirectory = options.sessionDirectory ?? defaultLiveDraftSessionDirectory;
   const sessionStorePairs = new Map<string, Promise<{
@@ -1252,6 +1262,7 @@ export const createLiveDraftServer = async (
       scenarioKey: "expected",
       strategyKey,
       pricingConfig,
+      draftRoomRankings,
       commands: commands ?? store.currentCommands(),
       targetLimit: liveTargetLimit,
     }));
@@ -1385,6 +1396,7 @@ export const createLiveDraftServer = async (
       watchOwner: "Cam",
       strategyKey,
       pricingConfig,
+      draftRoomRankings,
       ...(seed === undefined ? {} : { seed }),
       ...(nominatedPlayer === undefined ? {} : { nominatedPlayer }),
       ...(nominatedPrice === undefined ? {} : { nominatedPrice }),
@@ -1516,6 +1528,84 @@ export const createLiveDraftServer = async (
   }): Promise<{ status: number; body: LiveDraftStateResponse & { mockDraft: unknown; errors?: { input: string; message: string }[] } }> => {
     const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
     const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
+    if (action === "complete-mock") {
+      const currentState = await stateFor({
+        draftSessionKey,
+        mode: "interactive-mock",
+        strategyKey,
+      });
+      if (currentState.errors.length) {
+        return {
+          status: 422,
+          body: {
+            ...await stateWithMockDraft({
+              ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
+              draftSessionKey,
+            }),
+            errors: currentState.errors,
+          },
+        };
+      }
+
+      const forcedSales: ForcedAuctionSale[] = currentState.events.map(event => ({
+        owner: event.owner,
+        player: event.player,
+        price: event.price,
+      }));
+      const completeSeed = seed ?? `interactive-complete:${draftSessionKey}:${currentState.events.length}`;
+      let batch: MockBatch;
+      try {
+        batch = runMockBatch({
+          projections,
+          historicalRecords,
+          keepers,
+          scenarioKeys: ["expected"],
+          runsPerScenario: 1,
+          seedPrefix: completeSeed,
+          pricingConfig,
+          auctionConfigOverrides: strategyAuctionOverridesFor("Cam", strategyKey, { variantSeed: completeSeed }),
+          forcedSales,
+          diagnosticsMode: "summary",
+        });
+      } catch (error) {
+        return {
+          status: 422,
+          body: {
+            ...await stateWithMockDraft({
+              ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
+              draftSessionKey,
+            }),
+            errors: [{
+              input: "",
+              message: error instanceof Error ? error.message : "Could not complete mock draft.",
+            }],
+          },
+        };
+      }
+      const run = batch.runs[0];
+      if (!run) {
+        return {
+          status: 422,
+          body: {
+            ...await stateWithMockDraft({
+              ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
+              draftSessionKey,
+            }),
+            errors: [{ input: "", message: "Mock draft completion did not produce a run." }],
+          },
+        };
+      }
+
+      for (const pick of run.picks) {
+        await interactiveMockStore.appendCommand(`${pick.owner} drafted ${pick.player} for ${pick.price}`);
+      }
+
+      return {
+        status: 200,
+        body: await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+      };
+    }
+
     const maximumSteps = ownerOrder.length * 20;
     let appendedCount = 0;
     let startRound: number | undefined;

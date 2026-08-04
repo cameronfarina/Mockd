@@ -1,5 +1,6 @@
 import { keepers as defaultKeepers, type KeeperDeclaration } from "../../config/keepers.js";
 import { leagueConfig, ownerOrder, type Owner, type Position } from "../../config/league.js";
+import type { DraftRoomRanking } from "../data/draftRoomRankings.js";
 import { normalizePlayerName } from "../data/normalizePlayerName.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
 import type { ProjectionRecord } from "../projections.js";
@@ -166,6 +167,7 @@ export interface BuildInteractiveMockDraftStateOptions {
   seed?: string;
   nominatedPlayer?: string;
   nominatedPrice?: number;
+  draftRoomRankings?: readonly DraftRoomRanking[];
   diagnosticsMode?: AuctionDiagnosticsMode;
 }
 
@@ -524,9 +526,10 @@ const prepareInteractiveMockDraft = ({
   commands,
   pricingConfig,
   seed,
+  draftRoomRankings,
 }: Required<Pick<
   BuildInteractiveMockDraftStateOptions,
-  "projections" | "historicalRecords" | "keepers" | "scenarioKey" | "strategyKey" | "watchOwner" | "commands" | "pricingConfig" | "seed"
+  "projections" | "historicalRecords" | "keepers" | "scenarioKey" | "strategyKey" | "watchOwner" | "commands" | "pricingConfig" | "seed" | "draftRoomRankings"
 >>): PreparedInteractiveMockDraft => {
   const liveState = buildLiveDraftState({
     projections,
@@ -538,6 +541,7 @@ const prepareInteractiveMockDraft = ({
     commands,
     pricingConfig,
     targetLimit: topTargetLimit,
+    draftRoomRankings,
   });
   const prices = buildBasePrices(projections, historicalRecords, pricingConfig);
   const scenario = buildKeeperScenarios(keepers).find(candidate => candidate.key === scenarioKey);
@@ -824,7 +828,7 @@ const camDecisionFor = ({
   );
   if (!target) return undefined;
 
-  const mockDecisionMaxBid = Math.max(target.recommendedMaxBid, target.personalValue);
+  const mockDecisionMaxBid = target.recommendedMaxBid;
   const maxBid = Math.min(mockDecisionMaxBid, watchOwnerState.maxBid);
   if (maxBid <= aiSalePrice) return undefined;
   const nextLiveBid = aiSalePrice + minimumBid;
@@ -835,7 +839,7 @@ const camDecisionFor = ({
     topAiBid,
     topAiBidOwner,
     aiSalePrice,
-    valueGap: target.personalValue - target.liveExpectedPrice,
+    valueGap: target.recommendedMaxBid - target.liveExpectedPrice,
   };
 };
 
@@ -1018,6 +1022,7 @@ export const buildInteractiveMockDraftState = ({
   seed = defaultSeed,
   nominatedPlayer,
   nominatedPrice,
+  draftRoomRankings = [],
   diagnosticsMode = "full",
 }: BuildInteractiveMockDraftStateOptions): InteractiveMockDraftState => {
   const prepared = prepareInteractiveMockDraft({
@@ -1030,6 +1035,7 @@ export const buildInteractiveMockDraftState = ({
     commands,
     pricingConfig,
     seed,
+    draftRoomRankings,
   });
   const pickIndex = prepared.liveState.events.length;
   const nominationTurn = snakeOwnerForPick(pickIndex, prepared.ownerStates);

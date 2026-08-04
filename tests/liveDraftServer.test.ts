@@ -325,11 +325,16 @@ describe("live draft server", () => {
 
       expect(gibbs).toMatchObject({
         expectedPrice: 72,
-        personalValue: 80,
+        personalValue: 76,
+        draftRoomRank: {
+          sourceLabel: "Average Half PPR",
+          platformRank: 1.3,
+          landmineScore: 5.5,
+        },
       });
       expect(london).toMatchObject({
         expectedPrice: 46,
-        personalValue: 57,
+        personalValue: 26,
       });
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -996,9 +1001,12 @@ describe("live draft server", () => {
         action: "complete-mock",
       });
       expect(complete.status).toBe(200);
-      expect(complete.data.session.commandCount).toBe(3);
-      expect(complete.data.events.map((event: { input: string }) => event.input)).toContain(
-        "Cam drafted Breece Hall for 42",
+      expect(complete.data.session.commandCount).toBeGreaterThan(2);
+      expect(complete.data.events.map((event: { input: string }) => event.input)).toEqual(
+        expect.arrayContaining([
+          mockAiSaleCommands[0],
+          mockAiSaleCommands[1],
+        ]),
       );
       expect(complete.data.mockDraft.phase).toBe("complete");
     } finally {

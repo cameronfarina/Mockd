@@ -94,7 +94,7 @@ describe("interactive mock draft", () => {
     expect(resolved.command).toBe(state.aiSaleCommand);
   });
 
-  it("pauses for Cam when his value can still beat the room price", async () => {
+  it("does not pause for Cam when the strategy path max cannot beat the room price", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const state = buildInteractiveMockDraftState({
@@ -108,15 +108,15 @@ describe("interactive mock draft", () => {
     });
 
     expect(state.nomination?.player).toBe("Puka Nacua");
-    expect(state.phase).toBe("human-decision");
+    expect(state.phase).toBe("ai-sale");
     expect(state.auction).toMatchObject({
+      status: "ai-sale",
       currentBid: 74,
-      nextCamBid: 75,
     });
-    expect(state.camDecision?.maxBid).toBeGreaterThanOrEqual(75);
+    expect(state.camDecision).toBeUndefined();
   });
 
-  it("stops for Cam when his player value beats the AI price", async () => {
+  it("stops for Cam when his strategy max beats the AI price", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const commandsBeforeCamNomination = commandsBeforeAffordableRb3Decision.slice(0, 10);
@@ -134,7 +134,7 @@ describe("interactive mock draft", () => {
     expect(state.phase).toBe("human-decision");
     expect(state.nomination?.player).toBe("Breece Hall");
     expect(state.camDecision).toMatchObject({
-      maxBid: 49,
+      maxBid: 45,
       recommendedBid: 40,
     });
     expect(state.camDecision?.topAiBid).toBeGreaterThanOrEqual(state.auction?.currentBid ?? 0);

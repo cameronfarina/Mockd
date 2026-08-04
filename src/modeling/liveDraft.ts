@@ -5,6 +5,7 @@ import {
 } from "../../config/keepers.js";
 import { leagueConfig, ownerOrder, type Owner, type Position } from "../../config/league.js";
 import { nflTeamByEspnProTeamId } from "../../config/nflTeams.js";
+import type { DraftRoomRanking } from "../data/draftRoomRankings.js";
 import { cleanPlayerName, normalizePlayerName } from "../data/normalizePlayerName.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
 import type { ProjectionRecord } from "../projections.js";
@@ -160,6 +161,7 @@ export interface LiveDraftTarget {
   seasonProjection: number;
   projectionRank?: number;
   espnRank?: number;
+  draftRoomRank?: DraftRoomRanking;
   source: LiveDraftPlayerSource;
   tags: string[];
 }
@@ -183,6 +185,7 @@ export interface LiveDraftKeeperTarget {
   seasonProjection: number;
   projectionRank?: number;
   espnRank?: number;
+  draftRoomRank?: DraftRoomRanking;
   tags: string[];
 }
 
@@ -290,6 +293,7 @@ export interface BuildLiveDraftStateOptions {
   commands?: readonly string[];
   pricingConfig?: PricingConfig;
   targetLimit?: number;
+  draftRoomRankings?: readonly DraftRoomRanking[];
 }
 
 interface LiveDraftPlayerRecord {
@@ -305,6 +309,7 @@ interface LiveDraftPlayerRecord {
   byeWeek?: number;
   projectionRank?: number;
   espnRank?: number;
+  draftRoomRank?: DraftRoomRanking;
 }
 
 interface ResolvedSale {
@@ -547,22 +552,32 @@ const buildLivePlayerUniverse = ({
   prices,
   scenario,
   unavailableKeeperNames,
+  draftRoomRankingsByName,
 }: {
   projections: readonly ProjectionRecord[];
   prices: readonly ScenarioAdjustedPrice[];
   scenario: KeeperScenario;
   unavailableKeeperNames: ReadonlySet<string>;
+  draftRoomRankingsByName: ReadonlyMap<string, DraftRoomRanking>;
 }): LiveDraftPlayerRecord[] => {
   const recordsByName = new Map<string, LiveDraftPlayerRecord>();
 
   for (const price of prices) {
-    recordsByName.set(price.normalizedName, liveRecordFromPrice(price));
+    const draftRoomRank = draftRoomRankingsByName.get(price.normalizedName);
+    recordsByName.set(price.normalizedName, {
+      ...liveRecordFromPrice(price),
+      ...(draftRoomRank ? { draftRoomRank } : {}),
+    });
   }
 
   for (const projection of buildProjectionRankings(projections)) {
     if (recordsByName.has(projection.normalizedName)) continue;
     if (unavailableKeeperNames.has(projection.normalizedName)) continue;
-    recordsByName.set(projection.normalizedName, liveRecordFromProjection(projection, scenario));
+    const draftRoomRank = draftRoomRankingsByName.get(projection.normalizedName);
+    recordsByName.set(projection.normalizedName, {
+      ...liveRecordFromProjection(projection, scenario),
+      ...(draftRoomRank ? { draftRoomRank } : {}),
+    });
   }
 
   return [...recordsByName.values()];
@@ -806,6 +821,12 @@ const draftableExpectedSpend = (
     .slice(0, remainingRosterSlots)
     .reduce((total, player) => total + player.expectedPrice, 0);
 
+const rawLiveInflationFactorFor = ({
+  remainingBudget,
+  remainingExpectedSpend,
+}: Pick<LiveDraftRoomState, "remainingBudget" | "remainingExpectedSpend">): number =>
+  remainingBudget / Math.max(1, remainingExpectedSpend);
+
 const buildRoomState = ({
   scenario,
   owners,
@@ -813,6 +834,7 @@ const buildRoomState = ({
   records,
   soldNames,
   initialKeeperSpend,
+  startingLiveInflationFactor,
 }: {
   scenario: KeeperScenario;
   owners: readonly LiveDraftOwnerState[];
@@ -820,12 +842,14 @@ const buildRoomState = ({
   records: readonly LiveDraftPlayerRecord[];
   soldNames: ReadonlySet<string>;
   initialKeeperSpend: number;
+  startingLiveInflationFactor: number;
 }): LiveDraftRoomState => {
   const actualAuctionSpend = events.reduce((total, event) => total + event.price, 0);
   const expectedAuctionSpend = events.reduce((total, event) => total + event.expectedPrice, 0);
   const remainingBudget = owners.reduce((total, owner) => total + owner.budgetRemaining, 0);
   const remainingRosterSlots = owners.reduce((total, owner) => total + owner.rosterSlotsRemaining, 0);
   const remainingExpectedSpend = draftableExpectedSpend(records, soldNames, remainingRosterSlots);
+  const rawLiveInflationFactor = rawLiveInflationFactorFor({ remainingBudget, remainingExpectedSpend });
 
   return {
     scenarioKey: scenario.key,
@@ -837,7 +861,7 @@ const buildRoomState = ({
     remainingBudget,
     remainingRosterSlots,
     remainingExpectedSpend,
-    liveInflationFactor: roundToTwo(remainingBudget / Math.max(1, remainingExpectedSpend)),
+    liveInflationFactor: roundToTwo(rawLiveInflationFactor / Math.max(0.01, startingLiveInflationFactor)),
   };
 };
 
@@ -1089,7 +1113,7 @@ const buildTargets = ({
       const fitsWatchOwnerRoster = canWatchOwnerRosterPlayer(player, watchOwner);
       const liveExpectedPrice = roundPrice(player.expectedPrice * room.liveInflationFactor);
       const needMultiplier = positionNeedMultiplierFor(player, watchOwner, strategy);
-      const strategyValues = Object.fromEntries(
+      const rawStrategyValues = Object.fromEntries(
         Object.values(liveDraftStrategies).map(candidateStrategy => [
           candidateStrategy.key,
           fitsWatchOwnerRoster
@@ -1104,17 +1128,22 @@ const buildTargets = ({
         ]),
       ) as Record<LiveDraftStrategyKey, number>;
       const strategyPathMaxBid = strategyPathMaxBidFor(player, watchOwner, strategy);
-      const personalValue = strategyValues[strategy.key];
-      const recommendedMaxBid = fitsWatchOwnerRoster
-        ? Math.min(personalValue, strategyPathMaxBid ?? personalValue)
+      const uncappedPersonalValue = rawStrategyValues[strategy.key];
+      const personalValue = fitsWatchOwnerRoster
+        ? Math.min(uncappedPersonalValue, strategyPathMaxBid ?? uncappedPersonalValue)
         : 0;
+      const strategyValues = {
+        ...rawStrategyValues,
+        [strategy.key]: personalValue,
+      };
+      const recommendedMaxBid = personalValue;
       const valueScore = draftPriorityScoreFor({
         player,
         needMultiplier,
         liveExpectedPrice,
       });
       const tags = targetTagsFor(player, watchOwner, strategy);
-      if (strategyPathMaxBid !== undefined && strategyPathMaxBid < personalValue) {
+      if (strategyPathMaxBid !== undefined && strategyPathMaxBid < uncappedPersonalValue) {
         tags.push(`path max $${strategyPathMaxBid}`);
       }
 
@@ -1134,6 +1163,7 @@ const buildTargets = ({
         seasonProjection: roundToTwo(player.seasonProjection),
         ...(player.projectionRank === undefined ? {} : { projectionRank: player.projectionRank }),
         ...(player.espnRank === undefined ? {} : { espnRank: player.espnRank }),
+        ...(player.draftRoomRank === undefined ? {} : { draftRoomRank: player.draftRoomRank }),
         source: player.source,
         tags,
       };
@@ -1531,6 +1561,7 @@ export const buildLiveDraftState = ({
   commands = [],
   pricingConfig = defaultPricingConfig,
   targetLimit = defaultTargetLimit,
+  draftRoomRankings = [],
 }: BuildLiveDraftStateOptions): LiveDraftState => {
   const prices = buildBasePrices(projections, historicalRecords, pricingConfig);
   const scenario = buildKeeperScenarios(keepers).find(candidate => candidate.key === scenarioKey);
@@ -1547,11 +1578,15 @@ export const buildLiveDraftState = ({
   const unavailableKeeperNames = new Set(
     appliedScenario.unavailableKeepers.map(keeper => normalizePlayerName(keeper.player)),
   );
+  const draftRoomRankingsByName = new Map(
+    draftRoomRankings.map(ranking => [ranking.normalizedName, ranking]),
+  );
   const records = buildLivePlayerUniverse({
     projections,
     prices: appliedScenario.availablePrices,
     scenario,
     unavailableKeeperNames,
+    draftRoomRankingsByName,
   });
   const initialRostersByOwner = buildInitialRostersFromKeepers(
     keepers,
@@ -1561,6 +1596,16 @@ export const buildLiveDraftState = ({
   const rostersByOwner = rostersFromKeepers(initialRostersByOwner);
   const initialKeeperSpend = totalKeeperSpend(rostersByOwner);
   const soldNames = new Set(unavailableKeeperNames);
+  const startingOwnerStates = buildOwnerStates(rostersByOwner);
+  const startingRemainingBudget = startingOwnerStates.reduce((total, owner) => total + owner.budgetRemaining, 0);
+  const startingRemainingRosterSlots = startingOwnerStates.reduce(
+    (total, owner) => total + owner.rosterSlotsRemaining,
+    0,
+  );
+  const startingLiveInflationFactor = rawLiveInflationFactorFor({
+    remainingBudget: startingRemainingBudget,
+    remainingExpectedSpend: draftableExpectedSpend(records, soldNames, startingRemainingRosterSlots),
+  });
   const events: LiveDraftEvent[] = [];
   const postDraftAudit: LiveDraftSaleAudit[] = [];
   const errors: LiveDraftCommandError[] = [];
@@ -1582,6 +1627,7 @@ export const buildLiveDraftState = ({
         records,
         soldNames,
         initialKeeperSpend,
+        startingLiveInflationFactor,
       });
       const watchOwnerBeforeSale = ownerStatesBeforeSale.find(owner => owner.owner === watchOwner);
       if (!watchOwnerBeforeSale) throw new Error(`Unknown watch owner "${watchOwner}".`);
@@ -1626,6 +1672,7 @@ export const buildLiveDraftState = ({
     records,
     soldNames,
     initialKeeperSpend,
+    startingLiveInflationFactor,
   });
   const currentWatchOwner = owners.find(owner => owner.owner === watchOwner);
   if (!currentWatchOwner) throw new Error(`Unknown watch owner "${watchOwner}".`);

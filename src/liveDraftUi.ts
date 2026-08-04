@@ -419,7 +419,7 @@ export const liveDraftHtml = `<!doctype html>
       grid-column: 2;
       grid-row: 2;
       display: grid;
-      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
       min-width: 0;
       height: 100%;
       min-height: 0;
@@ -763,16 +763,6 @@ export const liveDraftHtml = `<!doctype html>
       padding: 0;
     }
 
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(120px, 1fr));
-      gap: 12px;
-      min-width: 0;
-      padding: 16px 24px;
-      border-bottom: 1px solid var(--line);
-      background: rgba(7, 19, 31, 0.76);
-    }
-
     .draft-start-banner {
       display: flex;
       align-items: center;
@@ -792,72 +782,6 @@ export const liveDraftHtml = `<!doctype html>
       font-size: 30px;
       line-height: 1;
       font-variant-numeric: tabular-nums;
-    }
-
-    .metric {
-      --metric-accent: var(--accent);
-      --metric-wash: rgba(91, 168, 255, 0.14);
-      --metric-line: rgba(91, 168, 255, 0.48);
-      position: relative;
-      overflow: hidden;
-      min-width: 0;
-      padding: 12px 14px;
-      border: 1px solid var(--metric-line);
-      border-radius: 8px;
-      background: #06131f;
-      box-shadow: var(--shadow);
-    }
-
-    .metric::before {
-      content: "";
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      width: 7px;
-      height: 7px;
-      border-radius: 999px;
-      background: var(--metric-accent);
-    }
-
-    .metric:nth-child(2) {
-      --metric-accent: var(--purple);
-      --metric-wash: rgba(173, 140, 255, 0.14);
-      --metric-line: rgba(173, 140, 255, 0.46);
-    }
-
-    .metric:nth-child(3) {
-      --metric-accent: var(--amber);
-      --metric-wash: rgba(255, 182, 56, 0.14);
-      --metric-line: rgba(255, 182, 56, 0.48);
-    }
-
-    .metric:nth-child(4) {
-      --metric-accent: var(--green);
-      --metric-wash: rgba(25, 228, 156, 0.14);
-      --metric-line: rgba(25, 228, 156, 0.46);
-    }
-
-    .metric:nth-child(5) {
-      --metric-accent: var(--pos-qb);
-      --metric-wash: rgba(255, 136, 69, 0.13);
-      --metric-line: rgba(255, 136, 69, 0.46);
-    }
-
-    .metric span {
-      display: block;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.2;
-    }
-
-    .metric strong {
-      display: block;
-      margin-top: 3px;
-      color: #f4f8fc;
-      font-size: 19px;
-      line-height: 1.15;
-      letter-spacing: 0;
-      white-space: nowrap;
     }
 
     main {
@@ -2983,10 +2907,6 @@ export const liveDraftHtml = `<!doctype html>
         grid-template-columns: 1fr;
       }
 
-      .metrics {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
       main {
         padding: 10px;
       }
@@ -3111,7 +3031,6 @@ export const liveDraftHtml = `<!doctype html>
         <span id="draft-start-label">Draft starts in</span>
         <strong id="draft-countdown-value">5</strong>
       </div>
-      <div class="metrics" id="metrics"></div>
       <main>
       <section class="board-panel">
         <div class="panel-header">
@@ -3939,6 +3858,10 @@ export const liveDraftHtml = `<!doctype html>
       requestAnimationFrame(() => byId('add-price').focus());
     };
 
+    const focusNominationPriceInput = () => {
+      requestAnimationFrame(() => byId('mock-nomination-price').focus());
+    };
+
     const postJson = async (url, body) => {
       const response = await fetch(url, {
         method: 'POST',
@@ -3999,8 +3922,18 @@ export const liveDraftHtml = `<!doctype html>
       setSidePanel('lineup');
       renderSelected(currentState);
       renderBoard(currentState);
-      if (currentDraftMode === 'interactive-mock') focusCommandInput();
+      if (currentDraftMode === 'interactive-mock' && currentMockDraft && currentMockDraft.phase === 'human-nomination') {
+        focusNominationPriceInput();
+      } else if (currentDraftMode === 'interactive-mock') focusCommandInput();
       else focusPriceInput();
+    };
+
+    const selectTargetForNomination = target => {
+      selectTargetForSale(target);
+      if (!target || target.draftable === false) return;
+      pendingCamNominationName = target.name;
+      if (currentMockDraft) renderMockDraft(currentMockDraft);
+      focusNominationPriceInput();
     };
 
     const toggleShortlist = target => {
@@ -4100,8 +4033,7 @@ export const liveDraftHtml = `<!doctype html>
       const shortlistAction = targetActionMenuButton(shortlistLabel, target.draftable === false, () => toggleShortlist(target));
       const secondaryAction = currentDraftMode === 'interactive-mock'
         ? targetActionMenuButton('Nominate', !canNominateTarget(target), () => {
-            selectTargetForSale(target);
-            void advanceMockDraft('cam-nominate', target.name, nominationPriceValue());
+            selectTargetForNomination(target);
           }, 'target-action-primary')
         : targetActionMenuButton('Select for sale', target.draftable === false, () => selectTargetForSale(target), 'target-action-primary');
 
@@ -5441,18 +5373,6 @@ export const liveDraftHtml = `<!doctype html>
       return (rightValue - leftValue) || defaultTieBreak;
     });
 
-    const renderMetrics = state => {
-      const metrics = [
-        ['Inflation', state.room.liveInflationFactor.toFixed(2) + 'x'],
-        ['Open Slots', String(state.room.remainingRosterSlots)],
-        ['Paid vs Exp', deltaMoney(state.room.saleVsExpected)],
-        ['Cam Left', money(state.watchOwner.budgetRemaining)],
-        ['Cam Max', money(state.watchOwner.maxBid)]
-      ];
-
-      byId('metrics').replaceChildren(...metrics.map(([label, value]) => metricTile(label, value, 'metric')));
-    };
-
     const renderPositionMarket = state => {
       const saleDeltaByPosition = new Map();
       for (const event of state.events) {
@@ -5892,6 +5812,7 @@ export const liveDraftHtml = `<!doctype html>
       byId('mock-pass-button').disabled = !isMockMode || phase !== 'human-decision';
       nextDecisionButton.disabled = !isMockMode || terminal || humanStop;
       nextRoundButton.disabled = !isMockMode || terminal || humanStop;
+      completeButton.textContent = 'Complete';
       completeButton.disabled = !isMockMode || terminal;
 
       if (!isMockMode) {
@@ -6209,7 +6130,6 @@ export const liveDraftHtml = `<!doctype html>
       if (!state.owners.some(owner => owner.owner === selectedRosterOwner)) selectedRosterOwner = 'Cam';
       syncOwnerSelects(state);
       syncBoardFilterOptions(state);
-      renderMetrics(state);
       renderPositionMarket(state);
       renderBoard(state);
       renderSelected(state);
@@ -6688,6 +6608,17 @@ export const liveDraftHtml = `<!doctype html>
         byId('mock-advance-button').disabled = true;
         byId('mock-pass-button').disabled = true;
         await animateMockAuctionResolution();
+      }
+      if (action === 'complete-mock') {
+        const completeButton = byId('mock-complete-button');
+        completeButton.disabled = true;
+        completeButton.textContent = 'Completing mock...';
+        byId('mock-advance-button').disabled = true;
+        byId('mock-nominate-button').disabled = true;
+        byId('mock-cam-win-button').disabled = true;
+        byId('mock-pass-button').disabled = true;
+        byId('mock-next-decision-button').disabled = true;
+        byId('mock-next-round-button').disabled = true;
       }
       const data = await postJson('/api/mock/advance', {
         strategyKey: currentStrategyKey,

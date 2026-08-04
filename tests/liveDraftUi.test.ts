@@ -294,10 +294,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain(".board-table tbody tr.target-action-row-open");
     expect(liveDraftHtml).toContain("Add to shortlist");
     expect(liveDraftHtml).toContain("Nominate");
-    expect(liveDraftHtml).toContain("advanceMockDraft('cam-nominate', target.name, nominationPriceValue())");
+    expect(liveDraftHtml).toContain("const selectTargetForNomination = target =>");
+    expect(liveDraftHtml).toContain("selectTargetForNomination(target)");
     expect(liveDraftHtml).toContain("id=\"mock-nomination-price\"");
     expect(liveDraftHtml).toContain("let pendingCamNominationPrice = 1");
     expect(liveDraftHtml).toContain("const nominationPriceValue = () =>");
+    expect(liveDraftHtml).toContain("const focusNominationPriceInput = () =>");
     expect(liveDraftHtml).toContain("const mockNominationIdeaEvents = mockDraft =>");
     expect(liveDraftHtml).toContain("mockDraft.phase === 'human-nomination' || Boolean(mockDraft.auction)");
     expect(liveDraftHtml).toContain("textElement('strong', 'Cam is nominating')");
@@ -327,6 +329,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("await animateMockCamBid();");
     expect(liveDraftHtml).toContain("action === 'cam-bid'");
     expect(liveDraftHtml).toContain("['advance', 'pass'].includes(action)");
+    expect(liveDraftHtml).toContain("action === 'complete-mock'");
+    expect(liveDraftHtml).toContain("completeButton.textContent = 'Completing mock...'");
+    expect(liveDraftHtml).toContain("completeButton.textContent = 'Complete'");
     expect(liveDraftHtml).toContain("mockAuctionFeedLines(mockDraft)");
     expect(liveDraftHtml).toContain("className = 'mock-feed-line ' + event.type");
     expect(liveDraftHtml).toContain("mockDraftItem('Current nomination'");
@@ -539,7 +544,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("border: 1px solid var(--position-accent-line, rgba(91, 168, 255, 0.68));");
     expect(liveDraftHtml).toContain("background: #06101a;");
     expect(liveDraftHtml).toContain(".filter-chip:not([data-position-filter=\"ALL\"])::before");
-    expect(liveDraftHtml).toContain(".metric:nth-child(4)");
+    expect(liveDraftHtml).toContain(".market-pill {");
   });
 
   it("uses the same centered app header structure on secondary routes", () => {
@@ -589,13 +594,15 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("background-position: right 12px center;");
   });
 
-  it("keeps room-wide budget totals out of the visible header metrics", () => {
-    expect(liveDraftHtml).toContain("['Inflation', state.room.liveInflationFactor.toFixed(2) + 'x']");
-    expect(liveDraftHtml).toContain("['Open Slots', String(state.room.remainingRosterSlots)]");
-    expect(liveDraftHtml).toContain("['Paid vs Exp', deltaMoney(state.room.saleVsExpected)]");
-    expect(liveDraftHtml).toContain("['Cam Left', money(state.watchOwner.budgetRemaining)]");
-    expect(liveDraftHtml).toContain("['Cam Max', money(state.watchOwner.maxBid)]");
-    expect(liveDraftHtml).toContain("grid-template-columns: repeat(5, minmax(120px, 1fr));");
+  it("keeps room-wide budget metrics out of the visible draft workspace", () => {
+    expect(liveDraftHtml).not.toContain("id=\"metrics\"");
+    expect(liveDraftHtml).not.toContain("renderMetrics");
+    expect(liveDraftHtml).not.toContain("state.room.liveInflationFactor.toFixed(2) + 'x'");
+    expect(liveDraftHtml).not.toContain("String(state.room.remainingRosterSlots)");
+    expect(liveDraftHtml).not.toContain("state.room.saleVsExpected");
+    expect(liveDraftHtml).not.toContain("state.watchOwner.budgetRemaining)]");
+    expect(liveDraftHtml).not.toContain("state.watchOwner.maxBid)]");
+    expect(liveDraftHtml).not.toContain("grid-template-columns: repeat(5, minmax(120px, 1fr));");
     expect(liveDraftHtml).not.toContain("Room Left");
   });
 
