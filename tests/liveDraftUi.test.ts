@@ -338,6 +338,14 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("byId('add-price').value = String(nominationPrice)");
     expect(liveDraftHtml).toContain("const advanceMockDraft = async (action, nominatedPlayerName = selectedTargetName, nominatedPrice = nominationPriceValue()) =>");
     expect(liveDraftHtml).toContain("let pendingCamNominationName = null");
+    expect(liveDraftHtml).toContain("let mockAdvanceRequestInFlight = false");
+    expect(liveDraftHtml).toContain("let mockAdvanceRequestAction = null");
+    expect(liveDraftHtml).toContain("const mockAdvanceBusy = mockAdvanceRequestInFlight;");
+    expect(liveDraftHtml).toContain("if (mockAdvanceRequestInFlight) return null;");
+    expect(liveDraftHtml).toContain("mockAdvanceRequestInFlight = true;");
+    expect(liveDraftHtml).toContain("mockAdvanceRequestAction = action;");
+    expect(liveDraftHtml).toContain("mockAdvanceRequestInFlight = false;");
+    expect(liveDraftHtml).toContain("mockAdvanceRequestAction = null;");
     expect(liveDraftHtml).toContain("action === 'cam-nominate'");
     expect(liveDraftHtml).toContain("nominatedPlayer: pendingCamNominationName");
     expect(liveDraftHtml).toContain("nominatedPrice: pendingCamNominationPrice");
@@ -359,7 +367,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("['advance', 'pass'].includes(action)");
     expect(liveDraftHtml).toContain("action === 'complete-mock'");
     expect(liveDraftHtml).toContain("completeButton.textContent = 'Completing mock...'");
-    expect(liveDraftHtml).toContain("completeButton.textContent = 'Complete'");
+    expect(liveDraftHtml).toContain("mockDraftItem('Completing mock', 'Simulating the remaining auction and writing the completed practice log.')");
+    expect(liveDraftHtml).toContain("completeButton.textContent = mockAdvanceRequestAction === 'complete-mock' ? 'Completing mock...' : 'Complete';");
     expect(liveDraftHtml).toContain("if (data.availableTargets && data.owners) render(data);");
     expect(liveDraftHtml).toContain("else await refreshMockDraft();");
     expect(liveDraftHtml).toContain("mockAuctionFeedLines(mockDraft)");

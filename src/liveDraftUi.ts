@@ -3301,6 +3301,8 @@ export const liveDraftHtml = `<!doctype html>
     let pendingCamNominationName = null;
     let pendingCamNominationPrice = 1;
     let currentMockDraft = null;
+    let mockAdvanceRequestInFlight = false;
+    let mockAdvanceRequestAction = null;
     let latestMockBatchReport = null;
     let latestMockBatchJob = null;
     let selectedMockResultsRunIndex = 0;
@@ -5878,7 +5880,8 @@ export const liveDraftHtml = `<!doctype html>
       const terminal = phase === 'complete' || phase === 'blocked';
       const humanStop = phase === 'human-decision' || phase === 'human-nomination';
       const canNominate = isMockMode && phase === 'human-nomination' && Boolean(target);
-      advanceButton.disabled = !isMockMode || phase !== 'ai-sale';
+      const mockAdvanceBusy = mockAdvanceRequestInFlight;
+      advanceButton.disabled = mockAdvanceBusy || !isMockMode || phase !== 'ai-sale';
       if (mockDraft && mockDraft.auction && mockDraft.auction.resolution) {
         const auction = mockDraft.auction;
         advanceButton.textContent = 'Sell to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price);
@@ -5886,17 +5889,17 @@ export const liveDraftHtml = `<!doctype html>
         advanceButton.textContent = 'Advance AI Sale';
       }
       nominationPriceInput.hidden = !canNominate;
-      nominationPriceInput.disabled = !canNominate;
+      nominationPriceInput.disabled = mockAdvanceBusy || !canNominate;
       if (canNominate && nominationPriceValue() <= 0) nominationPriceInput.value = String(pendingCamNominationPrice || 1);
-      nominateButton.disabled = !canNominate;
+      nominateButton.disabled = mockAdvanceBusy || !canNominate;
       nominateButton.textContent = target ? 'Nominate ' + shortPlayerName(target.name) : 'Nominate';
-      camBidButton.disabled = !isMockMode || phase !== 'human-decision' || !mockDraft.camDecision;
+      camBidButton.disabled = mockAdvanceBusy || !isMockMode || phase !== 'human-decision' || !mockDraft.camDecision;
       camBidButton.textContent = mockDraft && mockDraft.auction && mockDraft.auction.nextCamBid != null ? 'Bid ' + money(mockDraft.auction.nextCamBid) : 'Bid';
-      byId('mock-pass-button').disabled = !isMockMode || phase !== 'human-decision';
-      nextDecisionButton.disabled = !isMockMode || terminal || humanStop;
-      nextRoundButton.disabled = !isMockMode || terminal || humanStop;
-      completeButton.textContent = 'Complete';
-      completeButton.disabled = !isMockMode || terminal;
+      byId('mock-pass-button').disabled = mockAdvanceBusy || !isMockMode || phase !== 'human-decision';
+      nextDecisionButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
+      nextRoundButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
+      completeButton.textContent = mockAdvanceRequestAction === 'complete-mock' ? 'Completing mock...' : 'Complete';
+      completeButton.disabled = mockAdvanceBusy || !isMockMode || terminal;
 
       if (!isMockMode) {
         details.replaceChildren(mockDraftItem('Mock draft', 'Start mock draft to enter the practice room.'));
@@ -5905,6 +5908,11 @@ export const liveDraftHtml = `<!doctype html>
 
       if (!mockDraft) {
         details.replaceChildren(mockDraftItem('Mock draft', 'Loading interactive state.'));
+        return;
+      }
+
+      if (mockAdvanceBusy && mockAdvanceRequestAction === 'complete-mock') {
+        details.replaceChildren(mockDraftItem('Completing mock', 'Simulating the remaining auction and writing the completed practice log.'));
         return;
       }
 
@@ -6703,61 +6711,73 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const advanceMockDraft = async (action, nominatedPlayerName = selectedTargetName, nominatedPrice = nominationPriceValue()) => {
+      if (mockAdvanceRequestInFlight) return null;
+      mockAdvanceRequestInFlight = true;
+      mockAdvanceRequestAction = action;
+      if (currentMockDraft) renderMockDraft(currentMockDraft);
       if (draftNightLockFor(currentState)) {
         window.alert(draftNightLockReasonFor(currentState));
         currentDraftMode = 'real';
         if (currentState) renderDraftMode(currentState);
         focusCommandInput();
+        mockAdvanceRequestInFlight = false;
+        mockAdvanceRequestAction = null;
         return null;
       }
-      if (currentDraftMode !== 'interactive-mock') {
-        await setDraftMode('interactive-mock');
+      try {
+        if (currentDraftMode !== 'interactive-mock') {
+          await setDraftMode('interactive-mock');
+        }
+        if (action === 'cam-nominate') {
+          pendingCamNominationName = nominatedPlayerName;
+          pendingCamNominationPrice = nominatedPrice;
+          selectedTargetName = nominatedPlayerName;
+        }
+        if (action === 'cam-bid') {
+          byId('mock-cam-win-button').disabled = true;
+          byId('mock-pass-button').disabled = true;
+          await animateMockCamBid();
+        }
+        if (['advance', 'pass'].includes(action) && currentMockDraft && currentMockDraft.auction) {
+          byId('mock-advance-button').disabled = true;
+          byId('mock-pass-button').disabled = true;
+          await animateMockAuctionResolution();
+        }
+        if (action === 'complete-mock') {
+          const completeButton = byId('mock-complete-button');
+          completeButton.disabled = true;
+          completeButton.textContent = 'Completing mock...';
+          byId('mock-advance-button').disabled = true;
+          byId('mock-nominate-button').disabled = true;
+          byId('mock-cam-win-button').disabled = true;
+          byId('mock-pass-button').disabled = true;
+          byId('mock-next-decision-button').disabled = true;
+          byId('mock-next-round-button').disabled = true;
+        }
+        const data = await postJson('/api/mock/advance', {
+          strategyKey: currentStrategyKey,
+          mode: 'interactive-mock',
+          draftSession: currentDraftSession,
+          seed: 'live-ui',
+          action,
+          nominatedPlayer: pendingCamNominationName,
+          nominatedPrice: pendingCamNominationPrice,
+          mockAuction: currentMockDraft && currentMockDraft.auction
+        });
+        alertCommandErrors(data);
+        if (action !== 'cam-nominate' && !(data.errors || []).length) {
+          pendingCamNominationName = null;
+          pendingCamNominationPrice = nominationPriceValue();
+        }
+        if (data.availableTargets && data.owners) render(data);
+        else await refreshMockDraft();
+        focusCommandInput();
+        return data;
+      } finally {
+        mockAdvanceRequestInFlight = false;
+        mockAdvanceRequestAction = null;
+        if (currentMockDraft) renderMockDraft(currentMockDraft);
       }
-      if (action === 'cam-nominate') {
-        pendingCamNominationName = nominatedPlayerName;
-        pendingCamNominationPrice = nominatedPrice;
-        selectedTargetName = nominatedPlayerName;
-      }
-      if (action === 'cam-bid') {
-        byId('mock-cam-win-button').disabled = true;
-        byId('mock-pass-button').disabled = true;
-        await animateMockCamBid();
-      }
-      if (['advance', 'pass'].includes(action) && currentMockDraft && currentMockDraft.auction) {
-        byId('mock-advance-button').disabled = true;
-        byId('mock-pass-button').disabled = true;
-        await animateMockAuctionResolution();
-      }
-      if (action === 'complete-mock') {
-        const completeButton = byId('mock-complete-button');
-        completeButton.disabled = true;
-        completeButton.textContent = 'Completing mock...';
-        byId('mock-advance-button').disabled = true;
-        byId('mock-nominate-button').disabled = true;
-        byId('mock-cam-win-button').disabled = true;
-        byId('mock-pass-button').disabled = true;
-        byId('mock-next-decision-button').disabled = true;
-        byId('mock-next-round-button').disabled = true;
-      }
-      const data = await postJson('/api/mock/advance', {
-        strategyKey: currentStrategyKey,
-        mode: 'interactive-mock',
-        draftSession: currentDraftSession,
-        seed: 'live-ui',
-        action,
-        nominatedPlayer: pendingCamNominationName,
-        nominatedPrice: pendingCamNominationPrice,
-        mockAuction: currentMockDraft && currentMockDraft.auction
-      });
-      alertCommandErrors(data);
-      if (action !== 'cam-nominate' && !(data.errors || []).length) {
-        pendingCamNominationName = null;
-        pendingCamNominationPrice = nominationPriceValue();
-      }
-      if (data.availableTargets && data.owners) render(data);
-      else await refreshMockDraft();
-      focusCommandInput();
-      return data;
     };
 
     const downloadText = (filename, content, contentType) => {
