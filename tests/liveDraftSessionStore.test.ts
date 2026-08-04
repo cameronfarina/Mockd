@@ -76,6 +76,11 @@ describe("live draft session store", () => {
 
     expect(parseLiveDraftCommandImport(liveDraftCommandsJson(commands), "json")).toEqual(commands);
     expect(parseLiveDraftCommandImport(JSON.stringify(commands), "json")).toEqual(commands);
+    expect(parseLiveDraftCommandImport(JSON.stringify({
+      version: 1,
+      currentSnapshot: { commands },
+      commandsJson: liveDraftCommandsJson(["fallback drafted player for 1"]),
+    }), "json")).toEqual(commands);
     expect(liveDraftCommandsCsv(commands)).toBe(
       "index,command\n1,cam drafted jahmyr gibbs for 80\n2,jakub drafted george kittle for 28\n",
     );

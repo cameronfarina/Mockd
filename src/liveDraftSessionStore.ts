@@ -193,6 +193,16 @@ export const liveDraftCommandsJson = (commands: readonly string[]): string =>
 export const liveDraftCommandsCsv = (commands: readonly string[]): string =>
   `index,command\n${commands.map((command, index) => `${index + 1},${csvEscape(command)}`).join("\n")}\n`;
 
+const commandsFromSnapshotValue = (value: unknown): unknown => {
+  if (!value || typeof value !== "object" || !("commands" in value)) return undefined;
+  return (value as { commands: unknown }).commands;
+};
+
+const commandsFromJsonImportObject = (value: Record<string, unknown>): unknown => {
+  if ("commands" in value) return value.commands;
+  return commandsFromSnapshotValue(value.currentSnapshot) ?? commandsFromSnapshotValue(value.backupSnapshot);
+};
+
 export const parseLiveDraftCommandImport = (
   content: string,
   format: LiveDraftCommandImportFormat,
@@ -200,10 +210,15 @@ export const parseLiveDraftCommandImport = (
   if (format === "json") {
     const parsed = JSON.parse(content) as unknown;
     if (Array.isArray(parsed)) return validateCommandList(parsed);
-    if (parsed && typeof parsed === "object" && "commands" in parsed) {
-      return validateCommandList((parsed as { commands: unknown }).commands);
+    if (parsed && typeof parsed === "object") {
+      const parsedObject = parsed as Record<string, unknown>;
+      const commands = commandsFromJsonImportObject(parsedObject);
+      if (commands !== undefined) return validateCommandList(commands);
+      if (typeof parsedObject.commandsJson === "string") {
+        return parseLiveDraftCommandImport(parsedObject.commandsJson, "json");
+      }
     }
-    throw new Error("JSON draft-log import must be an array or an object with commands.");
+    throw new Error("JSON draft-log import must be an array, an object with commands, or a Mockd session bundle.");
   }
 
   const rows = parseCsvRows(content);

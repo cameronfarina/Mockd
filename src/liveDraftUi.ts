@@ -3428,6 +3428,8 @@ export const liveDraftHtml = `<!doctype html>
       if (session.startsWith('scratch:')) return session;
       return mode === 'interactive-mock' ? practiceSessionForStrategy(currentStrategyKey) : 'live';
     };
+    const draftModeForSession = (session, mode) =>
+      session === 'live' && mode === 'interactive-mock' ? 'real' : mode;
     const isActiveDraft = () => draftLifecycle === 'active';
     const isStartingDraft = () => draftLifecycle === 'countdown';
     const normalizeDraftLifecycle = value => {
@@ -3456,6 +3458,7 @@ export const liveDraftHtml = `<!doctype html>
         const parsed = JSON.parse(stored);
         if (draftModes.includes(parsed.mode)) currentDraftMode = parsed.mode;
         if (typeof parsed.session === 'string' && parsed.session) currentDraftSession = normalizeDraftSession(parsed.session, currentDraftMode);
+        currentDraftMode = draftModeForSession(currentDraftSession, currentDraftMode);
         if (strategyKeys.includes(parsed.strategy)) currentStrategyKey = parsed.strategy;
         draftLifecycle = normalizeDraftLifecycle(parsed.lifecycle);
       } catch {
@@ -3529,6 +3532,7 @@ export const liveDraftHtml = `<!doctype html>
       if (draftModes.includes(mode)) currentDraftMode = mode;
       if (draftSession) currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode);
       else currentDraftSession = normalizeDraftSession(currentDraftSession, currentDraftMode);
+      currentDraftMode = draftModeForSession(currentDraftSession, currentDraftMode);
     };
     const hydrateMyExpertFromLocation = () => {
       const params = new URLSearchParams(window.location.search);
@@ -5897,6 +5901,15 @@ export const liveDraftHtml = `<!doctype html>
         return;
       }
 
+      if (terminal) {
+        details.replaceChildren(
+          mockDraftItem(phase === 'complete' ? 'Mock complete' : 'Mock blocked', phase === 'complete' ? 'All roster slots have been filled.' : 'The mock draft cannot continue.')
+        );
+        renderSaleControls(currentState);
+        if (currentState) renderBoard(currentState);
+        return;
+      }
+
       const nomination = mockDraft.nomination || {};
       const nominationText = nomination.player || nomination.name || mockDraft.nominatedPlayer || '-';
       const aiBids = (mockDraft.aiBids || []).slice(0, 5);
@@ -5936,7 +5949,7 @@ export const liveDraftHtml = `<!doctype html>
       const filtered = allTargets.filter(target => targetMatchesFilters(target, query, owner));
       const matches = sortedTargets(filtered, tierDrops).slice(0, 120);
       const keeperCount = allTargets.length - state.availableTargets.length;
-      byId('board-count').textContent = String(matches.length) + ' shown / ' + String(filtered.length) + ' matched / ' + String(state.availableTargets.length) + ' available' + (keeperCount ? ' / ' + keeperCount + ' kept' : '');
+      byId('board-count').textContent = String(matches.length) + ' shown / ' + String(filtered.length) + ' matched / ' + String(state.availableTargets.length) + ' loaded' + (keeperCount ? ' / ' + keeperCount + ' kept' : '');
 
       const rows = matches.map(target => {
         const tierDrop = tierDrops.get(target.name) || 0;
@@ -6367,6 +6380,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const setDraftSession = async draftSession => {
       currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode);
+      currentDraftMode = draftModeForSession(currentDraftSession, currentDraftMode);
       if (!isActiveDraft()) draftLifecycle = 'setup';
       selectedTargetName = null;
       pendingCamNominationName = null;

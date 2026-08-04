@@ -740,6 +740,26 @@ const sessionModeFromBody = (
 ): LiveDraftSessionMode =>
   sessionModeFromValue(body.mode, fallback);
 
+const canonicalSessionModeFor = (
+  draftSessionKey: string,
+  mode: LiveDraftSessionMode,
+): LiveDraftSessionMode =>
+  draftSessionKey === defaultLiveDraftSessionKey && mode === "interactive-mock" ? "real" : mode;
+
+const sessionModeFromQueryForSession = (
+  url: URL,
+  draftSessionKey: string,
+  fallback: LiveDraftSessionMode = defaultLiveDraftSessionMode,
+): LiveDraftSessionMode =>
+  canonicalSessionModeFor(draftSessionKey, sessionModeFromQuery(url, fallback));
+
+const sessionModeFromBodyForSession = (
+  body: Record<string, unknown>,
+  draftSessionKey: string,
+  fallback: LiveDraftSessionMode = defaultLiveDraftSessionMode,
+): LiveDraftSessionMode =>
+  canonicalSessionModeFor(draftSessionKey, sessionModeFromBody(body, fallback));
+
 const scratchSessionPrefix = "scratch:";
 
 const scratchSlugFromValue = (value: string): string => {
@@ -1288,6 +1308,7 @@ export const createLiveDraftServer = async (
   const stateWithLatestMockRanges = (state: LiveDraftState): LiveDraftState => {
     const report = latestCompleteMockBatchReport();
     if (!report || !state.postDraftAudit.length) return state;
+    if (report.options.strategyKey !== state.strategy.key || report.script) return state;
 
     const ranges = mockRangesFor(report);
     return {
@@ -1310,7 +1331,8 @@ export const createLiveDraftServer = async (
     commands?: readonly string[];
     strategyKey?: LiveDraftStrategyKey;
   } = {}): Promise<LiveDraftStateResponse> => {
-    const store = await storeFor(draftSessionKey, mode);
+    const canonicalMode = canonicalSessionModeFor(draftSessionKey, mode);
+    const store = await storeFor(draftSessionKey, canonicalMode);
     const state = stateWithLatestMockRanges(buildLiveDraftState({
       projections,
       historicalRecords,
@@ -1326,7 +1348,7 @@ export const createLiveDraftServer = async (
     const session = store.status();
     return {
       ...state,
-      draftMode: mode,
+      draftMode: canonicalMode,
       draftModes: liveDraftModes,
       activeDraftSession: activeDraftSessionDescriptorFor(draftSessionKey),
       draftSessions: draftSessionDescriptorsFor(draftSessionKey),
@@ -1654,9 +1676,30 @@ export const createLiveDraftServer = async (
         };
       }
 
-      for (const pick of run.picks) {
-        await interactiveMockStore.appendCommand(`${pick.owner} drafted ${pick.player} for ${pick.price}`);
+      const completedCommands = [
+        ...interactiveMockStore.currentCommands(),
+        ...run.picks.map(pick => `${pick.owner} drafted ${pick.player} for ${pick.price}`),
+      ];
+      const completedState = await stateFor({
+        draftSessionKey,
+        mode: "interactive-mock",
+        commands: completedCommands,
+        strategyKey,
+      });
+      if (completedState.errors.length) {
+        return {
+          status: 422,
+          body: {
+            ...await stateWithMockDraft({
+              ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
+              draftSessionKey,
+            }),
+            errors: completedState.errors,
+          },
+        };
       }
+
+      await interactiveMockStore.importCommands(completedCommands);
 
       return {
         status: 200,
@@ -1966,9 +2009,10 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "GET" && url.pathname === "/api/state") {
+        const draftSessionKey = draftSessionKeyFromQuery(url);
         sendJson(response, 200, await stateFor({
-          draftSessionKey: draftSessionKeyFromQuery(url),
-          mode: sessionModeFromQuery(url),
+          draftSessionKey,
+          mode: sessionModeFromQueryForSession(url, draftSessionKey),
           strategyKey: strategyKeyFromQuery(url),
         }));
         return;
@@ -2045,7 +2089,8 @@ export const createLiveDraftServer = async (
 
       if (request.method === "GET" && url.pathname === "/api/export") {
         const format = url.searchParams.get("format") === "csv" ? "csv" : "json";
-        const store = await storeFor(draftSessionKeyFromQuery(url), sessionModeFromQuery(url));
+        const draftSessionKey = draftSessionKeyFromQuery(url);
+        const store = await storeFor(draftSessionKey, sessionModeFromQueryForSession(url, draftSessionKey));
         const commands = store.currentCommands();
         if (format === "csv") {
           sendText(response, 200, "text/csv", liveDraftCommandsCsv(commands));
@@ -2056,9 +2101,10 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "GET" && url.pathname === "/api/export-bundle") {
+        const draftSessionKey = draftSessionKeyFromQuery(url);
         sendText(response, 200, "application/json", `${JSON.stringify(await exportBundleFor({
-          draftSessionKey: draftSessionKeyFromQuery(url),
-          mode: sessionModeFromQuery(url),
+          draftSessionKey,
+          mode: sessionModeFromQueryForSession(url, draftSessionKey),
           strategyKey: strategyKeyFromQuery(url),
         }), null, 2)}\n`);
         return;
@@ -2067,8 +2113,8 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/events") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
-        const mode = sessionModeFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
+        const mode = sessionModeFromBodyForSession(body, draftSessionKey);
         const store = await storeFor(draftSessionKey, mode);
         const command = typeof body.command === "string" ? body.command.trim() : "";
         if (!command) {
@@ -2264,8 +2310,8 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/import") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
-        const mode = sessionModeFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
+        const mode = sessionModeFromBodyForSession(body, draftSessionKey);
         const store = await storeFor(draftSessionKey, mode);
         let importedCommands: string[];
         try {
@@ -2330,8 +2376,8 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/undo") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
-        const mode = sessionModeFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
+        const mode = sessionModeFromBodyForSession(body, draftSessionKey);
         const store = await storeFor(draftSessionKey, mode);
         const result = await runQueuedSessionMutation(draftSessionKey, mode, async (): Promise<LiveDraftMutationResult> => {
           await store.undo();
@@ -2347,8 +2393,8 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/reset") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
-        const mode = sessionModeFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
+        const mode = sessionModeFromBodyForSession(body, draftSessionKey);
         const store = await storeFor(draftSessionKey, mode);
         const result = await runQueuedSessionMutation(draftSessionKey, mode, async (): Promise<LiveDraftMutationResult> => {
           const unsafeMessage = unsafeLiveMutationMessage({

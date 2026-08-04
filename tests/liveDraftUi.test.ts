@@ -197,6 +197,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const alertCommandErrors = data =>");
     expect(liveDraftHtml).toContain("window.alert(messages.join('\\n'))");
     expect(liveDraftHtml).toContain("const renderMockDraft = mockDraft =>");
+    expect(liveDraftHtml).toContain("mockDraftItem(phase === 'complete' ? 'Mock complete' : 'Mock blocked'");
+    expect(liveDraftHtml).toContain("' loaded' + (keeperCount ? ' / ' + keeperCount + ' kept' : '')");
     expect(liveDraftHtml).toContain("const renderDraftMode = state =>");
     expect(liveDraftHtml).toContain("const renderDraftLifecycle = state =>");
     expect(liveDraftHtml).toContain("const renderRoomModeIndicator = state =>");
@@ -373,6 +375,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("draftSession: currentDraftSession");
     expect(liveDraftHtml).toContain("const normalizeDraftSession = (value, mode = currentDraftMode) =>");
     expect(liveDraftHtml).toContain("if (session.startsWith('scratch:')) return session;");
+    expect(liveDraftHtml).toContain("const draftModeForSession = (session, mode) =>");
+    expect(liveDraftHtml).toContain("currentDraftMode = draftModeForSession(currentDraftSession, currentDraftMode);");
     expect(liveDraftHtml).toContain("currentDraftSession = normalizeDraftSession(parsed.session, currentDraftMode);");
     expect(liveDraftHtml).toContain("currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode);");
     expect(liveDraftHtml).toContain("const renderStateLoadError = message =>");

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -491,7 +491,7 @@ describe("live draft server", () => {
       expect(realSale.data.session.paths.directory).toBe(directory);
       expect(realSale.data.events.map((event: { input: string }) => event.input)).toEqual([realSaleCommand]);
 
-      const practiceBefore = await fetch(`${baseUrl}/api/state?mode=interactive-mock&strategy=three-rb`)
+      const practiceBefore = await fetch(`${baseUrl}/api/state?draftSession=practice-3rb&mode=interactive-mock&strategy=three-rb`)
         .then(response => response.json());
       expect(practiceBefore.draftMode).toBe("interactive-mock");
       expect(practiceBefore.session.commandCount).toBe(0);
@@ -547,6 +547,54 @@ describe("live draft server", () => {
           maximumSalePrice: 78,
           draftedRate: 1,
         },
+      });
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("scopes post-draft mock ranges to the matching batch strategy", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const wrongStrategyBatch = await post(baseUrl, "/api/mock-batch", {
+        strategyKey: "wr-heavy",
+        runs: 1,
+        seedPrefix: "wrong-audit-range",
+      });
+      await waitForMockBatchJob(baseUrl, wrongStrategyBatch.data.jobId);
+
+      const sale = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "practice-3rb",
+        strategyKey: "three-rb",
+        seed: "audit-scope-sale",
+        action: "advance",
+      });
+      expect(sale.status).toBe(200);
+      expect(sale.data.postDraftAudit[0]).toMatchObject({ player: "Jahmyr Gibbs" });
+      expect(sale.data.postDraftAudit[0].mockRange).toBeUndefined();
+
+      const matchingStrategyBatch = await post(baseUrl, "/api/mock-batch", {
+        strategyKey: "three-rb",
+        runs: 1,
+        seedPrefix: "matching-audit-range",
+      });
+      await waitForMockBatchJob(baseUrl, matchingStrategyBatch.data.jobId);
+
+      const scopedState = await fetch(`${baseUrl}/api/state?draftSession=practice-3rb&mode=interactive-mock&strategy=three-rb`)
+        .then(response => response.json());
+      expect(scopedState.postDraftAudit[0].mockRange).toMatchObject({
+        averageSalePrice: 77,
+        minimumSalePrice: 76,
+        maximumSalePrice: 78,
+        draftedRate: 1,
       });
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -776,6 +824,14 @@ describe("live draft server", () => {
       servers.push(app.server);
       const baseUrl = await listen(app.server);
 
+      const realSale = await post(baseUrl, "/api/events", {
+        draftSession: "live",
+        mode: "real",
+        strategyKey: "three-rb",
+        command: realSaleCommand,
+      });
+      expect(realSale.status).toBe(200);
+
       const lockedAdvance = await post(baseUrl, "/api/mock/advance", {
         draftSession: "live",
         strategyKey: "three-rb",
@@ -783,14 +839,18 @@ describe("live draft server", () => {
         action: "advance",
       });
       expect(lockedAdvance.status).toBe(423);
+      expect(lockedAdvance.data.draftMode).toBe("real");
       expect(lockedAdvance.data.draftNightLock).toMatchObject({ locked: true });
+      expect(lockedAdvance.data.session.commandCount).toBe(1);
+      expect(lockedAdvance.data.events.map((event: { input: string }) => event.input)).toEqual([realSaleCommand]);
       expect(lockedAdvance.data.errors[0]?.message).toContain("Live session is locked for mock draft advances");
 
       const liveState = await fetch(`${baseUrl}/api/state?draftSession=live&mode=interactive-mock&strategy=three-rb`)
         .then(response => response.json());
+      expect(liveState.draftMode).toBe("real");
       expect(liveState.draftNightLock).toMatchObject({ locked: true });
-      expect(liveState.session.commandCount).toBe(0);
-      expect(liveState.events).toHaveLength(0);
+      expect(liveState.session.commandCount).toBe(1);
+      expect(liveState.events.map((event: { input: string }) => event.input)).toEqual([realSaleCommand]);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -829,6 +889,25 @@ describe("live draft server", () => {
       expect(bundle.commandsCsv).toContain("index,command");
       expect(bundle.commandsCsv).toContain(realSaleCommand);
       expect(bundle.auditLogJsonl).toContain(realSaleCommand);
+
+      const reset = await post(baseUrl, "/api/reset", {
+        draftSession: "practice-wr-heavy",
+        mode: "real",
+        strategyKey: "wr-heavy",
+      });
+      expect(reset.status).toBe(200);
+      expect(reset.data.session.commandCount).toBe(0);
+
+      const imported = await post(baseUrl, "/api/import", {
+        draftSession: "practice-wr-heavy",
+        mode: "real",
+        strategyKey: "wr-heavy",
+        format: "json",
+        content: JSON.stringify(bundle),
+      });
+      expect(imported.status).toBe(200);
+      expect(imported.data.session.commandCount).toBe(1);
+      expect(imported.data.events.map((event: { input: string }) => event.input)).toEqual([realSaleCommand]);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -1009,6 +1088,13 @@ describe("live draft server", () => {
         ]),
       );
       expect(complete.data.mockDraft.phase).toBe("complete");
+      const logLines = (await readFile(complete.data.session.paths.logPath, "utf8")).trim().split("\n");
+      const lastLogEntry = JSON.parse(logLines.at(-1) ?? "{}");
+      expect(lastLogEntry.mutation).toMatchObject({
+        type: "import",
+        previousCommandCount: 2,
+        importedCount: complete.data.session.commandCount,
+      });
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
