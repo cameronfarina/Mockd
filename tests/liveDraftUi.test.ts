@@ -153,23 +153,18 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("class=\"sidebar-section\"");
     expect(liveDraftHtml).toContain(".app.draft-active .header-actions");
     expect(liveDraftHtml).toContain("grid-template-columns: minmax(0, 1fr) clamp(340px, 24vw, 410px)");
-    expect(liveDraftHtml).toContain("data-sort-key=\"personalValue\">Our");
-    expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\">Gap");
-    expect(liveDraftHtml).toContain("data-sort-key=\"byeWeek\">Bye");
-    expect(liveDraftHtml).toContain("data-sort-key=\"week1Projection\">W1");
-    expect(liveDraftHtml).toContain("data-sort-key=\"seasonProjection\">Season");
     expect(liveDraftHtml).toContain("let boardSortKey = 'liveExpectedPrice';");
     expect(liveDraftHtml).toContain("<option value=\"liveExpectedPrice\">Expected draft price</option>");
     expect(liveDraftHtml).toContain("<option value=\"seasonProjection\">Season points</option>");
     expect(liveDraftHtml).toContain("const boardSortKeys = Object.keys(sortLabels);");
-    expect(liveDraftHtml).toContain("button.dataset.activeSort = String(isActive);");
-    expect(liveDraftHtml).toContain("button.setAttribute('aria-pressed', String(isActive));");
     expect(liveDraftHtml).toContain("return (rightValue - leftValue) || defaultTieBreak;");
-    expect(liveDraftHtml).toContain("margin: -8px -10px;");
-    expect(liveDraftHtml).toContain("border: 0;");
-    expect(liveDraftHtml).toContain("box-shadow: inset 0 -2px 0 rgba(91, 168, 255, 0.86);");
-    expect(liveDraftHtml).toContain(".sort-heading:hover,");
-    expect(liveDraftHtml).toContain(".sort-heading[data-active-sort=\"true\"]");
+    expect(liveDraftHtml).toContain("<th style=\"width:52px\">Pos</th>");
+    expect(liveDraftHtml).toContain("<th class=\"money\" style=\"width:78px\">Season</th>");
+    expect(liveDraftHtml).not.toContain("class=\"sort-heading\"");
+    expect(liveDraftHtml).not.toContain("[data-sort-key]");
+    expect(liveDraftHtml).not.toContain("button.dataset.activeSort");
+    expect(liveDraftHtml).not.toContain("aria-pressed', String(isActive)");
+    expect(liveDraftHtml).not.toContain(".sort-heading:hover");
     expect(liveDraftHtml).not.toContain("let boardSortDirection");
     expect(liveDraftHtml).not.toContain("boardSortDirection = boardSortDirection === 'asc' ? 'desc' : 'asc'");
     expect(liveDraftHtml).not.toContain("' ^'");
@@ -485,7 +480,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("strategyCoach");
     expect(liveDraftHtml).toContain("slot.fallbackPriceBand");
     expect(liveDraftHtml).toContain("slot.fallbackNames");
-    expect(liveDraftHtml).toContain("data-sort-key=\"valueGap\"");
+    expect(liveDraftHtml).toContain("<option value=\"valueGap\">Best value gap</option>");
   });
 
   it("uses a dark dashboard shell with command rail and panel grouping", () => {

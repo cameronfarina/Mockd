@@ -1306,45 +1306,6 @@ export const liveDraftHtml = `<!doctype html>
       background: rgba(127, 154, 181, 0.07);
     }
 
-    .sort-heading {
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      width: calc(100% + 20px);
-      min-height: 36px;
-      margin: -8px -10px;
-      padding: 8px 10px;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      font-weight: inherit;
-      line-height: 1.2;
-      text-align: inherit;
-      cursor: pointer;
-    }
-
-    th.money .sort-heading {
-      justify-content: flex-end;
-    }
-
-    th.center .sort-heading {
-      justify-content: center;
-    }
-
-    .sort-heading:hover,
-    .sort-heading[data-active-sort="true"] {
-      background: rgba(91, 168, 255, 0.1);
-      box-shadow: inset 0 -2px 0 rgba(91, 168, 255, 0.86);
-      color: #d9e7f5;
-    }
-
-    .sort-heading:focus-visible {
-      outline: 0;
-      box-shadow: inset 0 -2px 0 rgba(91, 168, 255, 0.92), 0 0 0 3px rgba(91, 168, 255, 0.14);
-    }
-
     td.money, th.money, td.center, th.center {
       text-align: right;
       font-variant-numeric: tabular-nums;
@@ -3092,16 +3053,16 @@ export const liveDraftHtml = `<!doctype html>
               <tr>
                 <th class="center" style="width:42px">Add</th>
                 <th>Player</th>
-                <th style="width:52px"><button class="sort-heading" type="button" data-sort-key="position">Pos</button></th>
-                <th style="width:62px"><button class="sort-heading" type="button" data-sort-key="teamAbbreviation">Team</button></th>
-                <th class="center" style="width:54px"><button class="sort-heading" type="button" data-sort-key="byeWeek">Bye</button></th>
-                <th class="money" style="width:64px"><button class="sort-heading" type="button" data-sort-key="week1Projection">W1</button></th>
-                <th class="money" style="width:78px"><button class="sort-heading" type="button" data-sort-key="seasonProjection">Season</button></th>
-                <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="expectedPrice">Exp</button></th>
-                <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="liveExpectedPrice">Live</button></th>
-                <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="personalValue">Our</button></th>
-                <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="valueGap">Gap</button></th>
-                <th class="money" style="width:66px"><button class="sort-heading" type="button" data-sort-key="recommendedMaxBid">Max</button></th>
+                <th style="width:52px">Pos</th>
+                <th style="width:62px">Team</th>
+                <th class="center" style="width:54px">Bye</th>
+                <th class="money" style="width:64px">W1</th>
+                <th class="money" style="width:78px">Season</th>
+                <th class="money" style="width:66px">Exp</th>
+                <th class="money" style="width:66px">Live</th>
+                <th class="money" style="width:66px">Our</th>
+                <th class="money" style="width:66px">Gap</th>
+                <th class="money" style="width:66px">Max</th>
               </tr>
             </thead>
             <tbody id="board"></tbody>
@@ -4225,13 +4186,6 @@ export const liveDraftHtml = `<!doctype html>
 
       byId('strategy-select').value = currentStrategyKey;
       byId('sort-select').value = boardSortKey;
-      for (const button of document.querySelectorAll('[data-sort-key]')) {
-        const key = button.dataset.sortKey;
-        const isActive = key === boardSortKey;
-        button.textContent = sortLabels[key] || '';
-        button.dataset.activeSort = String(isActive);
-        button.setAttribute('aria-pressed', String(isActive));
-      }
     };
 
     const syncStrategy = state => {
@@ -6878,14 +6832,6 @@ export const liveDraftHtml = `<!doctype html>
       await refreshDraftRoom();
       focusCommandInput();
     });
-
-    for (const button of document.querySelectorAll('[data-sort-key]')) {
-      button.addEventListener('click', event => {
-        const key = event.currentTarget.dataset.sortKey;
-        boardSortKey = boardSortKeys.includes(key) ? key : 'liveExpectedPrice';
-        if (currentState) renderBoard(currentState);
-      });
-    }
 
     byId('add-price').addEventListener('input', () => {
       if (currentState) renderSelected(currentState);
