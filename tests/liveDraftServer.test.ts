@@ -1233,6 +1233,31 @@ describe("live draft server", () => {
     }
   });
 
+  it("rejects ambiguous scripted mock player names before starting a batch job", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const started = await post(baseUrl, "/api/mock-batch", {
+        strategyKey: "three-rb",
+        runs: 2,
+        seedPrefix: "ambiguous-script-test",
+        script: "target Williams max 20",
+      });
+
+      expect(started.status).toBe(422);
+      expect(started.data.error).toContain('Ambiguous mock script player "Williams"');
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it("accepts build-around mock scripts and runs each price point as a forced Cam start", async () => {
     const directory = await tempSessionDirectory();
     const capturedOptions: RunMockBatchOptions[] = [];

@@ -2280,13 +2280,13 @@ export const createLiveDraftServer = async (
         let script: MockDraftScript | undefined;
         try {
           script = mockDraftScriptFromBody(body);
+          if (script) script = canonicalizeMockDraftScript(script, projections.map(projection => projection.name));
         } catch (error) {
           sendJson(response, 422, {
             error: error instanceof Error ? error.message : "Mock script could not be read.",
           });
           return;
         }
-        if (script) script = canonicalizeMockDraftScript(script, projections.map(projection => projection.name));
         const requestedRunsPerScenario = batchRunsPerScenarioFromValue(body.runs ?? body.runsPerScenario);
         const runsPerScenario = script?.runsPerScenario === undefined
           ? requestedRunsPerScenario

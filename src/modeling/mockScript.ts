@@ -57,6 +57,7 @@ const normalizedPriceSpec = (value: string): string =>
     .replace(/\$/g, "")
     .replace(/\s+(?:by|step)\s+/g, ":")
     .replace(/\s+to\s+/g, "-")
+    .replace(/\b(?:a|an|the|price|band|range|sweep|dollars?)\b/g, "")
     .replace(/\s+/g, "");
 
 const pricesFromSpec = (value: string): number[] | undefined => {
@@ -148,8 +149,14 @@ const canonicalPlayerNameFor = (
   const exactMatch = playerNames.find(candidate => scriptPlayerSearchKey(candidate) === searchKey);
   if (exactMatch) return normalizePlayerName(exactMatch);
 
-  const partialMatch = playerNames.find(candidate => scriptPlayerSearchKey(candidate).includes(searchKey));
-  return normalizePlayerName(partialMatch ?? player);
+  const partialMatches = playerNames.filter(candidate => scriptPlayerSearchKey(candidate).includes(searchKey));
+  if (partialMatches.length > 1) {
+    throw new Error(
+      `Ambiguous mock script player "${player}": ${partialMatches.slice(0, 6).join(", ")}. Use a full name.`,
+    );
+  }
+
+  return normalizePlayerName(partialMatches[0] ?? player);
 };
 
 export const canonicalizeMockDraftScript = (
