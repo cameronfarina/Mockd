@@ -4162,7 +4162,10 @@ export const liveDraftHtml = `<!doctype html>
           }, 'target-action-primary')
         : targetActionMenuButton('Select for sale', target.draftable === false, () => selectTargetForSale(target), 'target-action-primary');
 
-      menu.replaceChildren(shortlistAction, buildAroundAction, secondaryAction);
+      const menuActions = [shortlistAction];
+      if (!isActiveDraft()) menuActions.push(buildAroundAction);
+      menuActions.push(secondaryAction);
+      menu.replaceChildren(...menuActions);
       wrapper.replaceChildren(button, menu);
       return wrapper;
     };
@@ -5978,9 +5981,10 @@ export const liveDraftHtml = `<!doctype html>
       const completeButton = byId('mock-complete-button');
       const nominationPriceInput = byId('mock-nomination-price');
       const target = selectedTarget();
+      const nominationTarget = nominationTargetForMockControls();
       const terminal = phase === 'complete' || phase === 'blocked';
       const humanStop = phase === 'human-decision' || phase === 'human-nomination';
-      const canNominate = isMockMode && phase === 'human-nomination' && Boolean(target);
+      const canNominate = isMockMode && phase === 'human-nomination' && Boolean(nominationTarget);
       const mockAdvanceBusy = mockAdvanceRequestInFlight;
       advanceButton.disabled = mockAdvanceBusy || !isMockMode || phase !== 'ai-sale';
       if (mockDraft && mockDraft.auction && mockDraft.auction.resolution) {
@@ -5993,13 +5997,15 @@ export const liveDraftHtml = `<!doctype html>
       nominationPriceInput.disabled = mockAdvanceBusy || !canNominate;
       if (canNominate && nominationPriceValue() <= 0) nominationPriceInput.value = String(pendingCamNominationPrice || 1);
       nominateButton.disabled = mockAdvanceBusy || !canNominate;
-      nominateButton.textContent = target ? 'Nominate ' + shortPlayerName(target.name) : 'Nominate';
+      nominateButton.textContent = nominationTarget ? 'Nominate ' + shortPlayerName(nominationTarget.name) : 'Choose nominee';
       camBidButton.disabled = mockAdvanceBusy || !isMockMode || phase !== 'human-decision' || !mockDraft.camDecision;
       camBidButton.textContent = mockDraft && mockDraft.auction && mockDraft.auction.nextCamBid != null ? 'Bid ' + money(mockDraft.auction.nextCamBid) : 'Bid';
       byId('mock-pass-button').disabled = mockAdvanceBusy || !isMockMode || phase !== 'human-decision';
+      nextDecisionButton.textContent = 'Skip to Cam decision';
       nextDecisionButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
+      nextRoundButton.textContent = 'Sim to next round';
       nextRoundButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
-      completeButton.textContent = mockAdvanceRequestAction === 'complete-mock' ? 'Completing mock...' : 'Complete';
+      completeButton.textContent = mockAdvanceRequestAction === 'complete-mock' ? 'Completing mock...' : 'Complete mock draft';
       completeButton.disabled = mockAdvanceBusy || !isMockMode || terminal;
 
       if (!isMockMode) {
@@ -6241,6 +6247,11 @@ export const liveDraftHtml = `<!doctype html>
       renderSaleControls(state);
     };
 
+    const nominationTargetForMockControls = () => {
+      if (!pendingCamNominationName || !currentState) return null;
+      return currentState.availableTargets.find(target => target.name === pendingCamNominationName) || null;
+    };
+
     const renderOwnerNeeds = state => {
       const owner = currentOwner();
       byId('owner-needs').replaceChildren(...ownerNeedsFor(owner).map(need => {
@@ -6477,6 +6488,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const setDraftMode = async (mode, options = {}) => {
       const nextMode = draftModes.includes(mode) ? mode : 'real';
+      if (!guardDraftModeSwitch(nextMode)) return;
       if (nextMode === 'real') currentDraftSession = 'live';
       if (nextMode === 'interactive-mock' && (currentDraftSession === 'live' || draftNightLockFor(currentState))) {
         currentDraftSession = practiceSessionForStrategy(currentStrategyKey);
@@ -6493,6 +6505,15 @@ export const liveDraftHtml = `<!doctype html>
         window.history.replaceState(null, '', draftRoomRouteUrl(currentDraftMode));
       }
       focusCommandInput();
+    };
+
+    const guardDraftModeSwitch = nextMode => {
+      if (nextMode === currentDraftMode && (isActiveDraft() || isStartingDraft())) return false;
+      if (nextMode === currentDraftMode) return true;
+      if (!isActiveDraft() && !isStartingDraft()) return true;
+      window.alert('End the active draft before switching draft modes.');
+      focusCommandInput();
+      return false;
     };
 
     const openDraftRoomMode = async mode => {

@@ -340,7 +340,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain(".board-table tbody tr.target-action-row-open");
     expect(liveDraftHtml).toContain("Add to shortlist");
     expect(liveDraftHtml).toContain("Nominate");
-    expect(liveDraftHtml).toContain("targetActionMenuButton('Build around'");
+    expect(liveDraftHtml).toContain("if (!isActiveDraft()) menuActions.push(buildAroundAction);");
     expect(liveDraftHtml).toContain("const buildAroundScriptForTarget = target =>");
     expect(liveDraftHtml).toContain("byId('mock-batch-script').value = buildAroundScriptForTarget(target)");
     expect(liveDraftHtml).toContain("byId('run-mock-batch-button').focus()");
@@ -360,6 +360,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("byId('add-price').value = String(nominationPrice)");
     expect(liveDraftHtml).toContain("const advanceMockDraft = async (action, nominatedPlayerName = selectedTargetName, nominatedPrice = nominationPriceValue()) =>");
     expect(liveDraftHtml).toContain("let pendingCamNominationName = null");
+    expect(liveDraftHtml).toContain("const nominationTargetForMockControls = () =>");
+    expect(liveDraftHtml).toContain("const nominationTarget = nominationTargetForMockControls();");
+    expect(liveDraftHtml).toContain("const canNominate = isMockMode && phase === 'human-nomination' && Boolean(nominationTarget);");
     expect(liveDraftHtml).toContain("let mockAdvanceRequestInFlight = false");
     expect(liveDraftHtml).toContain("let mockAdvanceRequestAction = null");
     expect(liveDraftHtml).toContain("const mockAdvanceBusy = mockAdvanceRequestInFlight;");
@@ -371,7 +374,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("action === 'cam-nominate'");
     expect(liveDraftHtml).toContain("nominatedPlayer: pendingCamNominationName");
     expect(liveDraftHtml).toContain("nominatedPrice: pendingCamNominationPrice");
-    expect(liveDraftHtml).toContain("'Nominate ' + shortPlayerName(target.name)");
+    expect(liveDraftHtml).toContain("nominateButton.textContent = nominationTarget ? 'Nominate ' + shortPlayerName(nominationTarget.name) : 'Choose nominee';");
     expect(liveDraftHtml).toContain("advanceMockDraft('cam-bid')");
     expect(liveDraftHtml).toContain("mockAuction: currentMockDraft && currentMockDraft.auction");
     expect(liveDraftHtml).toContain("advanceMockDraft('cam-nominate', selectedTargetName, nominationPriceValue())");
@@ -390,7 +393,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("action === 'complete-mock'");
     expect(liveDraftHtml).toContain("completeButton.textContent = 'Completing mock...'");
     expect(liveDraftHtml).toContain("mockDraftItem('Completing mock', 'Simulating the remaining auction and writing the completed practice log.')");
-    expect(liveDraftHtml).toContain("completeButton.textContent = mockAdvanceRequestAction === 'complete-mock' ? 'Completing mock...' : 'Complete';");
+    expect(liveDraftHtml).toContain("nextDecisionButton.textContent = 'Skip to Cam decision';");
+    expect(liveDraftHtml).toContain("nextRoundButton.textContent = 'Sim to next round';");
+    expect(liveDraftHtml).toContain("completeButton.textContent = mockAdvanceRequestAction === 'complete-mock' ? 'Completing mock...' : 'Complete mock draft';");
     expect(liveDraftHtml).toContain("if (data.availableTargets && data.owners) render(data);");
     expect(liveDraftHtml).toContain("else await refreshMockDraft();");
     expect(liveDraftHtml).toContain("mockAuctionFeedLines(mockDraft)");
@@ -418,6 +423,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderStateLoadError = message =>");
     expect(liveDraftHtml).toContain("renderStateLoadError(state.error || 'Could not load draft room.');");
     expect(liveDraftHtml).toContain("const setDraftSession = async draftSession =>");
+    expect(liveDraftHtml).toContain("const guardDraftModeSwitch = nextMode =>");
+    expect(liveDraftHtml).toContain("if (nextMode === currentDraftMode && (isActiveDraft() || isStartingDraft())) return false;");
+    expect(liveDraftHtml).toContain("window.alert('End the active draft before switching draft modes.');");
     expect(liveDraftHtml).toContain("const openScratchSession = async () =>");
     expect(liveDraftHtml).toContain("syncDraftSession(state)");
     expect(liveDraftHtml).toContain("const draftNightLockFor = state =>");
@@ -445,6 +453,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("byId('header-import-log-button').addEventListener('click', () => byId('import-log-file').click())");
     expect(liveDraftHtml).toContain("byId('header-undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'))");
     expect(liveDraftHtml).toContain("byId('header-reset-button').addEventListener('click', () => resetDraftRoom())");
+    expect(liveDraftHtml).toContain("if (!guardDraftModeSwitch(nextMode)) return;");
     expect(liveDraftHtml).toContain("await setDraftMode(mode, { prepareStart: true });");
     expect(liveDraftHtml).toContain("Run mocks");
     expect(liveDraftHtml).toContain("Run new mocks");
