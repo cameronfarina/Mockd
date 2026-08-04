@@ -14,7 +14,6 @@ describe("CLI QA", () => {
         "qa",
         "--",
         "--scenarios=expected",
-        "--runs=2",
         "--seed-prefix=qa-cli-test",
       ],
       {
@@ -45,7 +44,7 @@ describe("CLI QA", () => {
     expect(report.recommendedExitCode).toBe(0);
     expect(report.options).toMatchObject({
       scenarioKeys: ["expected"],
-      runsPerScenario: 2,
+      runsPerScenario: 50,
       seedPrefix: "qa-cli-test",
     });
     expect(report.summary.hardFailCount).toBe(0);
@@ -57,5 +56,5 @@ describe("CLI QA", () => {
     ]);
     expect(report.checks.find(check => check.key === "evidence-coverage")?.severity).toBe("advisory");
     expect(report.artifactPaths).toEqual([]);
-  }, 30000);
+  }, 60000);
 });
