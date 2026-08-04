@@ -351,6 +351,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("action === 'complete-mock'");
     expect(liveDraftHtml).toContain("completeButton.textContent = 'Completing mock...'");
     expect(liveDraftHtml).toContain("completeButton.textContent = 'Complete'");
+    expect(liveDraftHtml).toContain("if (data.availableTargets && data.owners) render(data);");
+    expect(liveDraftHtml).toContain("else await refreshMockDraft();");
     expect(liveDraftHtml).toContain("mockAuctionFeedLines(mockDraft)");
     expect(liveDraftHtml).toContain("className = 'mock-feed-line ' + event.type");
     expect(liveDraftHtml).toContain("mockDraftItem('Current nomination'");

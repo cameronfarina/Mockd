@@ -6684,11 +6684,13 @@ export const liveDraftHtml = `<!doctype html>
         nominatedPrice: pendingCamNominationPrice,
         mockAuction: currentMockDraft && currentMockDraft.auction
       });
-      if (action !== 'cam-nominate' && !data.errors.length) {
+      alertCommandErrors(data);
+      if (action !== 'cam-nominate' && !(data.errors || []).length) {
         pendingCamNominationName = null;
         pendingCamNominationPrice = nominationPriceValue();
       }
-      if (!data.mockDraft) await refreshMockDraft();
+      if (data.availableTargets && data.owners) render(data);
+      else await refreshMockDraft();
       focusCommandInput();
       return data;
     };
