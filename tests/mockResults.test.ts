@@ -67,42 +67,51 @@ const rosterSummary = (
   };
 };
 
-const mockBatch = (rosters: MockRosterSummary[]): MockBatch => ({
+const mockRun = (
+  rosters: MockRosterSummary[],
+  index = 0,
+): MockBatch["runs"][number] => ({
+  seed: `mock-results-test:${index + 1}`,
+  keeperScenario: {
+    key: "expected",
+    label: "Expected",
+    includedKeeperStatuses: ["confirmed", "assumed"],
+    keeperCounts: { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
+    totalKeeperCost: 0,
+    openAuctionDollars: 2800,
+    globalFactor: 1,
+    positionFactors: { QB: 1, RB: 1, WR: 1, TE: 1, K: 1, DST: 1 },
+  },
+  inputCounts: {
+    pricedPlayers: 500,
+    auctionPlayers: 218,
+    lockedKeepers: 0,
+  },
+  pickCount: 218,
+  picks: [],
+  budgetTrajectory: [],
+  rosters,
+  invalidRosterCount: 0,
+  unsoldPlayerCount: 0,
+});
+
+const mockBatch = (
+  rosters: MockRosterSummary[] | MockRosterSummary[][],
+  runsPerScenario = 1,
+): MockBatch => ({
   options: {
     scenarioKeys: ["expected"],
-    runsPerScenario: 1,
+    runsPerScenario,
     seedPrefix: "mock-results-test",
   },
-  runs: [{
-    seed: "mock-results-test:1",
-    keeperScenario: {
-      key: "expected",
-      label: "Expected",
-      includedKeeperStatuses: ["confirmed", "assumed"],
-      keeperCounts: { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
-      totalKeeperCost: 0,
-      openAuctionDollars: 2800,
-      globalFactor: 1,
-      positionFactors: { QB: 1, RB: 1, WR: 1, TE: 1, K: 1, DST: 1 },
-    },
-    inputCounts: {
-      pricedPlayers: 500,
-      auctionPlayers: 218,
-      lockedKeepers: 0,
-    },
-    pickCount: 218,
-    picks: [],
-    budgetTrajectory: [],
-    rosters,
-    invalidRosterCount: 0,
-    unsoldPlayerCount: 0,
-  }],
+  runs: (Array.isArray(rosters[0]) ? rosters as MockRosterSummary[][] : [rosters as MockRosterSummary[]])
+    .map((runRosters, index) => mockRun(runRosters, index)),
   summary: {
-    runCount: 1,
+    runCount: Array.isArray(rosters[0]) ? (rosters as MockRosterSummary[][]).length : 1,
     scenarios: [{
       key: "expected",
       label: "Expected",
-      runCount: 1,
+      runCount: Array.isArray(rosters[0]) ? (rosters as MockRosterSummary[][]).length : 1,
       invalidRosterCount: 0,
       averagePickCount: 218,
     }],
@@ -227,5 +236,68 @@ describe("mock results report", () => {
         },
       ],
     });
+  });
+
+  it("summarizes build-around outcomes by forced price point", () => {
+    const runRosters = [46, 46, 50, 50].map((price, index) =>
+      ownerOrder.map(owner => {
+        const summary = owner === "Cam"
+          ? rosterSummary(
+            owner,
+            index === 0 ? 3 : index === 1 ? 2 : index === 2 ? 0 : -1,
+            index === 0 ? 12 : index === 1 ? 10 : index === 2 ? 4 : 2,
+            index === 0 ? 6 : index === 1 ? 4 : index === 2 ? 1 : 0,
+          )
+          : rosterSummary(owner, owner === "Martins" ? 1 : 0, owner === "Martins" ? 5 : 0);
+        if (owner !== "Cam") return summary;
+
+        return {
+          ...summary,
+          spend: summary.spend + price - 46,
+          budgetRemaining: summary.budgetRemaining - price + 46,
+          players: [
+            {
+              ...player("Cam", "Build RB", "RB", price, 18, 72),
+              name: "Omarion Hampton",
+            },
+            ...summary.players.slice(1),
+          ],
+        };
+      }));
+
+    const report = buildMockResultsReport(mockBatch(runRosters, 2), "three-rb", [], {
+      raw: "Build around Omarion Hampton:46-50:4",
+      label: "Build around Omarion Hampton at $46/$50",
+      buildAround: { owner: "Cam", player: "Omarion Hampton", prices: [46, 50] },
+      targetMaxBids: [],
+    });
+
+    expect(report.script?.buildAroundOutcomes).toEqual([
+      expect.objectContaining({
+        owner: "Cam",
+        player: "Omarion Hampton",
+        price: 46,
+        runCount: 2,
+        draftedByOwnerCount: 2,
+        averageSalePrice: 46,
+        averageCamWeek1Score: expect.any(Number),
+        averageCamSeasonStrengthScore: expect.any(Number),
+        bestRunLabel: "Run 1: 3rb",
+        worstRunLabel: "Run 2: 3rb",
+      }),
+      expect.objectContaining({
+        owner: "Cam",
+        player: "Omarion Hampton",
+        price: 50,
+        runCount: 2,
+        draftedByOwnerCount: 2,
+        averageSalePrice: 50,
+        bestRunLabel: "Run 3: 3rb",
+        worstRunLabel: "Run 4: 3rb",
+      }),
+    ]);
+    const outcomes = report.script?.buildAroundOutcomes ?? [];
+    expect(outcomes[0]?.averageCamRank).toBeLessThanOrEqual(outcomes[1]?.averageCamRank ?? 99);
+    expect(outcomes[0]?.averageCamSeasonStrengthScore).toBeGreaterThan(outcomes[1]?.averageCamSeasonStrengthScore ?? 0);
   });
 });

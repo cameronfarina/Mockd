@@ -3949,6 +3949,41 @@ export const liveDraftHtml = `<!doctype html>
       }
     };
 
+    const buildAroundAnchorPriceFor = target => {
+      const candidates = [
+        target.liveExpectedPrice,
+        target.expectedPrice,
+        target.personalValue,
+        target.recommendedMaxBid
+      ];
+      const anchor = candidates
+        .map(value => Number(value))
+        .find(value => Number.isFinite(value) && value > 0);
+      return Math.max(1, Math.round(anchor || 1));
+    };
+
+    const buildAroundPriceSweepFor = target => {
+      const anchor = Math.min(80, buildAroundAnchorPriceFor(target));
+      const step = anchor >= 8 ? 2 : 1;
+      const spread = anchor >= 50 ? 6 : anchor >= 20 ? 4 : Math.max(2, step);
+      const low = Math.min(anchor, Math.max(1, anchor - spread));
+      const high = Math.max(low, Math.min(80, anchor + spread));
+      return { low, high, step };
+    };
+
+    const buildAroundScriptForTarget = target => {
+      const sweep = buildAroundPriceSweepFor(target);
+      return 'Build around ' + target.name + ':' + sweep.low + '-' + sweep.high + ':' + sweep.step;
+    };
+
+    const selectTargetForBuildAround = target => {
+      if (!target || target.draftable === false) return;
+      selectedTargetName = target.name;
+      byId('mock-batch-script').value = buildAroundScriptForTarget(target);
+      renderBoard(currentState);
+      byId('run-mock-batch-button').focus();
+    };
+
     const starTargetButton = target => {
       const button = document.createElement('button');
       button.className = 'star-button';
@@ -4031,13 +4066,14 @@ export const liveDraftHtml = `<!doctype html>
 
       const shortlistLabel = isShortlisted(target) ? 'Remove from shortlist' : 'Add to shortlist';
       const shortlistAction = targetActionMenuButton(shortlistLabel, target.draftable === false, () => toggleShortlist(target));
+      const buildAroundAction = targetActionMenuButton('Build around', target.draftable === false, () => selectTargetForBuildAround(target));
       const secondaryAction = currentDraftMode === 'interactive-mock'
         ? targetActionMenuButton('Nominate', !canNominateTarget(target), () => {
             selectTargetForNomination(target);
           }, 'target-action-primary')
         : targetActionMenuButton('Select for sale', target.draftable === false, () => selectTargetForSale(target), 'target-action-primary');
 
-      menu.replaceChildren(shortlistAction, secondaryAction);
+      menu.replaceChildren(shortlistAction, buildAroundAction, secondaryAction);
       wrapper.replaceChildren(button, menu);
       return wrapper;
     };
@@ -4326,6 +4362,27 @@ export const liveDraftHtml = `<!doctype html>
       return outcome.player + ' up to ' + money(outcome.maxBid) + ': ' + ownerResult + saleRange + teamResult;
     };
 
+    const buildAroundOutcomeText = outcome => {
+      if (!outcome) return '';
+      const hitRate = Math.round((outcome.draftedByOwnerRate || 0) * 100);
+      return money(outcome.price) + ': ' +
+        outcome.draftedByOwnerCount + '/' + outcome.runCount + ' landed (' + hitRate + '%)' +
+        ' / avg rank ' + scoreText(outcome.averageCamRank) +
+        ' / W1 ' + scoreText(outcome.averageCamWeek1Score) +
+        ' / Season ' + scoreText(outcome.averageCamSeasonStrengthScore) +
+        ' / left ' + money(outcome.averageCamBudgetRemaining);
+    };
+
+    const bestBuildAroundOutcomeFor = outcomes => {
+      const safeOutcomes = outcomes || [];
+      return [...safeOutcomes].sort((left, right) =>
+        left.averageCamRank - right.averageCamRank ||
+        right.averageCamSeasonStrengthScore - left.averageCamSeasonStrengthScore ||
+        right.averageCamWeek1Score - left.averageCamWeek1Score ||
+        left.price - right.price
+      )[0];
+    };
+
     const renderMockBatchResults = report => {
       const root = byId('mock-batch-results');
       latestMockBatchReport = report || latestMockBatchReport;
@@ -4345,13 +4402,25 @@ export const liveDraftHtml = `<!doctype html>
       const scriptOutcomes = latestMockBatchReport.script && latestMockBatchReport.script.targetOutcomes
         ? latestMockBatchReport.script.targetOutcomes
         : [];
+      const buildAroundOutcomes = latestMockBatchReport.script && latestMockBatchReport.script.buildAroundOutcomes
+        ? latestMockBatchReport.script.buildAroundOutcomes
+        : [];
       if (latestMockBatchReport.script && latestMockBatchReport.script.buildAround) {
         const buildAround = latestMockBatchReport.script.buildAround;
+        const bestBuildAround = bestBuildAroundOutcomeFor(buildAroundOutcomes);
         items.push(mockDraftItem(
           'Build around',
-          buildAround.player + ' at ' + buildAround.prices.map(price => money(price)).join(' / ') +
-            ' - ' + latestMockBatchReport.summary.runCount + ' simulated drafts'
+          bestBuildAround
+            ? buildAround.player + ' best at ' + money(bestBuildAround.price) + ' - ' + buildAroundOutcomeText(bestBuildAround)
+            : buildAround.player + ' at ' + buildAround.prices.map(price => money(price)).join(' / ') +
+              ' - ' + latestMockBatchReport.summary.runCount + ' simulated drafts'
         ));
+        if (buildAroundOutcomes.length) {
+          items.push(mockDraftItem(
+            'Price sweep',
+            buildAroundOutcomes.map(buildAroundOutcomeText).join(' / ')
+          ));
+        }
       }
       if (scriptOutcomes.length) {
         items.push(mockDraftItem(
@@ -5075,6 +5144,10 @@ export const liveDraftHtml = `<!doctype html>
       const buildAround = report.script && report.script.buildAround
         ? report.script.buildAround
         : null;
+      const buildAroundOutcomes = report.script && report.script.buildAroundOutcomes
+        ? report.script.buildAroundOutcomes
+        : [];
+      const bestBuildAround = bestBuildAroundOutcomeFor(buildAroundOutcomes);
       const scriptOutcome = report.script && report.script.targetOutcomes
         ? report.script.targetOutcomes[0]
         : null;
@@ -5082,8 +5155,12 @@ export const liveDraftHtml = `<!doctype html>
         ...(buildAround ? [
           insightCard(
             'Build around',
-            buildAround.player + ' price sweep',
-            buildAround.prices.map(price => money(price)).join(' / ') + ' across ' + report.summary.runCount + ' simulated drafts'
+            bestBuildAround
+              ? buildAround.player + ' best at ' + money(bestBuildAround.price)
+              : buildAround.player + ' price sweep',
+            buildAroundOutcomes.length
+              ? buildAroundOutcomes.map(buildAroundOutcomeText).join(' / ')
+              : buildAround.prices.map(price => money(price)).join(' / ') + ' across ' + report.summary.runCount + ' simulated drafts'
           )
         ] : []),
         ...(scriptOutcome ? [
@@ -6338,10 +6415,11 @@ export const liveDraftHtml = `<!doctype html>
       const status = job ? job.status : '';
       const percent = Math.max(0, Math.min(100, Number(job && job.percent ? job.percent : 0)));
       const isRunning = status === 'queued' || status === 'running';
+      const isReady = status === 'complete' && job && job.result;
 
-      button.style.setProperty('--mock-progress', isRunning ? percent + '%' : '0%');
+      button.style.setProperty('--mock-progress', isRunning || isReady ? percent + '%' : '0%');
       button.classList.toggle('mock-batch-running', isRunning);
-      button.classList.toggle('mock-batch-ready', false);
+      button.classList.toggle('mock-batch-ready', isReady);
       button.disabled = isRunning;
       input.disabled = isRunning;
       scriptInput.disabled = isRunning;
@@ -6355,6 +6433,10 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       resultsRunNewButton.textContent = 'Run new mocks';
+      if (isReady) {
+        button.textContent = 'See results';
+        return;
+      }
       button.textContent = 'Run mocks';
     };
 
@@ -6871,7 +6953,13 @@ export const liveDraftHtml = `<!doctype html>
     byId('start-mock-draft-button').addEventListener('click', () => openDraftRoomMode('interactive-mock'));
     byId('confirm-start-draft-button').addEventListener('click', () => beginDraftCountdown());
     byId('end-draft-button').addEventListener('click', () => endActiveDraft());
-    byId('run-mock-batch-button').addEventListener('click', () => runMockBatch());
+    byId('run-mock-batch-button').addEventListener('click', () => {
+      if (latestMockBatchJob && latestMockBatchJob.status === 'complete' && latestMockBatchJob.result) {
+        window.location.assign('/mock-results');
+        return;
+      }
+      runMockBatch();
+    });
     byId('see-mock-results-button').addEventListener('click', () => {
       closeAppMenu();
       window.location.assign('/mock-results');

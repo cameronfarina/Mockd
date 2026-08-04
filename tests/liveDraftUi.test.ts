@@ -1,6 +1,23 @@
+import vm from "node:vm";
 import { describe, expect, it } from "vitest";
 import { leagueConfig } from "../config/league.js";
 import { liveDraftHtml } from "../src/liveDraftUi.js";
+import { parseMockDraftScript } from "../src/modeling/mockScript.js";
+
+const buildAroundScriptFromLiveUi = (target: Record<string, unknown>): string => {
+  const helperStart = liveDraftHtml.indexOf("    const buildAroundAnchorPriceFor = target => {");
+  const helperEnd = liveDraftHtml.indexOf("    const selectTargetForBuildAround = target => {", helperStart);
+  expect(helperStart).toBeGreaterThan(-1);
+  expect(helperEnd).toBeGreaterThan(helperStart);
+
+  const helperScript = liveDraftHtml.slice(helperStart, helperEnd);
+  const context = { target };
+  vm.runInNewContext(
+    `${helperScript}\nglobalThis.result = buildAroundScriptForTarget(target);`,
+    context,
+  );
+  return String((context as { result?: unknown }).result ?? "");
+};
 
 describe("live draft UI shell", () => {
   it("renders the draft-room controls needed for search, add, and roster review", () => {
@@ -221,6 +238,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const syncMockResultsMenuItem = (job, forceVisible = false) =>");
     expect(liveDraftHtml).toContain("const syncLatestMockBatchJob = async (forceVisible = false) =>");
     expect(liveDraftHtml).toContain("await syncLatestMockBatchJob()");
+    expect(liveDraftHtml).toContain("button.classList.toggle('mock-batch-ready', isReady)");
+    expect(liveDraftHtml).toContain("button.textContent = 'See results'");
+    expect(liveDraftHtml).toContain("if (latestMockBatchJob && latestMockBatchJob.status === 'complete' && latestMockBatchJob.result)");
     expect(liveDraftHtml).toContain("const renderMockResultsRoute = report =>");
     expect(liveDraftHtml).toContain("const renderMyExpertPage = async () =>");
     expect(liveDraftHtml).toContain("const myExpertUrl = () =>");
@@ -294,6 +314,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain(".board-table tbody tr.target-action-row-open");
     expect(liveDraftHtml).toContain("Add to shortlist");
     expect(liveDraftHtml).toContain("Nominate");
+    expect(liveDraftHtml).toContain("targetActionMenuButton('Build around'");
+    expect(liveDraftHtml).toContain("const buildAroundScriptForTarget = target =>");
+    expect(liveDraftHtml).toContain("byId('mock-batch-script').value = buildAroundScriptForTarget(target)");
+    expect(liveDraftHtml).toContain("byId('run-mock-batch-button').focus()");
     expect(liveDraftHtml).toContain("const selectTargetForNomination = target =>");
     expect(liveDraftHtml).toContain("selectTargetForNomination(target)");
     expect(liveDraftHtml).toContain("id=\"mock-nomination-price\"");
@@ -410,6 +434,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("Build around Hampton:46-52:2; target Zay max $31");
     expect(liveDraftHtml).toContain("'Build around'");
     expect(liveDraftHtml).toContain("latestMockBatchReport.script.buildAround");
+    expect(liveDraftHtml).toContain("const buildAroundOutcomeText = outcome =>");
+    expect(liveDraftHtml).toContain("latestMockBatchReport.script.buildAroundOutcomes");
+    expect(liveDraftHtml).toContain("'Price sweep'");
+    expect(liveDraftHtml).toContain("bestBuildAroundOutcomeFor(buildAroundOutcomes)");
     expect(liveDraftHtml).toContain("const renderPositionMarket = state =>");
     expect(liveDraftHtml).toContain("const renderOwnerNeeds = state =>");
     expect(liveDraftHtml).toContain("const renderShortlist = state =>");
@@ -607,6 +635,25 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).not.toContain("state.watchOwner.maxBid)]");
     expect(liveDraftHtml).not.toContain("grid-template-columns: repeat(5, minmax(120px, 1fr));");
     expect(liveDraftHtml).not.toContain("Room Left");
+  });
+
+  it("generates parseable build-around scripts for inflated live values above the cap", () => {
+    const script = buildAroundScriptFromLiveUi({
+      name: "Elite RB",
+      liveExpectedPrice: 100,
+      expectedPrice: 72,
+      personalValue: 80,
+      recommendedMaxBid: 80,
+    });
+
+    expect(script).toBe("Build around Elite RB:74-80:2");
+    expect(parseMockDraftScript(script)).toMatchObject({
+      buildAround: {
+        owner: "Cam",
+        player: "Elite RB",
+        prices: [74, 76, 78, 80],
+      },
+    });
   });
 
   it("switches the board from the dense table to player cards on compact screens", () => {

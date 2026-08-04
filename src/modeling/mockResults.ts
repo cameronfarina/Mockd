@@ -143,10 +143,30 @@ export interface MockResultsScriptTargetOutcome {
   averageOwnerSeasonStrengthWhenDrafted: number;
 }
 
+export interface MockResultsScriptBuildAroundOutcome {
+  owner: Owner;
+  player: string;
+  price: number;
+  runCount: number;
+  draftedByOwnerCount: number;
+  draftedByOwnerRate: number;
+  draftedByOtherCount: number;
+  undraftedCount: number;
+  averageSalePrice: number;
+  averageCamRank: number;
+  averageCamWeek1Score: number;
+  averageCamWeeks1To4Score: number;
+  averageCamSeasonStrengthScore: number;
+  averageCamBudgetRemaining: number;
+  bestRunLabel: string;
+  worstRunLabel: string;
+}
+
 export interface MockResultsScriptSummary {
   raw: string;
   label: string;
   buildAround?: MockDraftScript["buildAround"];
+  buildAroundOutcomes?: MockResultsScriptBuildAroundOutcome[];
   targetMaxBids: MockDraftScriptTargetMaxBid[];
   targetOutcomes: MockResultsScriptTargetOutcome[];
   runsPerScenario?: number;
@@ -668,13 +688,80 @@ const scriptTargetOutcomeFor = (
   };
 };
 
+const compareBestCamOutcomeRuns = (
+  left: MockResultsRun,
+  right: MockResultsRun,
+): number =>
+  left.camOutcome.rank - right.camOutcome.rank ||
+  right.camOutcome.seasonStrengthScore - left.camOutcome.seasonStrengthScore ||
+  right.camOutcome.week1Score - left.camOutcome.week1Score ||
+  left.label.localeCompare(right.label);
+
+const compareWorstCamOutcomeRuns = (
+  left: MockResultsRun,
+  right: MockResultsRun,
+): number =>
+  right.camOutcome.rank - left.camOutcome.rank ||
+  left.camOutcome.seasonStrengthScore - right.camOutcome.seasonStrengthScore ||
+  left.camOutcome.week1Score - right.camOutcome.week1Score ||
+  left.label.localeCompare(right.label);
+
+const scriptBuildAroundOutcomesFor = (
+  script: MockDraftScript,
+  runs: readonly MockResultsRun[],
+  runsPerPricePoint: number,
+): MockResultsScriptBuildAroundOutcome[] => {
+  const buildAround = script.buildAround;
+  if (!buildAround) return [];
+
+  const safeRunsPerPricePoint = Math.max(1, Math.floor(runsPerPricePoint));
+  return buildAround.prices.map((price, priceIndex) => {
+    const priceRuns = runs.slice(
+      priceIndex * safeRunsPerPricePoint,
+      (priceIndex + 1) * safeRunsPerPricePoint,
+    );
+    const rosteredTargets = priceRuns
+      .map(run => rosteredTargetFor(run, buildAround.player))
+      .filter((result): result is { owner: Owner; price: number; team: MockResultsTeam } => result !== undefined);
+    const ownerTargets = rosteredTargets.filter(result => result.owner === buildAround.owner);
+    const salePrices = rosteredTargets.map(result => result.price);
+    const bestRun = [...priceRuns].sort(compareBestCamOutcomeRuns)[0];
+    const worstRun = [...priceRuns].sort(compareWorstCamOutcomeRuns)[0];
+
+    return {
+      owner: buildAround.owner,
+      player: buildAround.player,
+      price,
+      runCount: priceRuns.length,
+      draftedByOwnerCount: ownerTargets.length,
+      draftedByOwnerRate: roundToTwo(ownerTargets.length / Math.max(1, priceRuns.length)),
+      draftedByOtherCount: rosteredTargets.length - ownerTargets.length,
+      undraftedCount: priceRuns.length - rosteredTargets.length,
+      averageSalePrice: roundToTwo(average(salePrices)),
+      averageCamRank: roundToTwo(average(priceRuns.map(run => run.camOutcome.rank))),
+      averageCamWeek1Score: roundToTwo(average(priceRuns.map(run => run.camOutcome.week1Score))),
+      averageCamWeeks1To4Score: roundToTwo(average(priceRuns.map(run => run.camOutcome.weeks1To4Score))),
+      averageCamSeasonStrengthScore: roundToTwo(average(priceRuns.map(run => run.camOutcome.seasonStrengthScore))),
+      averageCamBudgetRemaining: roundToTwo(average(priceRuns.map(run => run.camOutcome.budgetRemaining))),
+      bestRunLabel: bestRun?.label ?? "",
+      worstRunLabel: worstRun?.label ?? "",
+    };
+  });
+};
+
 const scriptSummaryFor = (
   script: MockDraftScript,
   runs: readonly MockResultsRun[],
+  runsPerPricePoint: number,
 ): MockResultsScriptSummary => ({
   raw: script.raw,
   label: script.label,
-  ...(script.buildAround === undefined ? {} : { buildAround: script.buildAround }),
+  ...(script.buildAround === undefined
+    ? {}
+    : {
+      buildAround: script.buildAround,
+      buildAroundOutcomes: scriptBuildAroundOutcomesFor(script, runs, runsPerPricePoint),
+    }),
   targetMaxBids: [...script.targetMaxBids],
   targetOutcomes: script.targetMaxBids.map(target => scriptTargetOutcomeFor(target, runs)),
   ...(script.runsPerScenario === undefined ? {} : { runsPerScenario: script.runsPerScenario }),
@@ -737,7 +824,7 @@ export const buildMockResultsReport = (
     runStrategyKeys: resolvedRunStrategyKeys,
     runs,
     analytics: analyticsFor(runs, batch, strategyKey),
-    ...(script === undefined ? {} : { script: scriptSummaryFor(script, runs) }),
+    ...(script === undefined ? {} : { script: scriptSummaryFor(script, runs, batch.options.runsPerScenario) }),
     ...(cam === undefined ? {} : { cam }),
     camTopExposures: batch.summary.ownerPlayerExposure
       .filter(exposure => exposure.owner === "Cam")
