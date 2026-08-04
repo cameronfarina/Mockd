@@ -677,6 +677,49 @@ export const liveDraftHtml = `<!doctype html>
       font-weight: 750;
     }
 
+    .draft-mode-choice {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .draft-mode-choice button {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+      min-height: 54px;
+      padding: 8px 9px;
+      color: #b9cbe0;
+      text-align: left;
+    }
+
+    .draft-mode-choice button strong,
+    .draft-mode-choice button span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .draft-mode-choice button strong {
+      color: #f4f8fc;
+      font-size: 13px;
+      line-height: 1.15;
+    }
+
+    .draft-mode-choice button span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+      line-height: 1.2;
+    }
+
+    .draft-mode-choice button[aria-pressed="true"] {
+      border-color: rgba(91, 168, 255, 0.92);
+      background: rgba(91, 168, 255, 0.22);
+    }
+
     .mode-status {
       display: grid;
       gap: 2px;
@@ -2941,6 +2984,16 @@ export const liveDraftHtml = `<!doctype html>
       <input class="search" id="board-search" autocomplete="off" placeholder="Search player, position, or team">
       <div class="sidebar-section">
         <div class="section-label">Draft mode</div>
+        <div class="draft-mode-choice" aria-label="Draft mode">
+          <button type="button" id="draft-mode-real-button" data-draft-mode-choice="real" aria-pressed="true">
+            <strong>Real draft</strong>
+            <span>Sale logger</span>
+          </button>
+          <button type="button" id="draft-mode-mock-button" data-draft-mode-choice="interactive-mock" aria-pressed="false">
+            <strong>Mock draft</strong>
+            <span>Practice auction</span>
+          </button>
+        </div>
         <div class="mode-status" id="draft-mode-status">
           <strong>Real draft</strong>
           <span>Draft-night logger. Writes to the real sale log.</span>
@@ -4329,6 +4382,7 @@ export const liveDraftHtml = `<!doctype html>
       const status = byId('draft-mode-status');
       const startMock = byId('start-mock-draft-button');
       renderDraftLifecycle(state);
+      renderDraftModeChoice();
       const lifecycleCopy = draftModeStatusDetailFor(copy);
       status.replaceChildren(textElement('strong', copy.label), textElement('span', lifecycleCopy));
       setAppMenuCurrent(currentDraftMode === 'interactive-mock' ? 'mock-draft' : 'real-draft', copy.label);
@@ -4337,6 +4391,12 @@ export const liveDraftHtml = `<!doctype html>
       byId('draft-lock-status').textContent = locked
         ? 'Live session locked - practice rooms only for mocks.'
         : 'Practice room unlocked for mocks.';
+    };
+
+    const renderDraftModeChoice = () => {
+      for (const button of document.querySelectorAll('[data-draft-mode-choice]')) {
+        button.setAttribute('aria-pressed', String(button.dataset.draftModeChoice === currentDraftMode));
+      }
     };
 
     const scriptOutcomeText = outcome => {
@@ -6984,6 +7044,8 @@ export const liveDraftHtml = `<!doctype html>
     byId('app-menu-list').addEventListener('click', event => event.stopPropagation());
     byId('start-real-draft-button').addEventListener('click', () => openDraftRoomMode('real'));
     byId('start-mock-draft-button').addEventListener('click', () => openDraftRoomMode('interactive-mock'));
+    byId('draft-mode-real-button').addEventListener('click', () => openDraftRoomMode('real'));
+    byId('draft-mode-mock-button').addEventListener('click', () => openDraftRoomMode('interactive-mock'));
     byId('confirm-start-draft-button').addEventListener('click', () => beginDraftCountdown());
     byId('end-draft-button').addEventListener('click', () => endActiveDraft());
     byId('run-mock-batch-button').addEventListener('click', () => {

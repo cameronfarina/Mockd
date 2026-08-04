@@ -68,6 +68,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).not.toContain("<div class=\"window-controls\"");
     expect(liveDraftHtml).toContain("id=\"start-real-draft-button\"");
     expect(liveDraftHtml).toContain("id=\"start-mock-draft-button\"");
+    expect(liveDraftHtml).toContain("id=\"draft-mode-real-button\"");
+    expect(liveDraftHtml).toContain("id=\"draft-mode-mock-button\"");
+    expect(liveDraftHtml).toContain("class=\"draft-mode-choice\"");
     expect(liveDraftHtml).toContain("id=\"mock-batch-runs\"");
     expect(liveDraftHtml).toContain("id=\"run-mock-batch-button\"");
     expect(liveDraftHtml).toContain("id=\"mock-batch-script\"");
@@ -200,6 +203,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("mockDraftItem(phase === 'complete' ? 'Mock complete' : 'Mock blocked'");
     expect(liveDraftHtml).toContain("' loaded' + (keeperCount ? ' / ' + keeperCount + ' kept' : '')");
     expect(liveDraftHtml).toContain("const renderDraftMode = state =>");
+    expect(liveDraftHtml).toContain("const renderDraftModeChoice = () =>");
     expect(liveDraftHtml).toContain("const renderDraftLifecycle = state =>");
     expect(liveDraftHtml).toContain("const renderRoomModeIndicator = state =>");
     expect(liveDraftHtml).toContain("byId('draft-room-view').classList.toggle('draft-active', isActiveDraft());");
@@ -415,6 +419,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("item.removeAttribute('aria-current')");
     expect(liveDraftHtml).toContain("byId('start-real-draft-button').addEventListener('click', () => openDraftRoomMode('real'))");
     expect(liveDraftHtml).toContain("byId('start-mock-draft-button').addEventListener('click', () => openDraftRoomMode('interactive-mock'))");
+    expect(liveDraftHtml).toContain("byId('draft-mode-real-button').addEventListener('click', () => openDraftRoomMode('real'))");
+    expect(liveDraftHtml).toContain("byId('draft-mode-mock-button').addEventListener('click', () => openDraftRoomMode('interactive-mock'))");
     expect(liveDraftHtml).toContain("await setDraftMode(mode, { prepareStart: true });");
     expect(liveDraftHtml).toContain("Run mocks");
     expect(liveDraftHtml).toContain("Run new mocks");
