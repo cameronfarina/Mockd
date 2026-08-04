@@ -366,8 +366,8 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .app.draft-active .header-actions {
-      flex: 1 1 420px;
-      max-width: 520px;
+      flex: 1 1 auto;
+      max-width: none;
     }
 
     .app.draft-active .header-search {
@@ -504,6 +504,20 @@ export const liveDraftHtml = `<!doctype html>
       grid-template-columns: minmax(280px, 440px) auto;
       gap: 8px;
       min-width: 360px;
+    }
+
+    .header-draft-actions {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .header-draft-actions button {
+      height: 34px;
+      padding: 0 10px;
+      white-space: nowrap;
     }
 
     .top-actions {
@@ -2977,6 +2991,14 @@ export const liveDraftHtml = `<!doctype html>
           <input id="header-quick-sale-command" autocomplete="off" placeholder="Quick sale: jakub kittle 28">
           <button class="primary" type="submit">Log</button>
         </form>
+        <div class="header-draft-actions" id="header-draft-actions" hidden>
+          <button type="button" id="header-export-json-button">JSON</button>
+          <button type="button" id="header-export-csv-button">CSV</button>
+          <button type="button" id="header-export-bundle-button">Bundle</button>
+          <button type="button" id="header-import-log-button">Import</button>
+          <button type="button" id="header-undo-button">Undo</button>
+          <button type="button" id="header-reset-button">Reset</button>
+        </div>
         <button class="danger" type="button" id="end-draft-button" aria-label="End active draft" hidden>End draft</button>
       </div>
     </header>
@@ -4372,6 +4394,8 @@ export const liveDraftHtml = `<!doctype html>
       byId('draft-room-view').classList.toggle('draft-active', isActiveDraft());
       byId('header-board-search').hidden = !isActiveDraft();
       byId('header-quick-sale-form').hidden = !(isActiveDraft() && currentDraftMode === 'real');
+      byId('header-draft-actions').hidden = !isActiveDraft();
+      byId('header-import-log-button').hidden = !(isActiveDraft() && currentDraftMode === 'real');
       byId('end-draft-button').hidden = !isActiveDraft();
       byId('end-draft-button').textContent = isMock ? 'End mock draft' : 'End real draft';
       byId('add-form').hidden = isMock;
@@ -6761,8 +6785,13 @@ export const liveDraftHtml = `<!doctype html>
       }, 160);
     };
 
+    const renderMutationState = data => {
+      if (data && data.availableTargets && data.owners) render(data);
+    };
+
     const postJsonAndRefresh = async (url, body) => {
       const data = await postJson(url, body);
+      renderMutationState(data);
       await refreshMockDraft();
       focusCommandInput();
       return data;
@@ -6917,6 +6946,7 @@ export const liveDraftHtml = `<!doctype html>
         : {};
       const data = await postJson('/api/import', { format, content, ...importGuard });
       alertCommandErrors(data);
+      renderMutationState(data);
       await refreshMockDraft();
       byId('import-log-file').value = '';
       focusCommandInput();
@@ -7045,6 +7075,10 @@ export const liveDraftHtml = `<!doctype html>
     byId('export-csv-button').addEventListener('click', () => exportLog('csv'));
     byId('export-bundle-button').addEventListener('click', () => exportSessionBundle());
     byId('import-log-button').addEventListener('click', () => byId('import-log-file').click());
+    byId('header-export-json-button').addEventListener('click', () => exportLog('json'));
+    byId('header-export-csv-button').addEventListener('click', () => exportLog('csv'));
+    byId('header-export-bundle-button').addEventListener('click', () => exportSessionBundle());
+    byId('header-import-log-button').addEventListener('click', () => byId('import-log-file').click());
     byId('import-log-file').addEventListener('change', event => importDraftLogFile(event.target.files[0]));
     byId('draft-session-select').addEventListener('change', event => setDraftSession(event.target.value));
     byId('open-scratch-session-button').addEventListener('click', () => openScratchSession());
@@ -7086,6 +7120,8 @@ export const liveDraftHtml = `<!doctype html>
     });
     byId('undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
     byId('reset-button').addEventListener('click', () => resetDraftRoom());
+    byId('header-undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'));
+    byId('header-reset-button').addEventListener('click', () => resetDraftRoom());
     byId('mock-advance-button').addEventListener('click', () => advanceMockDraft('advance'));
     byId('mock-nominate-button').addEventListener('click', () => advanceMockDraft('cam-nominate', selectedTargetName, nominationPriceValue()));
     byId('mock-nomination-price').addEventListener('input', () => {

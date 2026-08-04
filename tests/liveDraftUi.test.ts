@@ -29,6 +29,13 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"draft-countdown-value\"");
     expect(liveDraftHtml).toContain("id=\"header-quick-sale-form\"");
     expect(liveDraftHtml).toContain("id=\"header-quick-sale-command\"");
+    expect(liveDraftHtml).toContain("id=\"header-draft-actions\"");
+    expect(liveDraftHtml).toContain("id=\"header-export-json-button\"");
+    expect(liveDraftHtml).toContain("id=\"header-export-csv-button\"");
+    expect(liveDraftHtml).toContain("id=\"header-export-bundle-button\"");
+    expect(liveDraftHtml).toContain("id=\"header-import-log-button\"");
+    expect(liveDraftHtml).toContain("id=\"header-undo-button\"");
+    expect(liveDraftHtml).toContain("id=\"header-reset-button\"");
     expect(liveDraftHtml).toContain("id=\"end-draft-button\"");
     expect(liveDraftHtml).toContain("id=\"quick-sale-command\"");
     expect(liveDraftHtml).toContain("id=\"board\"");
@@ -205,6 +212,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("' cannot buy ' + target.name + ': roster limit is '");
     expect(liveDraftHtml).toContain("const alertCommandErrors = data =>");
     expect(liveDraftHtml).toContain("window.alert(messages.join('\\n'))");
+    expect(liveDraftHtml).toContain("const renderMutationState = data =>");
+    expect(liveDraftHtml).toContain("if (data && data.availableTargets && data.owners) render(data);");
+    expect(liveDraftHtml).toContain("renderMutationState(data);");
     expect(liveDraftHtml).toContain("const renderMockDraft = mockDraft =>");
     expect(liveDraftHtml).toContain("mockDraftItem(phase === 'complete' ? 'Mock complete' : 'Mock blocked'");
     expect(liveDraftHtml).toContain("' loaded' + (keeperCount ? ' / ' + keeperCount + ' kept' : '')");
@@ -216,6 +226,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const canStartDraft = draftLifecycle === 'setup' || draftLifecycle === 'ready';");
     expect(liveDraftHtml).toContain("byId('confirm-start-draft-button').hidden = !canStartDraft;");
     expect(liveDraftHtml).toContain("byId('header-quick-sale-form').hidden = !(isActiveDraft() && currentDraftMode === 'real');");
+    expect(liveDraftHtml).toContain("byId('header-draft-actions').hidden = !isActiveDraft();");
+    expect(liveDraftHtml).toContain("byId('header-import-log-button').hidden = !(isActiveDraft() && currentDraftMode === 'real');");
     expect(liveDraftHtml).toContain("byId('mock-draft-panel').hidden = !(isActiveDraft() && currentDraftMode === 'interactive-mock');");
     expect(liveDraftHtml).toContain("const beginDraftCountdown = () =>");
     expect(liveDraftHtml).toContain("const activateDraft = async () =>");
@@ -427,6 +439,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("byId('start-mock-draft-button').addEventListener('click', () => openDraftRoomMode('interactive-mock'))");
     expect(liveDraftHtml).toContain("byId('draft-mode-real-button').addEventListener('click', () => openDraftRoomMode('real'))");
     expect(liveDraftHtml).toContain("byId('draft-mode-mock-button').addEventListener('click', () => openDraftRoomMode('interactive-mock'))");
+    expect(liveDraftHtml).toContain("byId('header-export-json-button').addEventListener('click', () => exportLog('json'))");
+    expect(liveDraftHtml).toContain("byId('header-export-csv-button').addEventListener('click', () => exportLog('csv'))");
+    expect(liveDraftHtml).toContain("byId('header-export-bundle-button').addEventListener('click', () => exportSessionBundle())");
+    expect(liveDraftHtml).toContain("byId('header-import-log-button').addEventListener('click', () => byId('import-log-file').click())");
+    expect(liveDraftHtml).toContain("byId('header-undo-button').addEventListener('click', () => postJsonAndRefresh('/api/undo'))");
+    expect(liveDraftHtml).toContain("byId('header-reset-button').addEventListener('click', () => resetDraftRoom())");
     expect(liveDraftHtml).toContain("await setDraftMode(mode, { prepareStart: true });");
     expect(liveDraftHtml).toContain("Run mocks");
     expect(liveDraftHtml).toContain("Run new mocks");
