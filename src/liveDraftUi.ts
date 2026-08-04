@@ -3421,6 +3421,13 @@ export const liveDraftHtml = `<!doctype html>
         : 'Live session locked. Switch to a practice session to run mocks.';
     const practiceSessionForStrategy = strategyKey =>
       strategyKey === 'wr-heavy' ? 'practice-wr-heavy' : 'practice-3rb';
+    const draftSessionKeys = ['live', 'practice-3rb', 'practice-wr-heavy'];
+    const normalizeDraftSession = (value, mode = currentDraftMode) => {
+      const session = cleanText(value).trim();
+      if (draftSessionKeys.includes(session)) return session;
+      if (session.startsWith('scratch:')) return session;
+      return mode === 'interactive-mock' ? practiceSessionForStrategy(currentStrategyKey) : 'live';
+    };
     const isActiveDraft = () => draftLifecycle === 'active';
     const isStartingDraft = () => draftLifecycle === 'countdown';
     const normalizeDraftLifecycle = value => {
@@ -3448,7 +3455,7 @@ export const liveDraftHtml = `<!doctype html>
         if (!stored) return;
         const parsed = JSON.parse(stored);
         if (draftModes.includes(parsed.mode)) currentDraftMode = parsed.mode;
-        if (typeof parsed.session === 'string' && parsed.session) currentDraftSession = parsed.session;
+        if (typeof parsed.session === 'string' && parsed.session) currentDraftSession = normalizeDraftSession(parsed.session, currentDraftMode);
         if (strategyKeys.includes(parsed.strategy)) currentStrategyKey = parsed.strategy;
         draftLifecycle = normalizeDraftLifecycle(parsed.lifecycle);
       } catch {
@@ -3520,7 +3527,8 @@ export const liveDraftHtml = `<!doctype html>
 
       if (strategyKeys.includes(strategy)) currentStrategyKey = strategy;
       if (draftModes.includes(mode)) currentDraftMode = mode;
-      if (draftSession) currentDraftSession = draftSession;
+      if (draftSession) currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode);
+      else currentDraftSession = normalizeDraftSession(currentDraftSession, currentDraftMode);
     };
     const hydrateMyExpertFromLocation = () => {
       const params = new URLSearchParams(window.location.search);
@@ -3830,7 +3838,11 @@ export const liveDraftHtml = `<!doctype html>
         body: JSON.stringify({ strategyKey: currentStrategyKey, mode: currentDraftMode, draftSession: currentDraftSession, ...(body || {}) })
       });
       const data = await response.json();
-      render(data);
+      if (!response.ok && !Array.isArray(data.errors)) {
+        data.errors = [{ input: '', message: data.error || 'Could not update draft room.' }];
+      }
+      if (data.availableTargets && data.owners) render(data);
+      else if (!response.ok) renderStateLoadError(data.errors[0].message);
       return data;
     };
 
@@ -4260,7 +4272,7 @@ export const liveDraftHtml = `<!doctype html>
     const renderDraftLifecycle = state => {
       const copy = draftModeCopy[currentDraftMode] || draftModeCopy.real;
       const isMock = currentDraftMode === 'interactive-mock';
-      const isReady = draftLifecycle === 'ready';
+      const canStartDraft = draftLifecycle === 'setup' || draftLifecycle === 'ready';
       const countdownText = String(draftCountdownValue || draftCountdownSeconds);
 
       byId('draft-room-view').classList.toggle('draft-active', isActiveDraft());
@@ -4270,8 +4282,8 @@ export const liveDraftHtml = `<!doctype html>
       byId('end-draft-button').textContent = isMock ? 'End mock draft' : 'End real draft';
       byId('add-form').hidden = isMock;
 
-      byId('confirm-start-draft-button').hidden = !isReady;
-      byId('confirm-start-draft-button').disabled = !isReady;
+      byId('confirm-start-draft-button').hidden = !canStartDraft;
+      byId('confirm-start-draft-button').disabled = !canStartDraft;
       byId('draft-countdown').hidden = !isStartingDraft();
       byId('draft-countdown').textContent = countdownText;
       byId('draft-start-banner').hidden = !isStartingDraft();
@@ -6161,13 +6173,29 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const renderErrors = state => {
-      const errors = state.errors.map(error => {
+      const errors = (state.errors || []).map(error => {
         const element = document.createElement('div');
         element.className = 'error';
         element.textContent = error.message;
         return element;
       });
       byId('errors').replaceChildren(...errors);
+    };
+
+    const renderStateLoadError = message => {
+      renderErrors({ errors: [{ message }] });
+      byId('board-count').textContent = 'Draft room unavailable';
+      byId('board').replaceChildren();
+      byId('board-cards').replaceChildren();
+      byId('position-market').replaceChildren();
+      byId('selected-player').replaceChildren();
+      byId('roster-summary').replaceChildren();
+      byId('roster-slots').replaceChildren();
+      byId('owner-needs').replaceChildren();
+      byId('owners').replaceChildren();
+      byId('events').replaceChildren();
+      byId('import-conflict-review').replaceChildren();
+      renderMockDraft(null);
     };
 
     const render = state => {
@@ -6227,12 +6255,17 @@ export const liveDraftHtml = `<!doctype html>
     const refreshState = async () => {
       const response = await fetch(stateUrl());
       const state = await response.json();
+      if (!response.ok) {
+        renderStateLoadError(state.error || 'Could not load draft room.');
+        return null;
+      }
       render(state);
       return state;
     };
 
     const refreshDraftRoom = async () => {
       const state = await refreshState();
+      if (!state) return null;
       await refreshMockDraft();
       return state;
     };
@@ -6333,7 +6366,7 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const setDraftSession = async draftSession => {
-      currentDraftSession = draftSession || 'live';
+      currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode);
       if (!isActiveDraft()) draftLifecycle = 'setup';
       selectedTargetName = null;
       pendingCamNominationName = null;

@@ -201,6 +201,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const renderDraftLifecycle = state =>");
     expect(liveDraftHtml).toContain("const renderRoomModeIndicator = state =>");
     expect(liveDraftHtml).toContain("byId('draft-room-view').classList.toggle('draft-active', isActiveDraft());");
+    expect(liveDraftHtml).toContain("const canStartDraft = draftLifecycle === 'setup' || draftLifecycle === 'ready';");
+    expect(liveDraftHtml).toContain("byId('confirm-start-draft-button').hidden = !canStartDraft;");
     expect(liveDraftHtml).toContain("byId('header-quick-sale-form').hidden = !(isActiveDraft() && currentDraftMode === 'real');");
     expect(liveDraftHtml).toContain("byId('mock-draft-panel').hidden = !(isActiveDraft() && currentDraftMode === 'interactive-mock');");
     expect(liveDraftHtml).toContain("const beginDraftCountdown = () =>");
@@ -369,6 +371,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("let currentDraftSession = 'live'");
     expect(liveDraftHtml).toContain("const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession)");
     expect(liveDraftHtml).toContain("draftSession: currentDraftSession");
+    expect(liveDraftHtml).toContain("const normalizeDraftSession = (value, mode = currentDraftMode) =>");
+    expect(liveDraftHtml).toContain("if (session.startsWith('scratch:')) return session;");
+    expect(liveDraftHtml).toContain("currentDraftSession = normalizeDraftSession(parsed.session, currentDraftMode);");
+    expect(liveDraftHtml).toContain("currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode);");
+    expect(liveDraftHtml).toContain("const renderStateLoadError = message =>");
+    expect(liveDraftHtml).toContain("renderStateLoadError(state.error || 'Could not load draft room.');");
     expect(liveDraftHtml).toContain("const setDraftSession = async draftSession =>");
     expect(liveDraftHtml).toContain("const openScratchSession = async () =>");
     expect(liveDraftHtml).toContain("syncDraftSession(state)");
