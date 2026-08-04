@@ -1276,12 +1276,12 @@ describe("live draft server", () => {
         },
       });
       expect(completed.result.runs.map((run: { label: string }) => run.label)).toEqual([
-        "Run 1: Hampton $46",
-        "Run 2: Hampton $46",
-        "Run 3: Hampton $48",
-        "Run 4: Hampton $48",
-        "Run 5: Hampton $50",
-        "Run 6: Hampton $50",
+        "Run 1: Hampton $46 / 3RB",
+        "Run 2: Hampton $46 / Balanced",
+        "Run 3: Hampton $48 / 3RB",
+        "Run 4: Hampton $48 / Balanced",
+        "Run 5: Hampton $50 / 3RB",
+        "Run 6: Hampton $50 / Balanced",
       ]);
       expect(capturedOptions.map(options => options.forcedSales)).toEqual([
         [{ owner: "Cam", player: "Omarion Hampton", price: 46 }],

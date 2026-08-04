@@ -43,6 +43,7 @@ import {
 import { strategyAuctionOverridesFor } from "./modeling/interactiveMockDraft.js";
 import {
   defaultLiveDraftStrategyKey,
+  liveDraftStrategyFor,
   parseLiveDraftStrategyKey,
   type LiveDraftStrategyKey,
 } from "./modeling/liveDraftStrategies.js";
@@ -1055,6 +1056,7 @@ const forcedSalesForBuildAroundRun = (
 const buildAroundRunLabelsFor = (
   script: MockDraftScript | undefined,
   runsPerPricePoint: number,
+  runStrategyKeys: readonly LiveDraftStrategyKey[],
 ): string[] => {
   const buildAround = script?.buildAround;
   if (!buildAround) return [];
@@ -1064,7 +1066,12 @@ const buildAroundRunLabelsFor = (
   return buildAround.prices.flatMap(price =>
     Array.from({ length: runsPerPricePoint }, () => {
       runNumber += 1;
-      return `Run ${runNumber}: ${shortName} $${price}`;
+      const strategyKey = runStrategyKeys[runNumber - 1];
+      const fallbackStrategyKey = strategyKey ?? defaultLiveDraftStrategyKey;
+      const strategyLabel = fallbackStrategyKey === "three-rb"
+        ? "3RB"
+        : liveDraftStrategyFor(fallbackStrategyKey).label;
+      return `Run ${runNumber}: ${shortName} $${price} / ${strategyLabel}`;
     }));
 };
 
@@ -1852,7 +1859,7 @@ export const createLiveDraftServer = async (
       const scriptOverrides = targetMaxBidOverridesFor(job.script);
       const priceCount = buildAroundPriceCountFor(job.script);
       const totalRuns = runsPerScenario * priceCount;
-      const runLabels = buildAroundRunLabelsFor(job.script, runsPerScenario);
+      const runLabels = buildAroundRunLabelsFor(job.script, runsPerScenario, job.runStrategyKeys);
       let batch: MockBatch;
 
       if (options.mockBatchRunner && job.script?.buildAround) {
