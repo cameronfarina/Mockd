@@ -952,9 +952,10 @@ export const liveDraftHtml = `<!doctype html>
 
     .board-toolbar {
       display: grid;
-      grid-template-columns: minmax(320px, 1fr) auto minmax(130px, 160px) minmax(112px, 130px) minmax(132px, 160px) minmax(160px, 190px);
+      grid-template-columns: auto minmax(130px, 160px) minmax(112px, 130px) minmax(132px, 160px) minmax(160px, 190px);
       gap: 8px;
       align-items: center;
+      justify-content: end;
       overflow-x: auto;
       padding: 12px 14px;
       border-bottom: 1px solid var(--line);
@@ -1078,6 +1079,22 @@ export const liveDraftHtml = `<!doctype html>
       color: var(--muted);
       font-size: 11px;
       white-space: nowrap;
+    }
+
+    button.market-pill {
+      cursor: pointer;
+    }
+
+    button.market-pill:hover:not(:disabled) {
+      border-color: var(--position-accent, var(--accent));
+      background: var(--position-accent-soft, rgba(91, 168, 255, 0.16));
+      color: #f4f8fc;
+    }
+
+    .market-pill[aria-pressed="true"] {
+      border-color: var(--position-accent, var(--accent));
+      background: var(--position-accent-soft, rgba(91, 168, 255, 0.16));
+      color: #e7f2ff;
     }
 
     .market-pill::before {
@@ -3127,16 +3144,6 @@ export const liveDraftHtml = `<!doctype html>
           <div class="board-count" id="board-count"></div>
         </div>
         <div class="board-toolbar">
-          <div class="segmented" id="position-filters" aria-label="Position filter">
-            <button class="filter-chip" type="button" data-position-filter="ALL" aria-pressed="true">All</button>
-            <button class="filter-chip" type="button" data-position-filter="RB" aria-pressed="false">RB</button>
-            <button class="filter-chip" type="button" data-position-filter="WR" aria-pressed="false">WR</button>
-            <button class="filter-chip" type="button" data-position-filter="TE" aria-pressed="false">TE</button>
-            <button class="filter-chip" type="button" data-position-filter="QB" aria-pressed="false">QB</button>
-            <button class="filter-chip" type="button" data-position-filter="FLEX" aria-pressed="false">FLEX</button>
-            <button class="filter-chip" type="button" data-position-filter="K" aria-pressed="false">K</button>
-            <button class="filter-chip" type="button" data-position-filter="DST" aria-pressed="false">DST</button>
-          </div>
           <label class="toggle"><input type="checkbox" id="my-needs-filter"> My needs</label>
           <select id="team-filter" aria-label="NFL team filter"></select>
           <select id="bye-filter" aria-label="Bye week filter"></select>
@@ -5661,8 +5668,12 @@ export const liveDraftHtml = `<!doctype html>
         const live = targets.reduce((total, target) => total + target.liveExpectedPrice, 0);
         const factor = expected > 0 ? (live / expected).toFixed(2) + 'x' : '-';
         const delta = saleDeltaByPosition.get(position) || 0;
-        const pill = document.createElement('div');
+        const pill = document.createElement('button');
+        pill.type = 'button';
         pill.className = 'market-pill ' + positionClassFor(position);
+        pill.dataset.positionFilter = position;
+        pill.setAttribute('aria-pressed', String(boardPositionFilter === position));
+        pill.title = boardPositionFilter === position ? 'Show all positions' : 'Show only ' + position;
         pill.append(
           textElement('strong', position),
           document.createTextNode(factor + ' - ' + targets.length + ' left' + (delta ? ' - ' + deltaMoney(delta) : ''))
@@ -7230,13 +7241,14 @@ export const liveDraftHtml = `<!doctype html>
       await submitQuickSaleCommand(byId('header-quick-sale-command'));
     });
 
-    for (const button of document.querySelectorAll('[data-position-filter]')) {
-      button.addEventListener('click', event => {
-        const nextPosition = event.currentTarget.dataset.positionFilter;
-        boardPositionFilter = boardPositions.includes(nextPosition) ? nextPosition : 'ALL';
-        if (currentState) renderBoard(currentState);
-      });
-    }
+    byId('position-market').addEventListener('click', event => {
+      const button = event.target.closest('[data-position-filter]');
+      if (!button) return;
+      const nextPosition = button.dataset.positionFilter;
+      if (!boardPositions.includes(nextPosition)) return;
+      boardPositionFilter = boardPositionFilter === nextPosition ? 'ALL' : nextPosition;
+      if (currentState) renderBoard(currentState);
+    });
 
     for (const input of [byId('my-needs-filter'), byId('team-filter'), byId('bye-filter')]) {
       input.addEventListener('input', () => {

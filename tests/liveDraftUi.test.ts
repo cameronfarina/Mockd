@@ -44,8 +44,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"quick-sale-command\"");
     expect(liveDraftHtml).toContain("id=\"board\"");
     expect(liveDraftHtml).toContain("id=\"board-cards\"");
-    expect(liveDraftHtml).toContain("id=\"position-filters\"");
-    expect(liveDraftHtml).toContain("data-position-filter=\"RB\"");
+    expect(liveDraftHtml).not.toContain("id=\"position-filters\"");
+    expect(liveDraftHtml).toContain("pill.dataset.positionFilter = position;");
+    expect(liveDraftHtml).toContain("byId('position-market').addEventListener('click'");
     expect(liveDraftHtml).toContain("id=\"my-needs-filter\"");
     expect(liveDraftHtml).toContain("id=\"team-filter\"");
     expect(liveDraftHtml).toContain("id=\"bye-filter\"");
@@ -197,6 +198,7 @@ describe("live draft UI shell", () => {
 
   it("includes board behavior for position filters, sortable values, and draft-day guardrails", () => {
     expect(liveDraftHtml).toContain("const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST']");
+    expect(liveDraftHtml).toContain("boardPositionFilter = boardPositionFilter === nextPosition ? 'ALL' : nextPosition;");
     expect(liveDraftHtml).toContain("const valueGapFor = target => target.personalValue - target.liveExpectedPrice");
     expect(liveDraftHtml).toContain("[selectedBidLabelFor(target), money(bidPrice), '']");
     expect(liveDraftHtml).toContain("['Season', scoreText(target.seasonProjection), '']");
