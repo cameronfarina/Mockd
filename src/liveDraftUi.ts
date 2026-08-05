@@ -1385,7 +1385,8 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .board-table {
-      min-width: 1060px;
+      width: max-content;
+      min-width: 990px;
     }
 
     .board-table th:first-child,
@@ -1535,6 +1536,19 @@ export const liveDraftHtml = `<!doctype html>
 
     .player-title .star-button {
       flex: 0 0 auto;
+    }
+
+    .market-price-cell {
+      display: grid;
+      gap: 1px;
+      justify-items: end;
+      line-height: 1.12;
+    }
+
+    .market-price-detail {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 650;
     }
 
     .subtle {
@@ -3228,7 +3242,7 @@ export const liveDraftHtml = `<!doctype html>
             <option value="wr-heavy">WR Heavy</option>
           </select>
           <select id="sort-select" aria-label="Board sort">
-            <option value="liveExpectedPrice">Expected draft price</option>
+            <option value="liveExpectedPrice">Market price</option>
             <option value="seasonProjection">Season points</option>
             <option value="week1Projection">Week 1 points</option>
             <option value="valueGap">Best value gap</option>
@@ -3264,14 +3278,13 @@ export const liveDraftHtml = `<!doctype html>
             <thead>
               <tr>
                 <th class="center" style="width:42px">Add</th>
-                <th>Player</th>
+                <th style="width:350px">Player</th>
                 <th style="width:52px">Pos</th>
                 <th style="width:62px">Team</th>
                 <th class="center" style="width:54px">Bye</th>
                 <th class="money" style="width:64px">W1</th>
                 <th class="money" style="width:78px">Season</th>
-                <th class="money" style="width:66px">Exp</th>
-                <th class="money" style="width:66px">Live</th>
+                <th class="money" style="width:76px">Market</th>
                 <th class="money" style="width:66px">Our</th>
                 <th class="money" style="width:66px">Gap</th>
                 <th class="money" style="width:66px">Max</th>
@@ -3565,7 +3578,7 @@ export const liveDraftHtml = `<!doctype html>
       week1Projection: 'W1',
       seasonProjection: 'Season',
       expectedPrice: 'Exp',
-      liveExpectedPrice: 'Live',
+      liveExpectedPrice: 'Market',
       personalValue: 'Our',
       valueGap: 'Gap',
       recommendedMaxBid: 'Max',
@@ -4110,6 +4123,23 @@ export const liveDraftHtml = `<!doctype html>
       const element = document.createElement('td');
       element.textContent = cleanText(text);
       if (className) element.className = className;
+      row.appendChild(element);
+      return element;
+    };
+
+    const marketPriceCell = (row, target) => {
+      const element = document.createElement('td');
+      element.className = 'money market-price-cell';
+      const livePrice = money(target.liveExpectedPrice);
+      const expectedPrice = money(target.expectedPrice);
+      if (target.liveExpectedPrice === target.expectedPrice) {
+        element.textContent = livePrice;
+      } else {
+        element.replaceChildren(
+          textElement('span', livePrice),
+          textElement('span', 'exp ' + expectedPrice, 'market-price-detail')
+        );
+      }
       row.appendChild(element);
       return element;
     };
@@ -6314,8 +6344,7 @@ export const liveDraftHtml = `<!doctype html>
         tableCell(row, target.byeWeek || '-', 'center');
         tableCell(row, scoreText(target.week1Projection), 'money');
         tableCell(row, scoreText(target.seasonProjection), 'money');
-        tableCell(row, money(target.expectedPrice), 'money');
-        tableCell(row, money(target.liveExpectedPrice), 'money');
+        marketPriceCell(row, target);
         tableCell(row, money(target.personalValue), 'money');
         tableCell(row, deltaMoney(valueGapFor(target)), 'money ' + gapClassFor(valueGapFor(target)));
         tableCell(row, money(target.recommendedMaxBid), 'money');
