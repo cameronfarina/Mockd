@@ -196,6 +196,12 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).not.toContain("<th class=\"money\" style=\"width:66px\">Exp</th>");
     expect(liveDraftHtml).not.toContain("<th class=\"money\" style=\"width:66px\">Live</th>");
     expect(liveDraftHtml).toContain("marketPriceCell(row, target)");
+    expect(liveDraftHtml).toContain("const addCell = tableCell(row, '', 'center add-cell');");
+    expect(liveDraftHtml).toContain(".board-table tbody td.add-cell");
+    expect(liveDraftHtml).toContain("vertical-align: top;");
+    expect(liveDraftHtml).toContain("stack.className = 'market-price-stack';");
+    expect(liveDraftHtml).toContain(".market-price-stack {");
+    expect(liveDraftHtml).not.toContain(".market-price-cell {\n      display: grid;");
     expect(liveDraftHtml).not.toContain("class=\"sort-heading\"");
     expect(liveDraftHtml).not.toContain("[data-sort-key]");
     expect(liveDraftHtml).not.toContain("button.dataset.activeSort");

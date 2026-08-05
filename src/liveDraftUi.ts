@@ -1496,6 +1496,11 @@ export const liveDraftHtml = `<!doctype html>
       box-shadow: inset 3px 0 0 var(--position-accent);
     }
 
+    .board-table tbody td.add-cell {
+      padding-top: 8px;
+      vertical-align: top;
+    }
+
     .board-table tbody tr[class*="position-"] {
       background: var(--position-row-bg, rgba(91, 168, 255, 0.08));
     }
@@ -1621,10 +1626,13 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .market-price-cell {
+      line-height: 1.12;
+    }
+
+    .market-price-stack {
       display: grid;
       gap: 1px;
       justify-items: end;
-      line-height: 1.12;
     }
 
     .market-price-detail {
@@ -4204,10 +4212,13 @@ export const liveDraftHtml = `<!doctype html>
       if (target.liveExpectedPrice === target.expectedPrice) {
         element.textContent = livePrice;
       } else {
-        element.replaceChildren(
+        const stack = document.createElement('div');
+        stack.className = 'market-price-stack';
+        stack.append(
           textElement('span', livePrice),
           textElement('span', 'exp ' + expectedPrice, 'market-price-detail')
         );
+        element.replaceChildren(stack);
       }
       row.appendChild(element);
       return element;
@@ -6392,7 +6403,7 @@ export const liveDraftHtml = `<!doctype html>
         if (target.name === selectedTargetName) row.classList.add('is-selected');
         if (currentMockDraft && currentMockDraft.auction && target.name === currentMockDraft.auction.player) row.classList.add('is-nominated');
         if (target.draftable === false) row.classList.add('keeper-row');
-        const addCell = tableCell(row, '', 'center');
+        const addCell = tableCell(row, '', 'center add-cell');
         addCell.appendChild(addTargetButton(target, 'icon'));
 
         const playerCell = tableCell(row, '', '');
