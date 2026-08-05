@@ -266,6 +266,14 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const pollMockBatchJob = async jobId =>");
     expect(liveDraftHtml).toContain("const renderMockBatchButtonState = job =>");
     expect(liveDraftHtml).toContain("const syncMockResultsMenuItem = (job, forceVisible = false) =>");
+    expect(liveDraftHtml).toContain("const rosterSlotLabelFor = slot => cleanText(slot).startsWith('BENCH') ? 'BENCH' : slot;");
+    expect(liveDraftHtml).toContain("tableCell(row, rosterSlotLabelFor(slot.slot), 'slot');");
+    expect(liveDraftHtml).toContain("const currentInteractiveMockResultsReady = () =>");
+    expect(liveDraftHtml).toContain("const publishCurrentMockResults = async () =>");
+    expect(liveDraftHtml).toContain("'/api/mock/session-results'");
+    expect(liveDraftHtml).toContain("expectedCommandCount: currentCommandCount()");
+    expect(liveDraftHtml).toContain("job.draftSessionKey === currentDraftSession");
+    expect(liveDraftHtml).toContain("Number(job.commandCount || 0) === currentCommandCount()");
     expect(liveDraftHtml).toContain("const syncLatestMockBatchJob = async (forceVisible = false) =>");
     expect(liveDraftHtml).toContain("await syncLatestMockBatchJob()");
     expect(liveDraftHtml).toContain("button.classList.toggle('mock-batch-ready', isReady)");

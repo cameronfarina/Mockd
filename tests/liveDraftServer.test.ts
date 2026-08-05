@@ -7,7 +7,11 @@ import {
   createLiveDraftServer,
   type CreateLiveDraftServerOptions,
 } from "../src/liveDraftServer.js";
-import type { MockBatch, RunMockBatchOptions } from "../src/modeling/mockBatch.js";
+import {
+  summarizeMockBatch,
+  type MockBatch,
+  type RunMockBatchOptions,
+} from "../src/modeling/mockBatch.js";
 
 const tempSessionDirectory = async (): Promise<string> =>
   mkdtemp(join(tmpdir(), "mockd-live-draft-server-"));
@@ -243,6 +247,54 @@ const mockBatchRunner: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner
         averagePrice: 77,
       }],
     },
+  };
+};
+
+const forcedSalePositionFor = (name: string): "QB" | "RB" | "WR" | "TE" | "K" | "DST" => {
+  if (name.includes("Puka") || name.includes("Chase")) return "WR";
+  if (name.includes("Allen")) return "QB";
+  if (name.includes("LaPorta") || name.includes("Bowers")) return "TE";
+  return "RB";
+};
+
+const mockBatchRunnerHonoringForcedSales: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner"]> = options => {
+  const batch = mockBatchRunner(options);
+  const forcedSales = options.forcedSales ?? [];
+  if (!forcedSales.length) return batch;
+
+  const runs: MockBatch["runs"] = batch.runs.map(run => {
+    const rosters = run.rosters.map(roster => {
+      const forcedPlayers = forcedSales
+        .filter(sale => sale.owner === roster.owner)
+        .map(sale => testPlayer(sale.player, forcedSalePositionFor(sale.player), sale.price, 19));
+      const forcedNames = new Set(forcedPlayers.map(player => player.name));
+      const players = [
+        ...forcedPlayers,
+        ...roster.players.filter(player => !forcedNames.has(player.name)),
+      ].slice(0, 16);
+      const spend = players.reduce((total, player) => total + player.price, 0);
+      const positionSpend = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 };
+      for (const player of players) positionSpend[player.position] += player.price;
+
+      return {
+        ...roster,
+        spend,
+        budgetRemaining: 200 - spend,
+        players,
+        positionSpend,
+      };
+    });
+
+    return {
+      ...run,
+      rosters,
+    };
+  });
+
+  return {
+    ...batch,
+    runs,
+    summary: summarizeMockBatch(runs),
   };
 };
 
@@ -1181,6 +1233,63 @@ describe("live draft server", () => {
       const latest = await fetch(`${baseUrl}/api/mock-batch/latest`).then(response => response.json());
       expect(latest.jobId).toBe(complete.data.mockBatchJob.jobId);
       expect(latest.result.runs[0].label).toBe("Completed mock draft");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("publishes mock results from the active interactive session instead of the latest batch", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner: mockBatchRunnerHonoringForcedSales,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const staleBatch = await post(baseUrl, "/api/mock-batch", {
+        strategyKey: "wr-heavy",
+        runs: 1,
+        seedPrefix: "stale-results",
+      });
+      await waitForMockBatchJob(baseUrl, staleBatch.data.jobId);
+
+      const sale = await post(baseUrl, "/api/events", {
+        draftSession: "scratch:exact-results",
+        mode: "interactive-mock",
+        strategyKey: "three-rb",
+        command: "Cam drafted Breece Hall for 42",
+      });
+      expect(sale.status).toBe(200);
+
+      const published = await post(baseUrl, "/api/mock/session-results", {
+        draftSession: "scratch:exact-results",
+        strategyKey: "three-rb",
+        seed: "session-results",
+        expectedCommandCount: 1,
+      });
+
+      expect(published.status).toBe(200);
+      expect(published.data.mockBatchJob).toMatchObject({
+        status: "complete",
+        source: "interactive-complete",
+        draftSessionKey: "scratch:exact-results",
+        draftMode: "interactive-mock",
+        commandCount: 1,
+        strategyKey: "three-rb",
+      });
+      const camTeam = published.data.mockBatchJob.result.runs[0].teams
+        .find((team: { owner: string }) => team.owner === "Cam");
+      expect(camTeam.players).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "Breece Hall", price: 42 }),
+      ]));
+
+      const latest = await fetch(`${baseUrl}/api/mock-batch/latest`).then(response => response.json());
+      expect(latest.jobId).toBe(published.data.mockBatchJob.jobId);
+      expect(latest.jobId).not.toBe(staleBatch.data.jobId);
+      expect(latest.draftSessionKey).toBe("scratch:exact-results");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

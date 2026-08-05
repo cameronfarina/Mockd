@@ -597,6 +597,15 @@ interface LiveDraftMutationResult {
   body: unknown;
 }
 
+interface InteractiveMockResultsPublishResult {
+  status: number;
+  body: LiveDraftStateResponse & {
+    mockDraft: unknown;
+    mockBatchJob?: MockBatchJob;
+    errors?: { input: string; message: string }[];
+  };
+}
+
 interface InteractiveMockDraftModule {
   buildInteractiveMockDraftState(options: {
     projections: readonly ProjectionRecord[];
@@ -655,6 +664,9 @@ interface MockBatchJob {
   jobId: string;
   status: MockBatchJobStatus;
   source?: "batch" | "interactive-complete";
+  draftSessionKey?: string;
+  draftMode?: LiveDraftSessionMode;
+  commandCount?: number;
   strategyKey: LiveDraftStrategyKey;
   runStrategyKeys: readonly LiveDraftStrategyKey[];
   script?: MockDraftScript;
@@ -1325,6 +1337,7 @@ export const createLiveDraftServer = async (
 
   const latestCompleteMockBatchReport = (): MockResultsReport | undefined => {
     const job = latestMockBatchJobId === undefined ? undefined : mockBatchJobs.get(latestMockBatchJobId);
+    if (job?.source === "interactive-complete") return undefined;
     return job?.status === "complete" ? job.result : undefined;
   };
 
@@ -1625,6 +1638,82 @@ export const createLiveDraftServer = async (
     await store.appendCommand(command);
     return undefined;
   };
+  const publishInteractiveMockResultsJob = ({
+    draftSessionKey,
+    strategyKey,
+    commandCount,
+    batch,
+  }: {
+    draftSessionKey: string;
+    strategyKey: LiveDraftStrategyKey;
+    commandCount: number;
+    batch: MockBatch;
+  }): MockBatchJob => {
+    if (!batch.runs[0]) throw new Error("Mock draft completion did not produce a run.");
+
+    const now = new Date().toISOString();
+    const completedJob: MockBatchJob = {
+      jobId: `mock-complete-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      status: "complete",
+      source: "interactive-complete",
+      draftSessionKey,
+      draftMode: "interactive-mock",
+      commandCount,
+      strategyKey,
+      runStrategyKeys: [strategyKey],
+      runsPerScenario: 1,
+      totalRuns: 1,
+      completedRuns: 1,
+      percent: 100,
+      startedAt: now,
+      updatedAt: now,
+      result: buildMockResultsReport(batch, strategyKey, [strategyKey], undefined, ["Completed mock draft"]),
+    };
+    mockBatchJobs.set(completedJob.jobId, completedJob);
+    latestMockBatchJobId = completedJob.jobId;
+    return completedJob;
+  };
+  const interactiveMockBatchForCommands = async ({
+    draftSessionKey,
+    strategyKey,
+    commands,
+    seed,
+  }: {
+    draftSessionKey: string;
+    strategyKey: LiveDraftStrategyKey;
+    commands: readonly string[];
+    seed?: string;
+  }): Promise<MockBatch> => {
+    const currentState = await stateFor({
+      draftSessionKey,
+      mode: "interactive-mock",
+      commands,
+      strategyKey,
+    });
+    if (currentState.errors.length) {
+      throw new Error(currentState.errors.map(error => error.message).join("\n"));
+    }
+
+    const forcedSales: ForcedAuctionSale[] = currentState.events.map(event => ({
+      owner: event.owner,
+      player: event.player,
+      price: event.price,
+    }));
+    const completeSeed = seed ?? `interactive-session-results:${draftSessionKey}:${commands.length}`;
+    const batchRunner = options.mockBatchRunner ?? runMockBatch;
+    return batchRunner({
+      projections,
+      historicalRecords,
+      keepers,
+      scenarioKeys: ["expected"],
+      runsPerScenario: 1,
+      seedPrefix: completeSeed,
+      pricingConfig,
+      auctionConfigOverrides: strategyAuctionOverridesFor("Cam", strategyKey, { variantSeed: completeSeed }),
+      forcedSales,
+      diagnosticsMode: "summary",
+    });
+  };
   const runMockSpeedAction = async ({
     draftSessionKey,
     strategyKey,
@@ -1822,23 +1911,12 @@ export const createLiveDraftServer = async (
       }
 
       await interactiveMockStore.importCommands(completedCommands);
-      const now = new Date().toISOString();
-      const completedJob: MockBatchJob = {
-        jobId: `mock-complete-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-        status: "complete",
-        source: "interactive-complete",
+      const completedJob = publishInteractiveMockResultsJob({
+        draftSessionKey,
         strategyKey,
-        runStrategyKeys: [strategyKey],
-        runsPerScenario: 1,
-        totalRuns: 1,
-        completedRuns: 1,
-        percent: 100,
-        startedAt: now,
-        updatedAt: now,
-        result: buildMockResultsReport(batch, strategyKey, [strategyKey], undefined, ["Completed mock draft"]),
-      };
-      mockBatchJobs.set(completedJob.jobId, completedJob);
-      latestMockBatchJobId = completedJob.jobId;
+        commandCount: completedCommands.length,
+        batch,
+      });
 
       return {
         status: 200,
@@ -1928,6 +2006,9 @@ export const createLiveDraftServer = async (
     jobId: job.jobId,
     status: job.status,
     ...(job.source === undefined ? {} : { source: job.source }),
+    ...(job.draftSessionKey === undefined ? {} : { draftSessionKey: job.draftSessionKey }),
+    ...(job.draftMode === undefined ? {} : { draftMode: job.draftMode }),
+    ...(job.commandCount === undefined ? {} : { commandCount: job.commandCount }),
     strategyKey: job.strategyKey,
     runStrategyKeys: job.runStrategyKeys,
     ...(job.script === undefined ? {} : { script: job.script }),
@@ -2389,6 +2470,100 @@ export const createLiveDraftServer = async (
           };
         });
         sendJson(response, result.status, result.body);
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/mock/session-results") {
+        const body = await parseJsonBody(request);
+        const strategyKey = strategyKeyFromBody(body);
+        const draftSessionKey = draftSessionKeyFromBody(body);
+        const seed = seedFromValue(body.seed ?? body.seedPrefix);
+        const lock = draftNightLockFor(draftSessionKey);
+        if (lock.locked) {
+          sendJson(response, 423, {
+            ...await stateFor({ draftSessionKey, mode: "interactive-mock", strategyKey }),
+            errors: [{ input: "", message: lock.reason ?? "Live session is locked for mock draft results." }],
+          });
+          return;
+        }
+
+        const result = await runQueuedSessionMutation(draftSessionKey, "interactive-mock", async (): Promise<InteractiveMockResultsPublishResult> => {
+          const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
+          const commands = interactiveMockStore.currentCommands();
+          const expectedCommandCount = body.expectedCommandCount;
+          if (
+            typeof expectedCommandCount === "number" &&
+            Number.isInteger(expectedCommandCount) &&
+            expectedCommandCount !== commands.length
+          ) {
+            return {
+              status: 409,
+              body: {
+                ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+                errors: [{
+                  input: "",
+                  message: `Mock results expected ${expectedCommandCount} command(s), but the room currently has ${commands.length}. Refresh before viewing results.`,
+                }],
+              },
+            };
+          }
+
+          let batch: MockBatch;
+          try {
+            batch = await interactiveMockBatchForCommands({
+              draftSessionKey,
+              strategyKey,
+              commands,
+              ...(seed === undefined ? {} : { seed }),
+            });
+          } catch (error) {
+            return {
+              status: 422,
+              body: {
+                ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+                errors: [{
+                  input: "",
+                  message: error instanceof Error ? error.message : "Could not build results from the current mock draft.",
+                }],
+              },
+            };
+          }
+
+          let mockBatchJob: MockBatchJob;
+          try {
+            mockBatchJob = publishInteractiveMockResultsJob({
+              draftSessionKey,
+              strategyKey,
+              commandCount: commands.length,
+              batch,
+            });
+          } catch (error) {
+            return {
+              status: 422,
+              body: {
+                ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+                errors: [{
+                  input: "",
+                  message: error instanceof Error ? error.message : "Could not publish mock draft results.",
+                }],
+              },
+            };
+          }
+
+          return {
+            status: 200,
+            body: {
+              ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+              mockBatchJob,
+            },
+          };
+        });
+        sendJson(response, result.status, {
+          ...result.body,
+          ...(result.body.mockBatchJob === undefined
+            ? {}
+            : { mockBatchJob: mockBatchJobResponseFor(result.body.mockBatchJob) }),
+        });
         return;
       }
 

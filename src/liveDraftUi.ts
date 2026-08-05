@@ -883,8 +883,10 @@ export const liveDraftHtml = `<!doctype html>
       grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
       gap: 16px;
       min-width: 0;
+      height: 100%;
       min-height: 0;
       padding: 16px 24px 22px;
+      align-items: stretch;
     }
 
     .app.draft-active main {
@@ -896,6 +898,8 @@ export const liveDraftHtml = `<!doctype html>
 
     section, aside {
       min-width: 0;
+      height: 100%;
+      min-height: 0;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: #06131f;
@@ -1538,6 +1542,7 @@ export const liveDraftHtml = `<!doctype html>
     .side {
       display: grid;
       grid-template-rows: auto auto auto minmax(0, 1fr);
+      height: 100%;
       min-height: 0;
     }
 
@@ -1807,12 +1812,14 @@ export const liveDraftHtml = `<!doctype html>
     }
 
     .side-scroll {
+      min-height: 0;
       overflow: auto;
-      max-height: calc(100vh - 382px);
+      max-height: none;
     }
 
     .slot {
-      width: 58px;
+      width: 64px;
+      padding-right: 16px;
       color: var(--muted);
       font-weight: 650;
       white-space: nowrap;
@@ -6359,6 +6366,8 @@ export const liveDraftHtml = `<!doctype html>
       }));
     };
 
+    const rosterSlotLabelFor = slot => cleanText(slot).startsWith('BENCH') ? 'BENCH' : slot;
+
     const renderRoster = state => {
       const owner = currentOwner();
       const summary = [
@@ -6371,7 +6380,7 @@ export const liveDraftHtml = `<!doctype html>
 
       const rows = owner.slots.map(slot => {
         const row = document.createElement('tr');
-        tableCell(row, slot.slot, 'slot');
+        tableCell(row, rosterSlotLabelFor(slot.slot), 'slot');
         const playerCell = tableCell(row, '', slot.player ? '' : 'empty');
         if (slot.player) {
           playerCell.replaceChildren(
@@ -6646,9 +6655,18 @@ export const liveDraftHtml = `<!doctype html>
       await setDraftSession('scratch:' + scratchName);
     };
 
+    const currentInteractiveMockResultsReady = () =>
+      currentDraftMode === 'interactive-mock' &&
+      currentState &&
+      currentCommandCount() > 0 &&
+      Array.isArray(currentState.owners) &&
+      currentState.owners.every(owner => Number(owner.rosterSlotsRemaining || 0) === 0);
+
     const syncMockResultsMenuItem = (job, forceVisible = false) => {
       const button = byId('see-mock-results-button');
-      const isReady = job && job.status === 'complete' && job.result;
+      const isReady =
+        currentInteractiveMockResultsReady() ||
+        (job && job.status === 'complete' && job.result && mockBatchJobMatchesCurrentControls(job));
       const isVisible = forceVisible || isReady;
       button.hidden = !isVisible;
       button.disabled = !isVisible;
@@ -6661,7 +6679,12 @@ export const liveDraftHtml = `<!doctype html>
 
     const mockBatchJobMatchesCurrentControls = job => {
       if (!job) return false;
-      if (job.source === 'interactive-complete') return true;
+      if (job.source === 'interactive-complete') {
+        return currentDraftMode === 'interactive-mock' &&
+          job.draftSessionKey === currentDraftSession &&
+          job.strategyKey === currentStrategyKey &&
+          Number(job.commandCount || 0) === currentCommandCount();
+      }
       const currentScript = mockBatchScript();
       const jobScript = job.script && job.script.raw ? job.script.raw : '';
       const scriptRunsControlTheBatch = Boolean(job.script && job.script.runsPerScenario !== undefined);
@@ -6678,10 +6701,12 @@ export const liveDraftHtml = `<!doctype html>
       const status = job ? job.status : '';
       const percent = Math.max(0, Math.min(100, Number(job && job.percent ? job.percent : 0)));
       const isRunning = status === 'queued' || status === 'running';
-      const isReady = status === 'complete' && job && job.result && mockBatchJobMatchesCurrentControls(job);
+      const isReady =
+        currentInteractiveMockResultsReady() ||
+        (status === 'complete' && job && job.result && mockBatchJobMatchesCurrentControls(job));
       const hasPreviousResults = status === 'complete' && job && job.result;
 
-      button.style.setProperty('--mock-progress', isRunning || hasPreviousResults ? percent + '%' : '0%');
+      button.style.setProperty('--mock-progress', isRunning || hasPreviousResults || isReady ? (isReady ? '100%' : percent + '%') : '0%');
       button.classList.toggle('mock-batch-running', isRunning);
       button.classList.toggle('mock-batch-ready', isReady);
       button.disabled = isRunning;
@@ -6702,6 +6727,49 @@ export const liveDraftHtml = `<!doctype html>
         return;
       }
       button.textContent = 'Run mocks';
+    };
+
+    const publishCurrentMockResults = async () => {
+      const data = await postJson('/api/mock/session-results', {
+        mode: 'interactive-mock',
+        seed: 'live-ui-session-results',
+        expectedCommandCount: currentCommandCount()
+      });
+      alertCommandErrors(data);
+      if ((data.errors || []).length) {
+        throw new Error(data.errors[0].message || 'Could not build results from this mock draft.');
+      }
+      if (!data.mockBatchJob || !data.mockBatchJob.result) {
+        throw new Error('Could not build results from this mock draft.');
+      }
+
+      latestMockBatchJob = data.mockBatchJob;
+      latestMockBatchReport = data.mockBatchJob.result;
+      renderMockBatchButtonState(data.mockBatchJob);
+      renderMockBatchResultsForJob(data.mockBatchJob);
+      return data.mockBatchJob;
+    };
+
+    const openMockResults = async () => {
+      closeAppMenu();
+      try {
+        if (currentInteractiveMockResultsReady()) {
+          await publishCurrentMockResults();
+        } else if (!(
+          latestMockBatchJob &&
+          latestMockBatchJob.status === 'complete' &&
+          latestMockBatchJob.result &&
+          mockBatchJobMatchesCurrentControls(latestMockBatchJob)
+        )) {
+          throw new Error('Run mocks or complete the current mock draft before opening results.');
+        }
+
+        window.location.assign('/mock-results');
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : 'Could not open mock results.');
+        renderMockBatchButtonState(latestMockBatchJob);
+        focusCommandInput();
+      }
     };
 
     const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -7259,12 +7327,13 @@ export const liveDraftHtml = `<!doctype html>
     byId('end-draft-button').addEventListener('click', () => endActiveDraft());
     byId('run-mock-batch-button').addEventListener('click', () => {
       if (
+        currentInteractiveMockResultsReady() ||
         latestMockBatchJob &&
         latestMockBatchJob.status === 'complete' &&
         latestMockBatchJob.result &&
         mockBatchJobMatchesCurrentControls(latestMockBatchJob)
       ) {
-        window.location.assign('/mock-results');
+        void openMockResults();
         return;
       }
       runMockBatch();
@@ -7277,10 +7346,7 @@ export const liveDraftHtml = `<!doctype html>
       renderMockBatchButtonState(latestMockBatchJob);
       renderMockBatchResultsForJob(latestMockBatchJob);
     });
-    byId('see-mock-results-button').addEventListener('click', () => {
-      closeAppMenu();
-      window.location.assign('/mock-results');
-    });
+    byId('see-mock-results-button').addEventListener('click', () => void openMockResults());
     byId('my-expert-button').addEventListener('click', () => {
       closeAppMenu();
       window.location.assign(myExpertRouteUrl());
