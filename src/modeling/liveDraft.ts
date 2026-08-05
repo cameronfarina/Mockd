@@ -824,8 +824,11 @@ const draftableExpectedSpend = (
 const rawLiveInflationFactorFor = ({
   remainingBudget,
   remainingExpectedSpend,
-}: Pick<LiveDraftRoomState, "remainingBudget" | "remainingExpectedSpend">): number =>
-  remainingBudget / Math.max(1, remainingExpectedSpend);
+  remainingRosterSlots,
+}: Pick<LiveDraftRoomState, "remainingBudget" | "remainingExpectedSpend" | "remainingRosterSlots">): number => {
+  if (remainingRosterSlots <= 0) return 0;
+  return remainingBudget / Math.max(remainingRosterSlots, remainingExpectedSpend);
+};
 
 const buildRoomState = ({
   scenario,
@@ -849,7 +852,11 @@ const buildRoomState = ({
   const remainingBudget = owners.reduce((total, owner) => total + owner.budgetRemaining, 0);
   const remainingRosterSlots = owners.reduce((total, owner) => total + owner.rosterSlotsRemaining, 0);
   const remainingExpectedSpend = draftableExpectedSpend(records, soldNames, remainingRosterSlots);
-  const rawLiveInflationFactor = rawLiveInflationFactorFor({ remainingBudget, remainingExpectedSpend });
+  const rawLiveInflationFactor = rawLiveInflationFactorFor({
+    remainingBudget,
+    remainingExpectedSpend,
+    remainingRosterSlots,
+  });
 
   return {
     scenarioKey: scenario.key,
@@ -1090,6 +1097,14 @@ const canWatchOwnerRosterPlayer = (
   watchOwner.rosterSlotsRemaining > 0 &&
   watchOwner.positionCounts[player.position] < leagueConfig.rosterMaximums[player.position];
 
+const liveExpectedPriceFor = (
+  player: LiveDraftPlayerRecord,
+  room: LiveDraftRoomState,
+): number =>
+  room.remainingRosterSlots <= 0
+    ? 0
+    : roundPrice(player.expectedPrice * room.liveInflationFactor);
+
 const buildTargets = ({
   records,
   soldNames,
@@ -1111,7 +1126,7 @@ const buildTargets = ({
     .filter(player => !soldNames.has(player.normalizedName))
     .map(player => {
       const fitsWatchOwnerRoster = canWatchOwnerRosterPlayer(player, watchOwner);
-      const liveExpectedPrice = roundPrice(player.expectedPrice * room.liveInflationFactor);
+      const liveExpectedPrice = liveExpectedPriceFor(player, room);
       const needMultiplier = positionNeedMultiplierFor(player, watchOwner, strategy);
       const rawStrategyValues = Object.fromEntries(
         Object.values(liveDraftStrategies).map(candidateStrategy => [
@@ -1604,6 +1619,7 @@ export const buildLiveDraftState = ({
   const startingLiveInflationFactor = rawLiveInflationFactorFor({
     remainingBudget: startingRemainingBudget,
     remainingExpectedSpend: draftableExpectedSpend(records, soldNames, startingRemainingRosterSlots),
+    remainingRosterSlots: startingRemainingRosterSlots,
   });
   const events: LiveDraftEvent[] = [];
   const postDraftAudit: LiveDraftSaleAudit[] = [];

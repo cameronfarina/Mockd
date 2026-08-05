@@ -21,6 +21,10 @@ const buildAroundScriptFromLiveUi = (target: Record<string, unknown>): string =>
 
 describe("live draft UI shell", () => {
   it("renders the draft-room controls needed for search, add, and roster review", () => {
+    expect(liveDraftHtml).toContain("button:hover:not(:disabled)");
+    expect(liveDraftHtml).toContain("color: #f4f8fc;");
+    expect(liveDraftHtml).toContain("button.primary:hover:not(:disabled)");
+    expect(liveDraftHtml).toContain("button.primary:disabled");
     expect(liveDraftHtml).toContain("id=\"board-search\"");
     expect(liveDraftHtml).toContain("id=\"header-board-search\"");
     expect(liveDraftHtml).toContain("id=\"room-title\"");

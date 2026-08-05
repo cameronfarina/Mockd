@@ -1,12 +1,49 @@
 import { describe, expect, it } from "vitest";
 import { keepers } from "../config/keepers.js";
-import { leagueConfig } from "../config/league.js";
+import { leagueConfig, ownerOrder, type Position } from "../config/league.js";
 import { defaultDraftRoomRankingPath, loadDraftRoomRankings } from "../src/data/draftRoomRankings.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
-import { buildLiveDraftState, parseLiveDraftSaleCommand } from "../src/modeling/liveDraft.js";
+import { buildLiveDraftState, parseLiveDraftSaleCommand, type LiveDraftState } from "../src/modeling/liveDraft.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+const fullRosterShape = {
+  QB: 2,
+  RB: 5,
+  WR: 5,
+  TE: 2,
+  K: 1,
+  DST: 1,
+} as const satisfies Record<Position, number>;
+const rosterFillPositionOrder = ["QB", "RB", "WR", "TE", "K", "DST"] as const satisfies readonly Position[];
+
+const fullDraftCommandsFor = (state: LiveDraftState): string[] => {
+  const pools = Object.fromEntries(
+    rosterFillPositionOrder.map(position => [
+      position,
+      state.availableTargets
+        .filter(target => target.position === position)
+        .map(target => target.name),
+    ]),
+  ) as Record<Position, string[]>;
+  const takePlayer = (position: Position): string => {
+    const name = pools[position].shift();
+    if (!name) throw new Error(`No ${position} targets left for full-draft regression setup.`);
+    return name;
+  };
+
+  return ownerOrder.flatMap(owner => {
+    const ownerState = state.owners.find(candidate => candidate.owner === owner);
+    if (!ownerState) throw new Error(`Missing owner ${owner}.`);
+
+    return rosterFillPositionOrder.flatMap(position => {
+      const neededCount = Math.max(0, fullRosterShape[position] - ownerState.positionCounts[position]);
+      return Array.from({ length: neededCount }, () =>
+        `${owner} drafted ${takePlayer(position)} for 1`,
+      );
+    });
+  });
+};
 
 describe("live draft room", () => {
   it("parses natural-language auction sale commands", () => {
@@ -147,6 +184,34 @@ describe("live draft room", () => {
         expect(previous.liveExpectedPrice).toBeGreaterThan(current.liveExpectedPrice);
       }
     }
+  });
+
+  it("does not inflate leftover player prices after all roster slots are filled", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const setupState = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+      targetLimit: 600,
+    });
+    const completedState = buildLiveDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      watchOwner: "Cam",
+      scenarioKey: "expected",
+      targetLimit: 600,
+      commands: fullDraftCommandsFor(setupState),
+    });
+
+    expect(completedState.errors).toHaveLength(0);
+    expect(completedState.room.remainingRosterSlots).toBe(0);
+    expect(completedState.room.liveInflationFactor).toBe(0);
+    expect(completedState.availableTargets.length).toBeGreaterThan(0);
+    expect(completedState.availableTargets.every(target => target.liveExpectedPrice === 0)).toBe(true);
   });
 
   it("uses a full-season fallback when projection imports only have Weeks 1-4 totals", async () => {

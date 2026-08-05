@@ -123,6 +123,7 @@ export const liveDraftHtml = `<!doctype html>
     button:hover:not(:disabled) {
       border-color: rgba(91, 168, 255, 0.9);
       background: #0d253b;
+      color: #f4f8fc;
     }
 
     button:disabled {
@@ -135,6 +136,14 @@ export const liveDraftHtml = `<!doctype html>
       background: var(--accent);
       color: #06101a;
       font-weight: 750;
+    }
+
+    button.primary:hover:not(:disabled) {
+      color: #f4f8fc;
+    }
+
+    button.primary:disabled {
+      color: #b9cbe0;
     }
 
     button.danger {
