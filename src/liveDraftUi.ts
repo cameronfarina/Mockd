@@ -3415,6 +3415,7 @@ export const liveDraftHtml = `<!doctype html>
     let currentMockDraft = null;
     let mockAdvanceRequestInFlight = false;
     let mockAdvanceRequestAction = null;
+    let mockAutoAdvanceTimer = null;
     let latestMockBatchReport = null;
     let latestMockBatchJob = null;
     let selectedMockResultsRunIndex = 0;
@@ -5420,7 +5421,7 @@ export const liveDraftHtml = `<!doctype html>
         scoreline.appendChild(metric);
       }
       header.replaceChildren(
-        textElement('strong', team.owner + (team.projectedFinishLabel ? ' - ' + team.projectedFinishLabel : '')),
+        textElement('strong', team.owner + (team.projectedFinishLabel ? ' - season rank ' + team.projectedFinishLabel : '')),
         textElement('div', team.rankExplanation || '-', 'mock-results-reason'),
         scoreline,
         mockResultsSeasonParts(team)
@@ -5455,9 +5456,9 @@ export const liveDraftHtml = `<!doctype html>
       const scoreline = document.createElement('div');
       scoreline.className = 'mock-results-scoreline';
       const metric = document.createElement('span');
-      metric.replaceChildren(document.createTextNode('Top W1'), textElement('b', topScore));
+      metric.replaceChildren(document.createTextNode('Best W1'), textElement('b', topScore));
       scoreline.appendChild(metric);
-      header.replaceChildren(textElement('strong', 'AI Rankings'), scoreline);
+      header.replaceChildren(textElement('strong', 'Season Rankings'), scoreline);
 
       const list = document.createElement('div');
       list.className = 'mock-results-player-list';
@@ -5956,9 +5957,38 @@ export const liveDraftHtml = `<!doctype html>
         return 'Current ' + money(auction.currentBid) + ' - Cam can bid ' + money(auction.nextCamBid);
       }
       if (mockDraft.phase === 'ai-sale' && auction.resolution) {
-        return 'Current high bid ' + money(auction.resolution.price) + ' - pass to let ' + auction.resolution.owner + ' win';
+        return 'Current high bid ' + money(auction.resolution.price) + ' - AI sale will continue automatically';
       }
       return cleanText(mockDraft.phase || 'Mock auction');
+    };
+
+    const clearMockAutoAdvance = () => {
+      if (!mockAutoAdvanceTimer) return;
+      window.clearTimeout(mockAutoAdvanceTimer);
+      mockAutoAdvanceTimer = null;
+    };
+
+    const mockAutoAdvanceActionFor = mockDraft => {
+      if (!isActiveDraft() || currentDraftMode !== 'interactive-mock' || mockAdvanceRequestInFlight) return null;
+      if (!mockDraft || mockDraft.phase === 'complete' || mockDraft.phase === 'blocked') return null;
+      if (mockDraft.phase === 'ai-sale') return 'advance';
+      if (mockDraft.phase !== 'human-decision') return null;
+
+      const nextCamBid = Number(mockDraft.auction && mockDraft.auction.nextCamBid);
+      const camMaxBid = Number(mockDraft.camDecision && mockDraft.camDecision.maxBid);
+      if (!Number.isFinite(nextCamBid) || !Number.isFinite(camMaxBid)) return null;
+      return camMaxBid < nextCamBid ? 'pass' : null;
+    };
+
+    const scheduleMockAutoAdvance = mockDraft => {
+      clearMockAutoAdvance();
+      const action = mockAutoAdvanceActionFor(mockDraft);
+      if (!action) return;
+
+      mockAutoAdvanceTimer = window.setTimeout(() => {
+        mockAutoAdvanceTimer = null;
+        if (!mockAdvanceRequestInFlight) void advanceMockDraft(action);
+      }, 350);
     };
 
     const renderMockAuctionFeedEvents = events => {
@@ -6057,12 +6087,7 @@ export const liveDraftHtml = `<!doctype html>
       const canNominate = isMockMode && phase === 'human-nomination' && Boolean(nominationTarget);
       const mockAdvanceBusy = mockAdvanceRequestInFlight;
       advanceButton.disabled = mockAdvanceBusy || !isMockMode || phase !== 'ai-sale';
-      if (mockDraft && mockDraft.auction && mockDraft.auction.resolution) {
-        const auction = mockDraft.auction;
-        advanceButton.textContent = 'Let ' + auction.resolution.owner + ' win for ' + money(auction.resolution.price);
-      } else {
-        advanceButton.textContent = 'Advance AI Sale';
-      }
+      advanceButton.textContent = phase === 'ai-sale' ? 'Continue AI sale' : 'Advance AI Sale';
       nominationPriceInput.hidden = !canNominate;
       nominationPriceInput.disabled = mockAdvanceBusy || !canNominate;
       if (canNominate && nominationPriceValue() <= 0) nominationPriceInput.value = String(pendingCamNominationPrice || 1);
@@ -6072,15 +6097,14 @@ export const liveDraftHtml = `<!doctype html>
       camBidButton.textContent = mockDraft && mockDraft.auction && mockDraft.auction.nextCamBid != null ? 'Bid ' + money(mockDraft.auction.nextCamBid) : 'Bid';
       const canPass = isMockMode && (phase === 'human-decision' || phase === 'ai-sale');
       byId('mock-pass-button').disabled = mockAdvanceBusy || !canPass;
-      byId('mock-pass-button').textContent = phase === 'ai-sale' && mockDraft.auction && mockDraft.auction.resolution
-        ? 'Pass / let ' + mockDraft.auction.resolution.owner + ' win'
-        : 'Pass';
-      nextDecisionButton.textContent = 'Skip to Cam decision';
+      byId('mock-pass-button').textContent = 'Pass';
+      nextDecisionButton.textContent = mockAdvanceRequestAction === 'next-cam-decision' ? 'Simming to Cam...' : 'Sim to Cam action';
       nextDecisionButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
       nextRoundButton.textContent = 'Sim to next round';
       nextRoundButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
       completeButton.textContent = mockAdvanceRequestAction === 'complete-mock' ? 'Completing mock...' : 'Complete mock draft';
-      completeButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
+      completeButton.disabled = mockAdvanceBusy || !isMockMode || terminal;
+      scheduleMockAutoAdvance(mockDraft);
 
       if (!isMockMode) {
         details.replaceChildren(mockDraftItem('Mock draft', 'Start mock draft to enter the practice room.'));
@@ -6637,6 +6661,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const mockBatchJobMatchesCurrentControls = job => {
       if (!job) return false;
+      if (job.source === 'interactive-complete') return true;
       const currentScript = mockBatchScript();
       const jobScript = job.script && job.script.raw ? job.script.raw : '';
       const scriptRunsControlTheBatch = Boolean(job.script && job.script.runsPerScenario !== undefined);
@@ -6985,6 +7010,16 @@ export const liveDraftHtml = `<!doctype html>
         if (action !== 'cam-nominate' && !(data.errors || []).length) {
           pendingCamNominationName = null;
           pendingCamNominationPrice = nominationPriceValue();
+        }
+        if (data.mockBatchJob && data.mockBatchJob.result) {
+          latestMockBatchJob = data.mockBatchJob;
+          latestMockBatchReport = data.mockBatchJob.result;
+          renderMockBatchButtonState(data.mockBatchJob);
+          renderMockBatchResultsForJob(data.mockBatchJob);
+          if (action === 'complete-mock' && !(data.errors || []).length) {
+            window.location.assign('/mock-results');
+            return data;
+          }
         }
         if (data.availableTargets && data.owners) render(data);
         else await refreshMockDraft();

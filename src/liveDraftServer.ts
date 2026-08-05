@@ -654,6 +654,7 @@ type MockBatchJobStatus = "queued" | "running" | "complete" | "failed";
 interface MockBatchJob {
   jobId: string;
   status: MockBatchJobStatus;
+  source?: "batch" | "interactive-complete";
   strategyKey: LiveDraftStrategyKey;
   runStrategyKeys: readonly LiveDraftStrategyKey[];
   script?: MockDraftScript;
@@ -1638,9 +1639,28 @@ export const createLiveDraftServer = async (
     action: string;
     nominatedPlayer?: string;
     nominatedPrice?: number;
-  }): Promise<{ status: number; body: LiveDraftStateResponse & { mockDraft: unknown; errors?: { input: string; message: string }[] } }> => {
+  }): Promise<{ status: number; body: LiveDraftStateResponse & {
+    mockDraft: unknown;
+    mockBatchJob?: MockBatchJob;
+    errors?: { input: string; message: string }[];
+  } }> => {
     const interactiveMockDraft = await loadInteractiveMockDraftModule(options.interactiveMockDraft);
     const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
+    const commandForMockAction = (mockDraft: unknown, actionName: string): string => {
+      let currentMockDraft = mockDraft;
+      for (let bidStep = 0; bidStep < ownerOrder.length * 2; bidStep += 1) {
+        const result = interactiveMockDraft.resolveInteractiveMockDraftAction(currentMockDraft, actionName);
+        const command = optionalCommandFromInteractiveMockAction(result);
+        if (command) return command;
+
+        const unresolvedMockDraft = mockDraftFromInteractiveMockAction(result);
+        if (!unresolvedMockDraft) break;
+        currentMockDraft = unresolvedMockDraft;
+      }
+
+      throw new Error("Interactive mock action did not resolve to a sale command.");
+    };
+
     if (action === "complete-mock") {
       const currentState = await stateFor({
         draftSessionKey,
@@ -1660,12 +1680,33 @@ export const createLiveDraftServer = async (
         };
       }
 
+      let completionBaseCommands = [...interactiveMockStore.currentCommands()];
       const currentMockDraft = await mockDraftFor({
         ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
         draftSessionKey,
+        commands: completionBaseCommands,
       });
       const currentPhase = mockDraftPhaseFor(currentMockDraft);
-      if (currentPhase === "human-decision" || currentPhase === "human-nomination") {
+      let visibleAuctionCommand: string | undefined;
+      if (currentPhase === "ai-sale") {
+        visibleAuctionCommand = commandForMockAction(currentMockDraft, "advance");
+      } else if (currentPhase === "human-decision") {
+        visibleAuctionCommand = commandForMockAction(currentMockDraft, "cam-bid");
+      } else if (currentPhase === "human-nomination") {
+        const automaticNomination = nominatedPlayer ?? mockDraftTopTargetNameFor(currentMockDraft);
+        if (automaticNomination) {
+          const nominatedMockDraft = await mockDraftFor({
+            ...mockDraftRequestFor(strategyKey, seed, automaticNomination, nominatedPrice),
+            draftSessionKey,
+            commands: completionBaseCommands,
+          });
+          const nominatedPhase = mockDraftPhaseFor(nominatedMockDraft);
+          visibleAuctionCommand = commandForMockAction(
+            nominatedMockDraft,
+            nominatedPhase === "human-decision" ? "cam-bid" : "advance",
+          );
+        }
+      } else if (currentPhase === "blocked") {
         return {
           status: 422,
           body: {
@@ -1673,17 +1714,47 @@ export const createLiveDraftServer = async (
               ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
               draftSessionKey,
             }),
-            errors: [{ input: "", message: "Complete mock draft is paused while Cam has a live decision." }],
+            errors: [{ input: "", message: "Mock draft is blocked and cannot be completed." }],
           },
         };
       }
 
-      const forcedSales: ForcedAuctionSale[] = currentState.events.map(event => ({
+      if (visibleAuctionCommand) {
+        const trialCommands = [...completionBaseCommands, visibleAuctionCommand];
+        const trialState = await stateFor({
+          draftSessionKey,
+          mode: "interactive-mock",
+          commands: trialCommands,
+          strategyKey,
+        });
+        const commandError = trialState.errors.find(error => error.input === visibleAuctionCommand);
+        if (commandError) {
+          return {
+            status: 422,
+            body: {
+              ...await stateWithMockDraft({
+                ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
+                draftSessionKey,
+              }),
+              errors: [commandError],
+            },
+          };
+        }
+        completionBaseCommands = trialCommands;
+      }
+
+      const completionBaseState = await stateFor({
+        draftSessionKey,
+        mode: "interactive-mock",
+        commands: completionBaseCommands,
+        strategyKey,
+      });
+      const forcedSales: ForcedAuctionSale[] = completionBaseState.events.map(event => ({
         owner: event.owner,
         player: event.player,
         price: event.price,
       }));
-      const completeSeed = seed ?? `interactive-complete:${draftSessionKey}:${currentState.events.length}`;
+      const completeSeed = seed ?? `interactive-complete:${draftSessionKey}:${completionBaseState.events.length}`;
       let batch: MockBatch;
       try {
         batch = runMockBatch({
@@ -1728,7 +1799,7 @@ export const createLiveDraftServer = async (
       }
 
       const completedCommands = [
-        ...interactiveMockStore.currentCommands(),
+        ...completionBaseCommands,
         ...run.picks.map(pick => `${pick.owner} drafted ${pick.player} for ${pick.price}`),
       ];
       const completedState = await stateFor({
@@ -1751,10 +1822,30 @@ export const createLiveDraftServer = async (
       }
 
       await interactiveMockStore.importCommands(completedCommands);
+      const now = new Date().toISOString();
+      const completedJob: MockBatchJob = {
+        jobId: `mock-complete-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        status: "complete",
+        source: "interactive-complete",
+        strategyKey,
+        runStrategyKeys: [strategyKey],
+        runsPerScenario: 1,
+        totalRuns: 1,
+        completedRuns: 1,
+        percent: 100,
+        startedAt: now,
+        updatedAt: now,
+        result: buildMockResultsReport(batch, strategyKey, [strategyKey], undefined, ["Completed mock draft"]),
+      };
+      mockBatchJobs.set(completedJob.jobId, completedJob);
+      latestMockBatchJobId = completedJob.jobId;
 
       return {
         status: 200,
-        body: await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+        body: {
+          ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+          mockBatchJob: mockBatchJobResponseFor(completedJob),
+        },
       };
     }
 
@@ -1763,20 +1854,6 @@ export const createLiveDraftServer = async (
     let startRound: number | undefined;
     let nextNominatedPlayer = nominatedPlayer;
     let nextNominatedPrice = nominatedPrice;
-    const commandForMockAction = (mockDraft: unknown, actionName: string): string => {
-      let currentMockDraft = mockDraft;
-      for (let bidStep = 0; bidStep < ownerOrder.length * 2; bidStep += 1) {
-        const result = interactiveMockDraft.resolveInteractiveMockDraftAction(currentMockDraft, actionName);
-        const command = optionalCommandFromInteractiveMockAction(result);
-        if (command) return command;
-
-        const unresolvedMockDraft = mockDraftFromInteractiveMockAction(result);
-        if (!unresolvedMockDraft) break;
-        currentMockDraft = unresolvedMockDraft;
-      }
-
-      throw new Error("Interactive mock action did not resolve to a sale command.");
-    };
 
     for (let step = 0; step < maximumSteps; step += 1) {
       const mockDraft = await mockDraftFor({
@@ -1850,6 +1927,7 @@ export const createLiveDraftServer = async (
   const mockBatchJobResponseFor = (job: MockBatchJob): MockBatchJob => ({
     jobId: job.jobId,
     status: job.status,
+    ...(job.source === undefined ? {} : { source: job.source }),
     strategyKey: job.strategyKey,
     runStrategyKeys: job.runStrategyKeys,
     ...(job.script === undefined ? {} : { script: job.script }),

@@ -93,7 +93,7 @@ const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiv
       }
       return { command: `Cam drafted ${nominatedPlayer} for 42` };
     }
-    if (action !== "advance") throw new Error(`Unexpected test action: ${action}`);
+    if (action !== "advance" && action !== "pass") throw new Error(`Unexpected test action: ${action}`);
 
     return { command: draft.aiSaleCommand ?? mockSaleCommand };
   },
@@ -1126,12 +1126,61 @@ describe("live draft server", () => {
         seed: "server-speed-controls",
         action: "complete-mock",
       });
-      expect(complete.status).toBe(422);
-      expect(complete.data.session.commandCount).toBe(2);
-      expect(complete.data.mockDraft.phase).toBe("human-decision");
-      expect(complete.data.errors).toContainEqual(expect.objectContaining({
-        message: "Complete mock draft is paused while Cam has a live decision.",
+      expect(complete.status).toBe(200);
+      expect(complete.data.session.commandCount).toBeGreaterThan(2);
+      expect(complete.data.mockBatchJob).toMatchObject({
+        status: "complete",
+        source: "interactive-complete",
+        totalRuns: 1,
+        percent: 100,
+      });
+      expect(complete.data.mockBatchJob.result.runs[0].teams).toHaveLength(ownerOrder.length);
+      expect(complete.data.mockBatchJob.result.runs[0].rankings).toHaveLength(ownerOrder.length);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("publishes interactive mock completion as a viewable one-run results job", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const complete = await post(baseUrl, "/api/mock/advance", {
+        draftSession: "scratch:completion-results",
+        strategyKey: "three-rb",
+        seed: "server-complete-results",
+        action: "complete-mock",
+      });
+
+      expect(complete.status).toBe(200);
+      expect(complete.data.mockBatchJob).toMatchObject({
+        status: "complete",
+        source: "interactive-complete",
+        strategyKey: "three-rb",
+        runsPerScenario: 1,
+        totalRuns: 1,
+        completedRuns: 1,
+        percent: 100,
+      });
+      expect(complete.data.mockBatchJob.result.runs).toHaveLength(1);
+      expect(complete.data.mockBatchJob.result.runs[0].teams).toHaveLength(ownerOrder.length);
+      expect(complete.data.mockBatchJob.result.runs[0].rankings).toHaveLength(ownerOrder.length);
+      expect(complete.data.mockBatchJob.result.runs[0].teams[0]).toEqual(expect.objectContaining({
+        week1Score: expect.any(Number),
+        projectedRank: expect.any(Number),
+        rankExplanation: expect.stringContaining("Projected"),
       }));
+
+      const latest = await fetch(`${baseUrl}/api/mock-batch/latest`).then(response => response.json());
+      expect(latest.jobId).toBe(complete.data.mockBatchJob.jobId);
+      expect(latest.result.runs[0].label).toBe("Completed mock draft");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

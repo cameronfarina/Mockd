@@ -243,7 +243,7 @@ describe("CLI player audit report", () => {
         "--silent",
         "audit",
         "--",
-        "--player=C.J. Stroud",
+        "--player=Darius Slayton",
         "--scenario=confirmedOnly",
         "--runs=1",
         "--seed-prefix=undrafted-audit-test",

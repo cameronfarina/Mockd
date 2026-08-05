@@ -315,4 +315,24 @@ describe("mock batch simulation", () => {
     expect(uniqueRbCores.size).toBeGreaterThan(1);
     expect(hasKeeperPlusFlexibleAuctionCore).toBe(true);
   }, 20000);
+
+  it("does not let mock owners finish with unusable budget piles", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const batch = runMockBatch({
+      projections,
+      historicalRecords,
+      keepers,
+      scenarioKeys: ["expected"],
+      runsPerScenario: 10,
+      seedPrefix: "budget-leftover-regression",
+      diagnosticsMode: "summary",
+    });
+
+    const largestBudgetRemaining = Math.max(
+      ...batch.runs.flatMap(run => run.rosters.map(roster => roster.budgetRemaining)),
+    );
+
+    expect(largestBudgetRemaining).toBeLessThanOrEqual(8);
+  }, 20000);
 });

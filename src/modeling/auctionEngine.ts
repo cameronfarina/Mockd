@@ -287,6 +287,7 @@ export type AuctionSalePriceBasis =
   | "second_bid_plus_minimum"
   | "reserve_price"
   | "nominator_opening_bid"
+  | "budget_flush"
   | "winning_bid_cap";
 
 export interface AuctionBidDiagnostics {
@@ -429,6 +430,8 @@ const anchorBuildPriceThreshold = 40;
 const depthBuildPriceThreshold = 19;
 const targetAnchorRosterCount = 2;
 const onePlayerRosterCountThreshold = 1.4;
+const budgetFlushBidStartRosterSlotsRemaining = 8;
+const budgetFlushTargetEndingBudget = 4;
 const defaultReplacementPrice = 1;
 const defaultReplacementPriceLadder: readonly ReplacementPriceTier[] = [];
 
@@ -1297,6 +1300,41 @@ const lateOpeningBidForNominator = (
   return lateOpeningBidFor(nominatorState, player, config);
 };
 
+const budgetFlushCushionedMaxBidFor = (
+  state: AuctionOwnerState,
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): number | undefined => {
+  if (state.rosterSlotsRemaining <= 0) return undefined;
+  if (state.rosterSlotsRemaining > budgetFlushBidStartRosterSlotsRemaining) return undefined;
+  if (remainingPlayers.length < config.owners.length) return undefined;
+
+  const slotsAfterPurchase = Math.max(0, state.rosterSlotsRemaining - 1);
+  const cushionedMaxBid =
+    state.budgetRemaining - slotsAfterPurchase * config.minimumBid - budgetFlushTargetEndingBudget;
+  if (cushionedMaxBid < config.minimumBid) return undefined;
+
+  return Math.min(state.maxBid, cushionedMaxBid);
+};
+
+const budgetFlushBidFor = (
+  state: AuctionOwnerState,
+  player: Player,
+  remainingPlayers: readonly Player[],
+  config: AuctionEngineConfig,
+): number => {
+  const maximumUsefulBid = budgetFlushCushionedMaxBidFor(state, remainingPlayers, config);
+  if (maximumUsefulBid === undefined) return 0;
+  if (maximumUsefulBid <= player.price) return 0;
+
+  const urgency = (
+    budgetFlushBidStartRosterSlotsRemaining - state.rosterSlotsRemaining + 1
+  ) / budgetFlushBidStartRosterSlotsRemaining;
+  const bidFloor = player.price + Math.floor((maximumUsefulBid - player.price) * urgency);
+
+  return clamp(bidFloor, config.minimumBid, maximumUsefulBid);
+};
+
 const topEndDampingMultiplierFor = (
   player: Player,
   rawBidMultiplier: number,
@@ -1576,7 +1614,8 @@ const bidForOwner = (
   const targetAdjustedBidAmount = playerTargetMaxBid === undefined
     ? pricedBidAmount
     : Math.max(pricedBidAmount, playerTargetMaxBid);
-  const uncappedAmount = Math.max(targetAdjustedBidAmount, openingBid);
+  const budgetFlushBid = budgetFlushBidFor(state, player, remainingPlayers, config);
+  const uncappedAmount = Math.max(targetAdjustedBidAmount, openingBid, budgetFlushBid);
   const strategyBudgetMaxBid = strategyBudgetMaxBidFor(state, player, config);
   const remainingPlayerTargetBudgetReserve = remainingPlayerTargetBudgetReserveFor(
     state,
@@ -1584,13 +1623,15 @@ const bidForOwner = (
     remainingPlayers,
     config,
   );
+  const budgetFlushMaxBid = budgetFlushCushionedMaxBidFor(state, remainingPlayers, config);
   const maxBid = playerTargetMaxBid === undefined
     ? Math.min(
       state.maxBid,
+      budgetFlushMaxBid ?? state.maxBid,
       strategyBudgetMaxBid ?? state.maxBid,
       remainingPlayerTargetBudgetReserve ?? state.maxBid,
     )
-    : Math.min(state.maxBid, playerTargetMaxBid);
+    : Math.min(state.maxBid, budgetFlushMaxBid ?? state.maxBid, playerTargetMaxBid);
 
   return {
     owner: state.owner,
@@ -1839,13 +1880,16 @@ export const resolveAuctionSale = (
   const winningBid = bids[0];
   if (!winningBid) return undefined;
 
+  const winningState = ownerStates.find(state => state.owner === winningBid.owner);
   const secondBidAmount = bids[1]?.amount ?? 0;
   const reservePrice = Math.max(config.minimumBid, Math.round(player.price * config.reservePriceRatio));
+  const budgetFlushBid = winningState === undefined ? 0 : budgetFlushBidFor(winningState, player, remainingPlayers, config);
   const salePriceFloors = [
     { basis: "minimum_bid", amount: config.minimumBid },
     { basis: "second_bid_plus_minimum", amount: secondBidAmount + config.minimumBid },
     { basis: "reserve_price", amount: reservePrice },
     { basis: "nominator_opening_bid", amount: nominatorOpeningBid },
+    { basis: "budget_flush", amount: budgetFlushBid },
   ] satisfies readonly { basis: AuctionSalePriceBasis; amount: number }[];
   const salePriceFloor = salePriceFloors.reduce<{ basis: AuctionSalePriceBasis; amount: number }>(
     (highest, candidate) => candidate.amount > highest.amount ? candidate : highest,
