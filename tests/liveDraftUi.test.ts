@@ -151,7 +151,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"draft-path-panel\"");
     expect(liveDraftHtml).toContain("id=\"manual-shortlist\"");
     expect(liveDraftHtml).toContain("id=\"model-shortlist\"");
-    expect(liveDraftHtml).toContain("id=\"owner-needs\"");
+    expect(liveDraftHtml).not.toContain("id=\"owner-needs\"");
+    expect(liveDraftHtml).not.toContain("class=\"owner-needs\"");
+    expect(liveDraftHtml).not.toContain("className = 'need-chip'");
     expect(liveDraftHtml).toContain("id=\"position-market\"");
     expect(liveDraftHtml).toContain("id=\"readiness-checks\"");
     expect(liveDraftHtml).toContain("id=\"post-draft-audit\"");
@@ -172,6 +174,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("class=\"sidebar\"");
     expect(liveDraftHtml).toContain("class=\"workspace\"");
     expect(liveDraftHtml).toContain("class=\"sidebar-section\"");
+    expect(liveDraftHtml).toContain(".app.draft-active {\n      grid-template-columns: minmax(0, 1fr);\n      grid-template-rows: auto minmax(0, 1fr);");
+    expect(liveDraftHtml).toContain(".app.draft-active {\n        grid-template-rows: auto minmax(0, 1fr);\n        height: 100vh;\n        min-height: 100vh;\n        overflow: hidden;");
+    expect(liveDraftHtml).toContain(".app.draft-active .workspace {\n        grid-row: 2;\n        height: 100%;\n        min-height: 0;\n        overflow: hidden;");
     expect(liveDraftHtml).toContain(".app.draft-active .header-actions");
     expect(liveDraftHtml).toContain(".app.draft-active .draft-header {\n      grid-template-columns: 48px minmax(0, 1fr) auto;\n      grid-template-rows: auto auto;");
     expect(liveDraftHtml).toContain(".app.draft-active .header-actions {\n      grid-column: 1 / -1;\n      grid-row: 2;");
@@ -211,6 +216,10 @@ describe("live draft UI shell", () => {
   it("includes board behavior for position filters, sortable values, and draft-day guardrails", () => {
     expect(liveDraftHtml).toContain("const boardPositions = ['ALL', 'RB', 'WR', 'TE', 'QB', 'FLEX', 'K', 'DST']");
     expect(liveDraftHtml).toContain("boardPositionFilter = boardPositionFilter === nextPosition ? 'ALL' : nextPosition;");
+    expect(liveDraftHtml).toContain("const setBoardPositionFilter = nextPosition => {");
+    expect(liveDraftHtml).not.toContain("dataset.needPositionFilter");
+    expect(liveDraftHtml).not.toContain("byId('owner-needs').addEventListener('click'");
+    expect(liveDraftHtml).not.toContain("data-need-position-filter");
     expect(liveDraftHtml).toContain("const valueGapFor = target => target.personalValue - target.liveExpectedPrice");
     expect(liveDraftHtml).toContain("[selectedBidLabelFor(target), money(bidPrice), '']");
     expect(liveDraftHtml).toContain("['Season', scoreText(target.seasonProjection), '']");
@@ -559,7 +568,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("outcome.averageOwnerWeek1WhenDrafted");
     expect(liveDraftHtml).toContain("' / Season ' + scoreText(outcome.averageOwnerSeasonStrengthWhenDrafted)");
     expect(liveDraftHtml).toContain("const renderPositionMarket = state =>");
-    expect(liveDraftHtml).toContain("const renderOwnerNeeds = state =>");
+    expect(liveDraftHtml).not.toContain("const renderOwnerNeeds = state =>");
     expect(liveDraftHtml).toContain("const renderShortlist = state =>");
     expect(liveDraftHtml).toContain("const renderPositionContext = state =>");
     expect(liveDraftHtml).toContain("const renderReadiness = state =>");
@@ -649,6 +658,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain(".board-table {");
     expect(liveDraftHtml).toContain("width: max-content;");
     expect(liveDraftHtml).toContain("min-width: 990px;");
+    expect(liveDraftHtml).toContain(".scroll {\n      overflow: auto;\n      scrollbar-width: none;");
+    expect(liveDraftHtml).toContain(".scroll::-webkit-scrollbar {\n      width: 0;\n      height: 0;");
     expect(liveDraftHtml).toContain(".board-table th:first-child,");
     expect(liveDraftHtml).toContain(".board-table td:nth-child(2)");
     expect(liveDraftHtml).toContain("left: 42px;");
@@ -692,7 +703,11 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("pill.className = 'market-pill ' + positionClassFor(position);");
     expect(liveDraftHtml).toContain("item.className = 'strategy-value strategy-' + strategyKey");
     expect(liveDraftHtml).toContain("const tagClassFor = label =>");
+    expect(liveDraftHtml).toContain("--position-row-bg: rgba(91, 168, 255, 0.1);");
     expect(liveDraftHtml).toContain(".board-table tbody tr[class*=\"position-\"] td:first-child");
+    expect(liveDraftHtml).toContain(".board-table tbody tr[class*=\"position-\"] {\n      background: var(--position-row-bg, rgba(91, 168, 255, 0.08));");
+    expect(liveDraftHtml).toContain(".board-table tbody tr[class*=\"position-\"] > td:first-child");
+    expect(liveDraftHtml).toContain("background: var(--position-sticky-bg, #081826);");
     expect(liveDraftHtml).toContain("border: 1px solid var(--position-accent-line, rgba(91, 168, 255, 0.68));");
     expect(liveDraftHtml).toContain("background: #06101a;");
     expect(liveDraftHtml).toContain(".filter-chip:not([data-position-filter=\"ALL\"])::before");

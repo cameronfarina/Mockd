@@ -52,42 +52,84 @@ export const liveDraftHtml = `<!doctype html>
       --position-accent: var(--pos-rb);
       --position-accent-soft: rgba(91, 168, 255, 0.16);
       --position-accent-line: rgba(91, 168, 255, 0.68);
+      --position-row-bg: rgba(91, 168, 255, 0.1);
+      --position-row-hover-bg: rgba(91, 168, 255, 0.15);
+      --position-row-selected-bg: rgba(91, 168, 255, 0.18);
+      --position-sticky-bg: #0a2034;
+      --position-sticky-hover-bg: #0c2943;
+      --position-sticky-selected-bg: #0d3150;
     }
 
     .position-wr {
       --position-accent: var(--pos-wr);
       --position-accent-soft: rgba(173, 140, 255, 0.16);
       --position-accent-line: rgba(173, 140, 255, 0.68);
+      --position-row-bg: rgba(173, 140, 255, 0.1);
+      --position-row-hover-bg: rgba(173, 140, 255, 0.15);
+      --position-row-selected-bg: rgba(173, 140, 255, 0.18);
+      --position-sticky-bg: #171b32;
+      --position-sticky-hover-bg: #211f46;
+      --position-sticky-selected-bg: #282556;
     }
 
     .position-te {
       --position-accent: var(--pos-te);
       --position-accent-soft: rgba(25, 228, 156, 0.14);
       --position-accent-line: rgba(25, 228, 156, 0.62);
+      --position-row-bg: rgba(25, 228, 156, 0.09);
+      --position-row-hover-bg: rgba(25, 228, 156, 0.14);
+      --position-row-selected-bg: rgba(25, 228, 156, 0.17);
+      --position-sticky-bg: #08271f;
+      --position-sticky-hover-bg: #0a3328;
+      --position-sticky-selected-bg: #0b4031;
     }
 
     .position-qb {
       --position-accent: var(--pos-qb);
       --position-accent-soft: rgba(255, 136, 69, 0.14);
       --position-accent-line: rgba(255, 136, 69, 0.62);
+      --position-row-bg: rgba(255, 136, 69, 0.09);
+      --position-row-hover-bg: rgba(255, 136, 69, 0.14);
+      --position-row-selected-bg: rgba(255, 136, 69, 0.17);
+      --position-sticky-bg: #2a180e;
+      --position-sticky-hover-bg: #39200f;
+      --position-sticky-selected-bg: #472811;
     }
 
     .position-k {
       --position-accent: var(--pos-k);
       --position-accent-soft: rgba(255, 216, 77, 0.13);
       --position-accent-line: rgba(255, 216, 77, 0.58);
+      --position-row-bg: rgba(255, 216, 77, 0.08);
+      --position-row-hover-bg: rgba(255, 216, 77, 0.13);
+      --position-row-selected-bg: rgba(255, 216, 77, 0.16);
+      --position-sticky-bg: #241f0b;
+      --position-sticky-hover-bg: #332d0f;
+      --position-sticky-selected-bg: #403712;
     }
 
     .position-dst {
       --position-accent: var(--pos-dst);
       --position-accent-soft: rgba(255, 84, 112, 0.14);
       --position-accent-line: rgba(255, 84, 112, 0.62);
+      --position-row-bg: rgba(255, 84, 112, 0.09);
+      --position-row-hover-bg: rgba(255, 84, 112, 0.14);
+      --position-row-selected-bg: rgba(255, 84, 112, 0.17);
+      --position-sticky-bg: #2a1018;
+      --position-sticky-hover-bg: #3a1521;
+      --position-sticky-selected-bg: #481a29;
     }
 
     .position-flex {
       --position-accent: var(--pos-flex);
       --position-accent-soft: rgba(32, 223, 244, 0.14);
       --position-accent-line: rgba(32, 223, 244, 0.62);
+      --position-row-bg: rgba(32, 223, 244, 0.09);
+      --position-row-hover-bg: rgba(32, 223, 244, 0.14);
+      --position-row-selected-bg: rgba(32, 223, 244, 0.17);
+      --position-sticky-bg: #082830;
+      --position-sticky-hover-bg: #0a3540;
+      --position-sticky-selected-bg: #0c414d;
     }
 
     html {
@@ -284,6 +326,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .app.draft-active {
       grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
     }
 
     .app.draft-active .sidebar {
@@ -1259,7 +1302,14 @@ export const liveDraftHtml = `<!doctype html>
 
     .scroll {
       overflow: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
       max-height: calc(100vh - 236px);
+    }
+
+    .scroll::-webkit-scrollbar {
+      width: 0;
+      height: 0;
     }
 
     .board-cards {
@@ -1446,17 +1496,49 @@ export const liveDraftHtml = `<!doctype html>
       box-shadow: inset 3px 0 0 var(--position-accent);
     }
 
+    .board-table tbody tr[class*="position-"] {
+      background: var(--position-row-bg, rgba(91, 168, 255, 0.08));
+    }
+
+    .board-table tbody tr[class*="position-"] > td {
+      border-bottom-color: var(--position-accent-line, var(--line));
+    }
+
+    .board-table tbody tr[class*="position-"] > td:first-child,
+    .board-table tbody tr[class*="position-"] > td:nth-child(2) {
+      background: var(--position-sticky-bg, #081826);
+    }
+
     .board-table tbody tr[class*="position-"] td:nth-child(3) {
       color: var(--position-accent);
       font-weight: 850;
     }
 
     .board-table tbody tr[class*="position-"]:hover {
-      background: #0a1a2a;
+      background: var(--position-row-hover-bg, rgba(91, 168, 255, 0.12));
+    }
+
+    .board-table tbody tr[class*="position-"]:hover > td:first-child,
+    .board-table tbody tr[class*="position-"]:hover > td:nth-child(2) {
+      background: var(--position-sticky-hover-bg, #0b1c2d);
     }
 
     .board-table tbody tr[class*="position-"].is-selected {
-      background: #0b2236;
+      background: var(--position-row-selected-bg, rgba(91, 168, 255, 0.16));
+    }
+
+    .board-table tbody tr[class*="position-"].is-selected > td:first-child,
+    .board-table tbody tr[class*="position-"].is-selected > td:nth-child(2) {
+      background: var(--position-sticky-selected-bg, #0b2137);
+    }
+
+    .board-table tbody tr[class*="position-"].is-nominated {
+      background: rgba(31, 207, 143, 0.1);
+    }
+
+    .board-table tbody tr[class*="position-"].is-nominated > td:first-child,
+    .board-table tbody tr[class*="position-"].is-nominated > td:nth-child(2) {
+      background: #08261f;
     }
 
     th, td {
@@ -1812,26 +1894,6 @@ export const liveDraftHtml = `<!doctype html>
       color: #f4f8fc;
       font-size: 14px;
       font-variant-numeric: tabular-nums;
-    }
-
-    .owner-needs {
-      grid-column: 1 / -1;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-      min-height: 24px;
-    }
-
-    .need-chip {
-      padding: 3px 6px;
-      border: 1px solid var(--position-accent-line, rgba(127, 154, 181, 0.28));
-      border-radius: 5px;
-      background: var(--position-accent-soft, rgba(127, 154, 181, 0.1));
-      color: #d9e7f5;
-      font-size: 11px;
-      font-weight: 650;
-      line-height: 1.1;
-      white-space: nowrap;
     }
 
     .summary-list {
@@ -2975,6 +3037,13 @@ export const liveDraftHtml = `<!doctype html>
         overflow: visible;
       }
 
+      .app.draft-active {
+        grid-template-rows: auto minmax(0, 1fr);
+        height: 100vh;
+        min-height: 100vh;
+        overflow: hidden;
+      }
+
       .draft-header {
         position: sticky;
         top: 0;
@@ -3003,6 +3072,13 @@ export const liveDraftHtml = `<!doctype html>
         height: auto;
         min-height: 100vh;
         overflow: visible;
+      }
+
+      .app.draft-active .workspace {
+        grid-row: 2;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
       }
 
       .draft-header {
@@ -3321,7 +3397,6 @@ export const liveDraftHtml = `<!doctype html>
             </form>
             <div class="roster-toolbar">
               <div class="roster-summary" id="roster-summary"></div>
-              <div class="owner-needs" id="owner-needs"></div>
             </div>
             <div class="section-label">Roster</div>
             <table>
@@ -3640,16 +3715,10 @@ export const liveDraftHtml = `<!doctype html>
     const priceInputValue = () => Number(byId('add-price').value);
     const gapClassFor = gap => gap > 0 ? 'gap-positive' : gap < 0 ? 'gap-negative' : '';
     const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession);
-    const positionForRosterNeed = need => {
-      const normalized = cleanText(need).toUpperCase();
-      if (normalized.startsWith('RB')) return 'RB';
-      if (normalized.startsWith('WR')) return 'WR';
-      if (normalized.startsWith('TE')) return 'TE';
-      if (normalized.startsWith('QB')) return 'QB';
-      if (normalized.startsWith('K')) return 'K';
-      if (normalized.startsWith('DST')) return 'DST';
-      if (normalized.startsWith('FLEX') || normalized.startsWith('BENCH')) return 'FLEX';
-      return '';
+    const setBoardPositionFilter = nextPosition => {
+      if (!boardPositions.includes(nextPosition)) return;
+      boardPositionFilter = boardPositionFilter === nextPosition ? 'ALL' : nextPosition;
+      if (currentState) renderBoard(currentState);
     };
     const stateUrl = () => '/api/state?mode=' + currentDraftMode + '&strategy=' + currentStrategyKey + sessionQuery();
     const mockDraftUrl = () =>
@@ -6483,15 +6552,6 @@ export const liveDraftHtml = `<!doctype html>
       return currentState.availableTargets.find(target => target.name === pendingCamNominationName) || null;
     };
 
-    const renderOwnerNeeds = state => {
-      const owner = currentOwner();
-      byId('owner-needs').replaceChildren(...ownerNeedsFor(owner).map(need => {
-        const position = positionForRosterNeed(need);
-        const className = 'need-chip' + (position ? ' ' + positionClassFor(position) : '');
-        return textElement('span', need, className);
-      }));
-    };
-
     const rosterSlotLabelFor = slot => cleanText(slot).startsWith('BENCH') ? 'BENCH' : slot;
 
     const renderRoster = state => {
@@ -6502,7 +6562,6 @@ export const liveDraftHtml = `<!doctype html>
         ['Slots', String(owner.rosterSlotsRemaining)]
       ];
       byId('roster-summary').replaceChildren(...summary.map(([label, value]) => metricTile(label, value, 'mini-metric')));
-      renderOwnerNeeds(state);
 
       const rows = owner.slots.map(slot => {
         const row = document.createElement('tr');
@@ -6575,7 +6634,6 @@ export const liveDraftHtml = `<!doctype html>
       byId('selected-player').replaceChildren();
       byId('roster-summary').replaceChildren();
       byId('roster-slots').replaceChildren();
-      byId('owner-needs').replaceChildren();
       byId('owners').replaceChildren();
       byId('events').replaceChildren();
       byId('import-conflict-review').replaceChildren();
@@ -7350,10 +7408,7 @@ export const liveDraftHtml = `<!doctype html>
     byId('position-market').addEventListener('click', event => {
       const button = event.target.closest('[data-position-filter]');
       if (!button) return;
-      const nextPosition = button.dataset.positionFilter;
-      if (!boardPositions.includes(nextPosition)) return;
-      boardPositionFilter = boardPositionFilter === nextPosition ? 'ALL' : nextPosition;
-      if (currentState) renderBoard(currentState);
+      setBoardPositionFilter(button.dataset.positionFilter);
     });
 
     for (const input of [byId('my-needs-filter'), byId('team-filter'), byId('bye-filter')]) {
