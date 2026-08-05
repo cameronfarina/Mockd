@@ -25,8 +25,14 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("color: #f4f8fc;");
     expect(liveDraftHtml).toContain("button.primary:hover:not(:disabled)");
     expect(liveDraftHtml).toContain("button.primary:disabled");
-    expect(liveDraftHtml).toContain("id=\"board-search\"");
+    expect(liveDraftHtml).toContain("class=\"board-search-row\"");
+    expect(liveDraftHtml).toContain("class=\"search board-search-input\" id=\"board-search\"");
+    expect(liveDraftHtml).not.toContain("<nav class=\"sidebar\" aria-label=\"Draft room controls\">\n      <input class=\"search\" id=\"board-search\"");
     expect(liveDraftHtml).toContain("id=\"header-board-search\"");
+    expect(liveDraftHtml).toContain("<details class=\"sidebar-section session-tools\">");
+    expect(liveDraftHtml).toContain("<summary class=\"session-tools-summary\">");
+    expect(liveDraftHtml).toContain("id=\"session-summary-label\"");
+    expect(liveDraftHtml).toContain("class=\"session-tools-body\"");
     expect(liveDraftHtml).toContain("id=\"room-title\"");
     expect(liveDraftHtml).toContain("id=\"room-mode-indicator\"");
     expect(liveDraftHtml).toContain("id=\"draft-start-banner\"");
@@ -465,6 +471,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const draftNightLockFor = state =>");
     expect(liveDraftHtml).toContain("Live session locked");
     expect(liveDraftHtml).toContain("if (draftNightLockFor(currentState))");
+    expect(liveDraftHtml).toContain("byId('header-board-search').hidden = true;");
+    expect(liveDraftHtml).not.toContain("byId('header-board-search').hidden = !isActiveDraft();");
     expect(liveDraftHtml).not.toContain("startMock.disabled = locked");
     expect(liveDraftHtml).toContain("aria-label=\"Confirm start draft\" hidden>Start draft");
     expect(liveDraftHtml).toContain("aria-label=\"End active draft\" hidden>End draft");

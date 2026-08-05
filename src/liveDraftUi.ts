@@ -612,6 +612,63 @@ export const liveDraftHtml = `<!doctype html>
       white-space: nowrap;
     }
 
+    .session-tools {
+      --section-accent: var(--amber);
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .session-tools-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 0;
+      padding: 12px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .session-tools-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .session-tools-summary::after {
+      content: "";
+      flex: 0 0 auto;
+      width: 9px;
+      height: 9px;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: rotate(45deg) translateY(-2px);
+      transition: transform 140ms ease;
+    }
+
+    .session-tools[open] .session-tools-summary::after {
+      transform: rotate(225deg) translateY(-2px);
+    }
+
+    .session-tools-summary .section-label {
+      min-width: 0;
+    }
+
+    .session-summary-label {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .session-tools-body {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+      padding: 0 12px 12px;
+    }
+
     .app-menu-trigger {
       display: inline-grid;
       place-items: center;
@@ -1057,6 +1114,19 @@ export const liveDraftHtml = `<!doctype html>
       width: 100%;
       height: 30px;
       font-size: 12px;
+    }
+
+    .board-search-row {
+      display: grid;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #02070d;
+    }
+
+    .board-search-input {
+      width: min(520px, 100%);
+      height: 34px;
+      background-color: #07131f;
     }
 
     .market-strip {
@@ -3073,7 +3143,6 @@ export const liveDraftHtml = `<!doctype html>
       <button class="danger header-end-action" type="button" id="end-draft-button" aria-label="End active draft" hidden>End draft</button>
     </header>
     <nav class="sidebar" aria-label="Draft room controls">
-      <input class="search" id="board-search" autocomplete="off" placeholder="Search player, position, or team">
       <div class="sidebar-section">
         <div class="section-label">Draft mode</div>
         <div class="draft-mode-choice" aria-label="Draft mode">
@@ -3108,29 +3177,34 @@ export const liveDraftHtml = `<!doctype html>
           <button class="primary" type="submit">Log</button>
         </form>
       </div>
-      <div class="sidebar-section">
-        <div class="section-label">Session</div>
-        <div class="session-picker">
-          <select id="draft-session-select" aria-label="Draft session">
-            <option value="live">Live</option>
-            <option value="practice-3rb">Practice 3RB</option>
-            <option value="practice-wr-heavy">Practice WR Heavy</option>
-          </select>
-          <input id="scratch-session-name" autocomplete="off" placeholder="Scratch room">
-          <button type="button" id="open-scratch-session-button">Open</button>
-          <div class="active-session-label" id="active-session-label">Live session</div>
-          <div class="active-session-label" id="draft-lock-status">Live session locked</div>
+      <details class="sidebar-section session-tools">
+        <summary class="session-tools-summary">
+          <span class="section-label">Session tools</span>
+          <span class="session-summary-label" id="session-summary-label">Live</span>
+        </summary>
+        <div class="session-tools-body">
+          <div class="session-picker">
+            <select id="draft-session-select" aria-label="Draft session">
+              <option value="live">Live</option>
+              <option value="practice-3rb">Practice 3RB</option>
+              <option value="practice-wr-heavy">Practice WR Heavy</option>
+            </select>
+            <input id="scratch-session-name" autocomplete="off" placeholder="Scratch room">
+            <button type="button" id="open-scratch-session-button">Open</button>
+            <div class="active-session-label" id="active-session-label">Live session</div>
+            <div class="active-session-label" id="draft-lock-status">Live session locked</div>
+          </div>
+          <div class="top-actions">
+            <button type="button" id="export-json-button">Export JSON</button>
+            <button type="button" id="export-csv-button">CSV</button>
+            <button type="button" id="export-bundle-button">Bundle</button>
+            <button type="button" id="import-log-button">Import</button>
+            <input class="file-input" id="import-log-file" type="file" accept=".json,.csv,application/json,text/csv">
+            <button type="button" id="undo-button">Undo</button>
+            <button type="button" id="reset-button">Reset</button>
+          </div>
         </div>
-        <div class="top-actions">
-          <button type="button" id="export-json-button">Export JSON</button>
-          <button type="button" id="export-csv-button">CSV</button>
-          <button type="button" id="export-bundle-button">Bundle</button>
-          <button type="button" id="import-log-button">Import</button>
-          <input class="file-input" id="import-log-file" type="file" accept=".json,.csv,application/json,text/csv">
-          <button type="button" id="undo-button">Undo</button>
-          <button type="button" id="reset-button">Reset</button>
-        </div>
-      </div>
+      </details>
     </nav>
     <div class="workspace">
       <div class="draft-start-banner" id="draft-start-banner" hidden>
@@ -3168,6 +3242,9 @@ export const liveDraftHtml = `<!doctype html>
           </select>
         </div>
         <div class="market-strip" id="position-market"></div>
+        <div class="board-search-row">
+          <input class="search board-search-input" id="board-search" autocomplete="off" placeholder="Search player, position, or team">
+        </div>
         <div class="mock-auction-feed" id="mock-auction-feed" hidden>
           <div class="mock-auction-nomination" id="mock-active-nomination"></div>
           <div class="mock-actions mock-auction-actions">
@@ -3734,9 +3811,8 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const boardSearchQuery = () => {
-      const headerSearch = byId('header-board-search').value.trim();
-      const sidebarSearch = byId('board-search').value.trim();
-      return (isActiveDraft() ? headerSearch : sidebarSearch).toLowerCase();
+      const boardSearch = byId('board-search').value.trim();
+      return boardSearch.toLowerCase();
     };
 
     const appMenuSlotIdsByRoute = {
@@ -4411,6 +4487,7 @@ export const liveDraftHtml = `<!doctype html>
       }
       select.replaceChildren(...options);
       select.value = currentDraftSession;
+      byId('session-summary-label').textContent = selectedSession.label;
       byId('active-session-label').textContent = selectedSession.label + ' - ' + (selectedSession.description || 'Isolated draft room.');
     };
 
@@ -4458,7 +4535,7 @@ export const liveDraftHtml = `<!doctype html>
       const countdownText = String(draftCountdownValue || draftCountdownSeconds);
 
       byId('draft-room-view').classList.toggle('draft-active', isActiveDraft());
-      byId('header-board-search').hidden = !isActiveDraft();
+      byId('header-board-search').hidden = true;
       byId('header-quick-sale-form').hidden = !(isActiveDraft() && currentDraftMode === 'real');
       byId('header-draft-actions').hidden = !isActiveDraft();
       byId('header-import-log-button').hidden = !(isActiveDraft() && currentDraftMode === 'real');
