@@ -396,8 +396,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("advanceMockDraft('next-round')");
     expect(liveDraftHtml).toContain("advanceMockDraft('complete-mock')");
     expect(liveDraftHtml).toContain("'Bid ' + money(mockDraft.auction.nextCamBid)");
-    expect(liveDraftHtml).toContain("'Sell to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price)");
-    expect(liveDraftHtml).toContain("'Ready to sell to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price)");
+    expect(liveDraftHtml).toContain("'Let ' + auction.resolution.owner + ' win for ' + money(auction.resolution.price)");
+    expect(liveDraftHtml).toContain("'Current high bid ' + money(auction.resolution.price) + ' - pass to let ' + auction.resolution.owner + ' win'");
+    expect(liveDraftHtml).toContain("const canPass = isMockMode && (phase === 'human-decision' || phase === 'ai-sale');");
+    expect(liveDraftHtml).toContain("'Pass / let ' + mockDraft.auction.resolution.owner + ' win'");
     expect(liveDraftHtml).toContain("const mockAuctionResolutionEvents = auction =>");
     expect(liveDraftHtml).toContain("const mockAuctionCamBidEvents = mockDraft =>");
     expect(liveDraftHtml).toContain("await animateMockAuctionResolution();");

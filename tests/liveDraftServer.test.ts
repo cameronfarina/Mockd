@@ -452,7 +452,7 @@ describe("live draft server", () => {
         draftSession: "scratch:real-ai-sale",
         strategyKey: "three-rb",
         seed: "y",
-        action: "advance",
+        action: "pass",
       });
 
       expect(advanced.status).toBe(200);

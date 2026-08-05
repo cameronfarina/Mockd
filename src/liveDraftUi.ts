@@ -5956,7 +5956,7 @@ export const liveDraftHtml = `<!doctype html>
         return 'Current ' + money(auction.currentBid) + ' - Cam can bid ' + money(auction.nextCamBid);
       }
       if (mockDraft.phase === 'ai-sale' && auction.resolution) {
-        return 'Ready to sell to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price);
+        return 'Current high bid ' + money(auction.resolution.price) + ' - pass to let ' + auction.resolution.owner + ' win';
       }
       return cleanText(mockDraft.phase || 'Mock auction');
     };
@@ -6059,7 +6059,7 @@ export const liveDraftHtml = `<!doctype html>
       advanceButton.disabled = mockAdvanceBusy || !isMockMode || phase !== 'ai-sale';
       if (mockDraft && mockDraft.auction && mockDraft.auction.resolution) {
         const auction = mockDraft.auction;
-        advanceButton.textContent = 'Sell to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price);
+        advanceButton.textContent = 'Let ' + auction.resolution.owner + ' win for ' + money(auction.resolution.price);
       } else {
         advanceButton.textContent = 'Advance AI Sale';
       }
@@ -6070,7 +6070,11 @@ export const liveDraftHtml = `<!doctype html>
       nominateButton.textContent = nominationTarget ? 'Nominate ' + shortPlayerName(nominationTarget.name) : 'Choose nominee';
       camBidButton.disabled = mockAdvanceBusy || !isMockMode || phase !== 'human-decision' || !mockDraft.camDecision;
       camBidButton.textContent = mockDraft && mockDraft.auction && mockDraft.auction.nextCamBid != null ? 'Bid ' + money(mockDraft.auction.nextCamBid) : 'Bid';
-      byId('mock-pass-button').disabled = mockAdvanceBusy || !isMockMode || phase !== 'human-decision';
+      const canPass = isMockMode && (phase === 'human-decision' || phase === 'ai-sale');
+      byId('mock-pass-button').disabled = mockAdvanceBusy || !canPass;
+      byId('mock-pass-button').textContent = phase === 'ai-sale' && mockDraft.auction && mockDraft.auction.resolution
+        ? 'Pass / let ' + mockDraft.auction.resolution.owner + ' win'
+        : 'Pass';
       nextDecisionButton.textContent = 'Skip to Cam decision';
       nextDecisionButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
       nextRoundButton.textContent = 'Sim to next round';
